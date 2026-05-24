@@ -1,0 +1,32 @@
+# Phoenix Fall - AI Generation Prompt
+
+**Game Title:** Phoenix Fall
+**Platform:** Mobile-first Web App (PWA) / Android (connected to Google Play)
+**Genre:** Vertical-scrolling, Particle-based Survival / Idle Progression
+
+## 1. Core Gameplay & Mechanics
+- **The Illusion of Ascent:** The player controls a Phoenix that appears to be continuously flying upward. In reality, the Phoenix follows the player's finger/mouse smoothly across the screen, while the walls, environments, enemies, and debris fall downward to create a dynamic scrolling effect.
+- **Survival & Health:** The Phoenix has a health pool. The player must dodge hazards, collect resources, and defeat enemies. If health reaches zero, the run (level/world) ends. The player then tallies their loot and upgrades before trying again to push further.
+- **Controls:** Seamless 1:1 touch/drag control. The Phoenix perfectly tracks the player's input on the screen.
+
+## 2. Visuals & Art Style
+- **100% Particle-Based Gameplay:** The defining aesthetic of the game is that *everything* in the action phase is constructed from particles. The Phoenix is a living swarm of glowing embers and flames. Enemies are made of dark smoke, ash, or obsidian shards. Hazards, attacks, and powerups are all rendered via a custom, highly optimized particle engine. 
+- **UI & Menus:** While gameplay is purely particle-driven, UI elements (menu buttons, shop icons, world selection) will use clean, premium assets (potentially AI-generated) for a high-quality mobile feel.
+
+## 3. Progression & Worlds
+- **10 Escalating Worlds:** The game will feature 10 distinct worlds to start. Each world gets progressively harder, featuring unique environmental hazards, distinct particle color palettes, and unique enemy types. The player must survive the gauntlet to beat the world and unlock the next.
+- **Idle/Incremental Elements:** Every run guarantees progress. Players earn XP and Coins just for playing, encouraging a "one more run" grinding mentality to level up their global profile.
+
+## 4. Economy, Upgrades & Powerups
+- **Dual Currency System:**
+  - **Coins:** Earned continuously during gameplay and tallied upon death. Used for standard, incremental upgrades (e.g., movement speed, health boosts, basic damage).
+  - **Phoenix Gems:** A premium/rare currency used for major core upgrades, unlocking powerful abilities, or buying cosmetics.
+- **The Shop & Upgrades:** A comprehensive shop where players spend Coins and Gems to permanently increase their Phoenix's stats between runs.
+- **In-Run Powerups:** During a run, players have a rare chance to pick up temporary powerups. These grant a massive, short-lived spike in power—such as temporarily maxing out a specific upgrade (e.g., massive flame spread, invincibility, or extreme coin magnetism).
+
+## 5. Monetization & Integrations
+- **Google Play Connected:** Integrated with Google Play Games for achievements, leaderboards, and cloud saves.
+- **Monetization:** A balanced approach featuring a shop for Gems, optional rewarded ads (e.g., "watch to double run coins", "revive once"), and non-intrusive standard ads to support the game.
+
+---
+**Instructions for AI:** Use the above design document as the foundation to begin architecting the game. Focus heavily on mobile responsiveness and a highly performant canvas-based particle engine as the foundation. Build out the core loop (menu -> run -> die -> upgrade -> repeat) before expanding into the 10 worlds.
