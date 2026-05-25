@@ -535,8 +535,28 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         entity.mesh.scale.multiplyScalar(0.96); // Shrink over time
         entity.mesh.rotation.y += 0.1;
       } else if (data.type === 'turret') {
-        const flap = 1 + Math.sin(Date.now() * 0.03) * 0.5;
-        entity.mesh.scale.y = flap; // Just flap, don't spin around beak!
+        // True vertex-level flapping animation just like the main phoenix
+        if (this.bird && this.bird.basePositions) {
+            const pPositions = entity.mesh.geometry.attributes['position'].array as Float32Array;
+            const r = data.size / 30;
+            for (let i = 0; i < 4000; i++) {
+                 const idx = i * 3;
+                 if (this.bird.basePositions.length > idx + 2) {
+                     const baseX = this.bird.basePositions[idx];
+                     const baseY = this.bird.basePositions[idx+1];
+                     const baseZ = this.bird.basePositions[idx+2];
+                     
+                     const flapAmount = Math.abs(baseX) * 0.5;
+                     const flapPhase = (Date.now() * 0.01) - baseZ * 2.0;
+                     const flapOffset = Math.sin(flapPhase) * flapAmount;
+                     
+                     pPositions[idx] = baseX * 0.4 * r;
+                     pPositions[idx+1] = (baseY + flapOffset) * 0.4 * r;
+                     pPositions[idx+2] = baseZ * 0.4 * r;
+                 }
+            }
+            entity.mesh.geometry.attributes['position'].needsUpdate = true;
+        }
       } else if (data.type !== 'egg') {
         entity.mesh.rotation.y += 0.02;
       }
@@ -677,11 +697,19 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
          z = rad * Math.cos(v) * 0.7;
       }
       else if (data.type === 'turret') {
-         // Copy baby bird from main bird base positions (scaled down)
+         // Copy baby bird from main bird base positions (scaled down and animated)
          if (this.bird && this.bird.basePositions && this.bird.basePositions.length > idx + 2) {
-             x = this.bird.basePositions[idx] * 0.4 * r;
-             y = this.bird.basePositions[idx+1] * 0.4 * r;
-             z = this.bird.basePositions[idx+2] * 0.4 * r;
+             const baseX = this.bird.basePositions[idx];
+             const baseY = this.bird.basePositions[idx+1];
+             const baseZ = this.bird.basePositions[idx+2];
+             
+             const flapAmount = Math.abs(baseX) * 0.5;
+             const flapPhase = (Date.now() * 0.01) - baseZ * 2.0;
+             const flapOffset = Math.sin(flapPhase) * flapAmount;
+             
+             x = baseX * 0.4 * r;
+             y = (baseY + flapOffset) * 0.4 * r;
+             z = baseZ * 0.4 * r;
          }
       }
       else {

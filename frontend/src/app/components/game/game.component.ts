@@ -579,7 +579,15 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private triggerPhoenixTurret() {
-      this.holdCooldown.set(12);
+      const level = this.gameState.currentStats().unlockedAbilities['phoenix_turret']?.level || 1;
+      const cooldown = Math.max(6, 12 - (level * 0.5));
+      const seekRange = 500 + (level * 100);
+      const tetherRange = 100 + (level * 25);
+      const duration = 6000 + (level * 1000);
+      const damageMult = 1 + (level * 0.5);
+      const baseDamage = this.gameState.currentStats().damage * damageMult;
+      
+      this.holdCooldown.set(cooldown);
       const egg = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 20, {
           isStatic: true, isSensor: true, label: 'projectile',
           plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1, maxHealth: 1, size: 20 } as EnemyData }
@@ -596,23 +604,88 @@ export class GameComponent implements OnInit, OnDestroy {
           });
           Matter.Composite.add(this.engine.world, baby);
           
-          const constraint = Matter.Constraint.create({
-              bodyA: egg, bodyB: baby, length: 150, stiffness: 0.05
-          });
-          Matter.Composite.add(this.engine.world, constraint);
+          // Remove rigid constraint so we can use smooth Boids steering
+          // (No constraint created)
 
-          const turretInterval = setInterval(() => {
-              if (this.enemies.length > 0 && baby.parent) {
+          // 1. Continuous Boids Steering Logic
+          const boidLogic = () => {
+              if (!baby.parent || !egg.parent) return;
+              
+              const speed = 8;
+              const maxTurnForce = 0.5;
+              let combinedForce = { x: 0, y: 0 };
+              
+              // Organic Wander
+              const t = Date.now() * 0.002;
+              const wanderForce = { x: Math.cos(t), y: Math.sin(t) };
+              combinedForce.x += wanderForce.x * 0.5;
+              combinedForce.y += wanderForce.y * 0.5;
+              
+              // Enemy Seek
+              let nearest = null;
+              if (this.enemies.length > 0) {
+                  nearest = this.enemies[0];
+                  let minDist = Infinity;
+                  this.enemies.forEach(e => {
+                      const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
+                      if (dist < minDist) { minDist = dist; nearest = e; }
+                  });
+                  if (minDist < seekRange) {
+                      const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, baby.position));
+                      combinedForce.x += dir.x * 2.0;
+                      combinedForce.y += dir.y * 2.0;
+                  }
+              }
+              
+              // Soft Containment (Repel if far from egg)
+              const distToEgg = Matter.Vector.magnitude(Matter.Vector.sub(baby.position, egg.position));
+              if (distToEgg > tetherRange) {
+                  const repel = Matter.Vector.normalise(Matter.Vector.sub(egg.position, baby.position));
+                  const repelStrength = (distToEgg - tetherRange) * 0.1; // Dynamic weight based on how far out it is
+                  combinedForce.x += repel.x * repelStrength;
+                  combinedForce.y += repel.y * repelStrength;
+              }
+              
+              // Reynolds Steering
+              if (combinedForce.x === 0 && combinedForce.y === 0) combinedForce = { x: 1, y: 0 };
+              const desiredVelocity = Matter.Vector.mult(Matter.Vector.normalise(combinedForce), speed);
+              const steering = Matter.Vector.sub(desiredVelocity, baby.velocity);
+              const steeringMag = Matter.Vector.magnitude(steering);
+              
+              if (steeringMag > maxTurnForce) {
+                  const limitedSteering = Matter.Vector.mult(Matter.Vector.normalise(steering), maxTurnForce);
+                  Matter.Body.applyForce(baby, baby.position, Matter.Vector.mult(limitedSteering, 0.005));
+              } else {
+                  Matter.Body.applyForce(baby, baby.position, Matter.Vector.mult(steering, 0.005));
+              }
+              
+              // Ensure constant forward motion
+              const currentSpeed = Matter.Vector.magnitude(baby.velocity);
+              if (currentSpeed > 0) {
+                 Matter.Body.setVelocity(baby, Matter.Vector.mult(Matter.Vector.normalise(baby.velocity), speed));
+              } else {
+                 Matter.Body.setVelocity(baby, { x: speed, y: 0 });
+              }
+          };
+          
+          Matter.Events.on(this.engine, 'beforeUpdate', boidLogic);
+
+          // 2. Fire Breathing Interval
+          const fireInterval = setInterval(() => {
+              if (!baby.parent) {
+                  clearInterval(fireInterval);
+                  return;
+              }
+              
+              if (this.enemies.length > 0) {
                   let nearest = this.enemies[0];
                   let minDist = Infinity;
                   this.enemies.forEach(e => {
                       const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
                       if (dist < minDist) { minDist = dist; nearest = e; }
                   });
-                  if (minDist < 600) {
+                  if (minDist < seekRange) {
                       const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, baby.position));
-                      Matter.Body.applyForce(baby, baby.position, Matter.Vector.mult(dir, 0.02)); // baby flies towards enemy
-                      
                       // Breathe a cone of fire
                       for(let i=0; i<5; i++) {
                           setTimeout(() => {
@@ -622,7 +695,7 @@ export class GameComponent implements OnInit, OnDestroy {
                               const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
                               const proj = Matter.Bodies.circle(baby.position.x, baby.position.y, 10, {
                                   isSensor: true, label: 'projectile',
-                                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: this.gameState.currentStats().damage } as EnemyData }
+                                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage } as EnemyData }
                               });
                               Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
                               Matter.Composite.add(this.engine.world, proj);
@@ -630,16 +703,13 @@ export class GameComponent implements OnInit, OnDestroy {
                           }, i * 50);
                       }
                   }
-              } else if (!baby.parent) {
-                  clearInterval(turretInterval);
               }
           }, 500);
 
           setTimeout(() => {
               if (!baby.parent || !egg.parent) return;
-              clearInterval(turretInterval);
-              constraint.length = 0; // reel in
-              constraint.stiffness = 0.2;
+              clearInterval(fireInterval);
+              Matter.Events.off(this.engine, 'beforeUpdate', boidLogic);
               
               setTimeout(() => {
                   // Volcanic explosion for turret
@@ -652,7 +722,7 @@ export class GameComponent implements OnInit, OnDestroy {
                       const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
                       const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 15, {
                           isSensor: true, label: 'projectile',
-                          plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: this.gameState.currentStats().damage * 5 } as EnemyData }
+                          plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage * 5 } as EnemyData }
                       });
                       Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, speed));
                       Matter.Composite.add(this.engine.world, proj);
@@ -661,14 +731,13 @@ export class GameComponent implements OnInit, OnDestroy {
                   
                   this.enemies.forEach(e => {
                       const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, egg.position));
-                      if (dist < radius) this.damageEnemy(e, this.gameState.currentStats().damage * 5);
+                      if (dist < radius) this.damageEnemy(e, baseDamage * 5);
                   });
                   
                   Matter.Composite.remove(this.engine.world, baby);
                   Matter.Composite.remove(this.engine.world, egg);
-                  Matter.Composite.remove(this.engine.world, constraint);
               }, 500);
-          }, 8000);
+          }, duration);
       }, 2000);
   }
 

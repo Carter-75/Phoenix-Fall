@@ -59,7 +59,7 @@ import { CommonModule } from '@angular/common';
               {{ currentWorld().name }}
             </span>
             @if (!isWorldUnlocked()) {
-              <span class="absolute -top-3 right-0 text-lg" title="Locked">🔒</span>
+              <span class="absolute -top-3 -right-6 text-xs text-orange-400 font-bold uppercase tracking-widest animate-pulse border border-orange-500/30 bg-black/50 px-2 py-1 rounded-md">Soon</span>
             }
           </div>
           <button (click)="nextWorld()" class="text-white/50 hover:text-white transition text-2xl hover:translate-x-1">&rarr;</button>
@@ -73,7 +73,7 @@ import { CommonModule } from '@angular/common';
           <div class="absolute inset-0 bg-white/20 rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity"></div>
           <img src="assets/play_button.png" alt="Play" class="relative w-32 h-32 md:w-40 md:h-40 drop-shadow-2xl" />
           <p class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white/80 font-bold tracking-widest uppercase text-sm w-max">
-            {{ isWorldUnlocked() ? 'Click to Ascend' : 'Locked' }}
+            {{ isWorldUnlocked() ? 'Click to Ascend' : 'Coming Soon' }}
           </p>
         </button>
       </div>
@@ -131,7 +131,7 @@ export class MainMenuComponent {
   audio = inject(AudioService);
 
   currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
-  isWorldUnlocked = computed(() => this.gameState.unlockedWorlds().includes(this.gameState.selectedWorldIndex()));
+  isWorldUnlocked = computed(() => this.gameState.selectedWorldIndex() === 0);
 
   activeLegalDoc: 'tos' | 'privacy' | 'refunds' | null = null;
 
