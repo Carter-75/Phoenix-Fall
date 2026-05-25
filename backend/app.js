@@ -133,12 +133,19 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
+const MongoStore = require('connect-mongo');
+
 // Sessions
 app.use(
   session({
     secret: process.env.SESSION_SECRET || 'secret',
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.pf_MONGODB_URI || process.env.MONGODB_URI,
+      collectionName: 'sessions',
+      autoRemove: 'native'
+    }),
     cookie: {
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax'
