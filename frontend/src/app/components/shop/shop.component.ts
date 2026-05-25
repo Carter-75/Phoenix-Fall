@@ -478,16 +478,24 @@ export class ShopComponent implements OnInit, OnDestroy {
 
   setTab(tab: 'passives' | 'abilities' | 'gems') {
       this.activeTab.set(tab);
-      localStorage.setItem('phoenix_shop_last_tab', tab);
+      if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem('phoenix_shop_last_tab', tab);
+      }
   }
 
   ngOnInit() {
-      const savedTab = localStorage.getItem('phoenix_shop_last_tab');
+      let savedTab: string | null = null;
+      if (typeof window !== 'undefined' && window.localStorage) {
+          savedTab = localStorage.getItem('phoenix_shop_last_tab');
+      }
+      
       if (savedTab === 'passives' || savedTab === 'abilities' || savedTab === 'gems') {
           this.activeTab.set(savedTab);
       } else {
           this.activeTab.set('gems');
-          localStorage.setItem('phoenix_shop_last_tab', 'gems');
+          if (typeof window !== 'undefined' && window.localStorage) {
+              localStorage.setItem('phoenix_shop_last_tab', 'gems');
+          }
       }
       
       this.evaluatePricing();
