@@ -78,7 +78,7 @@ import { CommonModule } from '@angular/common';
                    <span class="text-white font-bold text-lg">Legal & Policies</span>
                    <span class="text-white/50 text-sm">Review our TOS, Privacy, and Refund policies</span>
                 </div>
-                <button (click)="openPolicies()" class="px-6 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/40 rounded-lg transition font-bold">
+                <button (click)="showLegal('tos')" class="px-6 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/40 rounded-lg transition font-bold">
                    View
                 </button>
               </div>
@@ -86,6 +86,29 @@ import { CommonModule } from '@angular/common';
         </div>
 
       </div>
+
+      <!-- Legal Modal -->
+      @if (activeLegalDoc) {
+          <div class="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[300] px-4 backdrop-blur-md pointer-events-auto">
+             <div class="w-full max-w-2xl bg-zinc-900 border border-cyan-500/50 rounded-3xl p-8 flex flex-col max-h-[80vh] shadow-[0_0_30px_rgba(0,255,255,0.2)]">
+                 <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-white">{{ getLegalTitle() }}</h2>
+                    <button (click)="activeLegalDoc = null" class="text-white/50 hover:text-white text-3xl font-black">&times;</button>
+                 </div>
+                 
+                 <div class="flex gap-4 mb-6 border-b border-white/10 pb-4">
+                    <button (click)="showLegal('tos')" class="text-sm font-bold transition hover:text-cyan-300" [class.text-cyan-400]="activeLegalDoc === 'tos'" [class.text-white]="activeLegalDoc !== 'tos'">Terms of Service</button>
+                    <button (click)="showLegal('privacy')" class="text-sm font-bold transition hover:text-cyan-300" [class.text-cyan-400]="activeLegalDoc === 'privacy'" [class.text-white]="activeLegalDoc !== 'privacy'">Privacy Policy</button>
+                    <button (click)="showLegal('refunds')" class="text-sm font-bold transition hover:text-cyan-300" [class.text-cyan-400]="activeLegalDoc === 'refunds'" [class.text-white]="activeLegalDoc !== 'refunds'">Refund Policy</button>
+                 </div>
+
+                 <div class="overflow-y-auto text-white/80 text-sm md:text-base space-y-4 pr-4 custom-scrollbar leading-relaxed">
+                    {{ getLegalContent() }}
+                 </div>
+                 <button (click)="activeLegalDoc = null" class="mt-8 w-full py-4 bg-cyan-600/20 border border-cyan-500 hover:bg-cyan-600/40 rounded-xl font-bold text-cyan-300 transition text-xl">Close</button>
+             </div>
+          </div>
+      }
     </div>
   `
 })
@@ -114,8 +137,26 @@ export class ProfileComponent {
       this.audio.playSFX('click');
   }
 
-  openPolicies() {
+  activeLegalDoc: 'tos' | 'privacy' | 'refunds' | null = null;
+
+  showLegal(doc: 'tos' | 'privacy' | 'refunds') {
       this.audio.playSFX('click');
-      window.open('/policies/tos', '_blank');
+      this.activeLegalDoc = doc;
+  }
+
+  getLegalTitle(): string {
+      if (this.activeLegalDoc === 'tos') return 'Terms of Service';
+      if (this.activeLegalDoc === 'privacy') return 'Privacy Policy';
+      return 'Refund Policy';
+  }
+
+  getLegalContent(): string {
+      if (this.activeLegalDoc === 'tos') {
+          return "By accessing or using Phoenix Fall, you agree to be bound by these Terms of Service. You may not cheat, hack, or exploit bugs. We reserve the right to ban accounts without notice for any violation. All virtual items remain the property of the developer. We are not responsible for any emotional distress caused by our highly addictive gameplay loop.";
+      }
+      if (this.activeLegalDoc === 'privacy') {
+          return "We collect your email, username, and gameplay analytics. We use this data to optimize monetization, track your engagement, and serve targeted offers. By agreeing, you consent to our use of third-party analytics trackers to monitor your session times and in-game currency balances. If you are under 13, you must have parental consent to play.";
+      }
+      return "ALL SALES ARE FINAL. Virtual currency (Gems) and in-game upgrades hold no real-world value and cannot be exchanged for fiat currency. We do not offer refunds for accidental purchases, account bans, or buyer's remorse, except where expressly mandated by statutory consumer rights in your jurisdiction. Please contact Google Play or Apple App Store for billing inquiries.";
   }
 }
