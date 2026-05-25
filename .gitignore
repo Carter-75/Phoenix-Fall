@@ -4,3 +4,9 @@ dist/
 .angular/
 .vscode/
 .vercel
+
+# Android build outputs & Keystore
+android_builds/
+*.keystore
+*.apk
+*.aab
