@@ -68,7 +68,7 @@ const DEFAULT_STATS: WorldStats = {
   providedIn: 'root'
 })
 export class GameStateService {
-  private audio = inject(AudioService);
+  public audio = inject(AudioService);
   private auth = inject(AuthService);
   private http = inject(HttpClient);
 
