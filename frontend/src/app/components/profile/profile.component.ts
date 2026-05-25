@@ -24,8 +24,9 @@ import { CommonModule } from '@angular/common';
             <div>
               <h2 class="text-4xl font-black text-white">{{ auth.currentUser()!.username }}</h2>
               <div class="text-orange-400 font-bold text-xl mt-1">Level {{ auth.currentUser()!.level }}</div>
+              <div class="text-white/50 text-sm mt-1">{{ auth.currentUser()!.xp }} / {{ gameState.getXpRequiredForLevel(auth.currentUser()!.level) }} XP</div>
               <div class="w-64 h-3 bg-white/10 rounded-full mt-2 overflow-hidden border border-white/10">
-                <div class="h-full bg-gradient-to-r from-orange-500 to-red-500" [style.width.%]="(auth.currentUser()!.xp % 1000) / 10"></div>
+                <div class="h-full bg-gradient-to-r from-orange-500 to-red-500" [style.width.%]="(auth.currentUser()!.xp / gameState.getXpRequiredForLevel(auth.currentUser()!.level)) * 100"></div>
               </div>
             </div>
             

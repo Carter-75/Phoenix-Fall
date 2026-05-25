@@ -110,7 +110,10 @@ router.post('/sync', async (req, res) => {
     const user = req.user;
     if (req.body.coins !== undefined) user.coins = req.body.coins;
     if (req.body.gems !== undefined) user.gems = req.body.gems;
+    if (req.body.level !== undefined) user.level = req.body.level;
+    if (req.body.xp !== undefined) user.xp = req.body.xp;
     if (req.body.unlockedWorlds) user.unlockedWorlds = req.body.unlockedWorlds;
+    if (req.body.trophies) user.trophies = req.body.trophies;
     if (req.body.worldUpgrades) {
         user.worldUpgrades = req.body.worldUpgrades;
         user.markModified('worldUpgrades');

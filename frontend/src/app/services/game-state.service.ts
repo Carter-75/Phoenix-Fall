@@ -55,9 +55,17 @@ export class GameStateService {
   private auth = inject(AuthService);
   private http = inject(HttpClient);
 
-  // Currency
+  // Currency & Progress
+  public level = signal<number>(0);
+  public xp = signal<number>(0);
+  public trophies = signal<string[]>([]);
   public coins = signal<number>(100); 
   public gems = signal<number>(0);
+
+  // Stats Tracking (Session only, for trophies)
+  public sessionKills = signal<Record<string, number>>({});
+  public sessionPlayTime = signal<number>(0);
+  public heartsCollected = signal<number>(0);
 
   // Per-World Stats
   public worldUpgrades = signal<Record<number, WorldStats>>({
@@ -85,6 +93,9 @@ export class GameStateService {
       if (localData) {
           try {
               const parsed = JSON.parse(localData);
+              this.level.set(parsed.level || 0);
+              this.xp.set(parsed.xp || 0);
+              this.trophies.set(parsed.trophies || []);
               this.coins.set(parsed.coins !== undefined ? parsed.coins : 100);
               this.gems.set(parsed.gems || 0);
               this.unlockedWorlds.set(parsed.unlockedWorlds || [0]);
@@ -104,6 +115,9 @@ export class GameStateService {
       // Save guest state
       effect(() => {
           const stateToSave = {
+              level: this.level(),
+              xp: this.xp(),
+              trophies: this.trophies(),
               coins: this.coins(),
               gems: this.gems(),
               unlockedWorlds: this.unlockedWorlds(),
@@ -111,10 +125,14 @@ export class GameStateService {
           };
           if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) {
               localStorage.setItem('phoenix_guest_data', JSON.stringify(stateToSave));
-          } else {
-              // Could debounce sync to backend here if needed
           }
       });
+      
+      // Global Trophy Trackers
+      effect(() => {
+          if (this.coins() >= 1000) this.awardTrophy("Wealthy");
+          if (this.gems() >= 10) this.awardTrophy("Gem Hoarder");
+      }, { allowSignalWrites: true });
   }
 
   // World State
@@ -132,12 +150,76 @@ export class GameStateService {
   // Sync with DB User
   syncWithUser(user: any) {
       if (user) {
+          this.level.set(user.level || 0);
+          this.xp.set(user.xp || 0);
+          this.trophies.set(user.trophies || []);
           this.coins.set(user.coins !== undefined ? user.coins : 100);
           this.gems.set(user.gems || 0);
           this.unlockedWorlds.set(user.unlockedWorlds && user.unlockedWorlds.length > 0 ? user.unlockedWorlds : [0]);
           if (user.worldUpgrades && Object.keys(user.worldUpgrades).length > 0) {
               this.worldUpgrades.set(user.worldUpgrades);
           }
+      }
+  }
+
+  // Helper for XP math
+  public getXpRequiredForLevel(level: number): number {
+      return Math.floor(100 * Math.pow(1.05, level));
+  }
+
+  public addXp(amount: number) {
+      let currentXp = this.xp() + amount;
+      let currentLevel = this.level();
+      let leveledUp = false;
+      
+      while (true) {
+          let req = this.getXpRequiredForLevel(currentLevel);
+          if (currentXp >= req) {
+              currentXp -= req;
+              currentLevel++;
+              leveledUp = true;
+          } else {
+              break;
+          }
+      }
+      
+      this.xp.set(currentXp);
+      this.level.set(currentLevel);
+      if (leveledUp) {
+          this.audio.playSFX('heal'); // Level up sound placeholder
+      }
+  }
+
+  public awardTrophy(name: string) {
+      const current = this.trophies();
+      if (!current.includes(name)) {
+          this.trophies.set([...current, name]);
+          // Simple visual notification
+          const el = document.createElement('div');
+          el.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-6 py-3 rounded-full font-bold text-xl shadow-[0_0_20px_rgba(255,200,0,0.8)] z-50 animate-bounce';
+          el.innerHTML = `🏆 TROPHY UNLOCKED: ${name} 🏆`;
+          document.body.appendChild(el);
+          setTimeout(() => el.remove(), 4000);
+      }
+  }
+
+  public async syncProgressToServer() {
+      if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) return;
+      
+      const payload = {
+          level: this.level(),
+          xp: this.xp(),
+          trophies: this.trophies(),
+          coins: this.coins(),
+          gems: this.gems(),
+          unlockedWorlds: this.unlockedWorlds(),
+          worldUpgrades: this.worldUpgrades()
+      };
+      
+      try {
+          await firstValueFrom(this.http.post('/api/auth/sync', payload));
+      } catch (e) {
+          console.error("Failed to sync progress", e);
       }
   }
 
@@ -170,6 +252,7 @@ export class GameStateService {
           }
         };
       });
+      this.awardTrophy("Upgraded");
       return true;
     }
     return false;

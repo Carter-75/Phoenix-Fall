@@ -207,6 +207,10 @@ export class GameComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.currentHealth.set(this.maxHealth());
+    this.gameState.sessionPlayTime.set(0);
+    this.gameState.sessionKills.set({});
+    this.gameState.heartsCollected.set(0);
+    
     this.initPhysics();
     this.startGameLoop();
     
@@ -291,6 +295,8 @@ export class GameComponent implements OnInit, OnDestroy {
             if (data.type === 'heart') {
                 this.audioService.playSFX('heal');
                 this.currentHealth.update(h => Math.min(this.maxHealth(), h + (data.value || 0)));
+                this.gameState.heartsCollected.update(v => v + 1);
+                if (this.gameState.heartsCollected() >= 5) this.gameState.awardTrophy("Healer");
                 // Small green flash for healing
                 const el = document.createElement('div');
                 el.className = 'fixed inset-0 bg-green-500/20 z-50 pointer-events-none transition-opacity duration-300';
@@ -425,6 +431,9 @@ export class GameComponent implements OnInit, OnDestroy {
       if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
       
       this.timeRemaining.update(t => Math.max(0, t - 1));
+      this.gameState.sessionPlayTime.update(t => t + 1);
+      
+      if (this.gameState.sessionPlayTime() >= 60) this.gameState.awardTrophy("Survivor");
       
       if (this.timeRemaining() === 0 && !this.bossSpawned()) {
         this.spawnBoss();
@@ -594,7 +603,26 @@ export class GameComponent implements OnInit, OnDestroy {
       Matter.Composite.remove(this.engine.world, enemy);
       this.enemies = this.enemies.filter(e => e !== enemy);
       
+      // Award XP
+      let xp = 0;
+      if (data.type === 'slime') xp = 2;
+      if (data.type === 'bat') xp = 5;
+      if (data.type === 'golem') xp = 20;
+      if (data.type === 'boss') xp = 500;
+      this.gameState.addXp(xp);
+      
+      // Track Kills & Trophies
+      this.gameState.awardTrophy("First Blood");
+      const currentKills = this.gameState.sessionKills();
+      const killCount = (currentKills[data.type] || 0) + 1;
+      this.gameState.sessionKills.set({ ...currentKills, [data.type]: killCount });
+      
+      if (data.type === 'slime' && killCount >= 50) this.gameState.awardTrophy("Slime Slayer");
+      if (data.type === 'bat' && killCount >= 25) this.gameState.awardTrophy("Bat Hunter");
+      if (data.type === 'golem' && killCount >= 5) this.gameState.awardTrophy("Golem Breaker");
+      
       if (data.type === 'boss') {
+        this.gameState.awardTrophy("Realm Conqueror");
         this.dropItem(enemy.position.x, enemy.position.y, 'gem', 10);
         for(let i=0; i<20; i++) {
            this.dropItem(enemy.position.x + (Math.random()-0.5)*100, enemy.position.y + (Math.random()-0.5)*100, 'coin', 25);
@@ -671,6 +699,7 @@ export class GameComponent implements OnInit, OnDestroy {
   private triggerDeathSequence() {
     this.isDead.set(true);
     this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 });
+    this.gameState.syncProgressToServer();
   }
 
   public reviveWithCoins() {
@@ -705,6 +734,8 @@ export class GameComponent implements OnInit, OnDestroy {
     if (nextIdx < this.gameState.worlds.length && !this.gameState.unlockedWorlds().includes(nextIdx)) {
       this.gameState.unlockedWorlds.update(worlds => [...worlds, nextIdx]);
     }
+    
+    this.gameState.syncProgressToServer();
   }
 
   public togglePause() {

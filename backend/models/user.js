@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   
   // Game Stats
-  level: { type: Number, default: 1 },
+  level: { type: Number, default: 0 },
   xp: { type: Number, default: 0 },
   coins: { type: Number, default: 100 },
   gems: { type: Number, default: 0 },
