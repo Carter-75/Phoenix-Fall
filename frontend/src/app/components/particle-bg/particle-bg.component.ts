@@ -474,8 +474,27 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       entity.mesh.position.copy(pos3d);
       
       // Rotate for visual effect
-      entity.mesh.rotation.y += 0.05;
-      entity.mesh.rotation.x += 0.02;
+      if (data.type === 'coin') {
+        entity.mesh.rotation.y += 0.1;
+      } else if (data.type === 'heart') {
+        const beat = 1 + Math.sin(Date.now() * 0.01) * 0.2;
+        entity.mesh.scale.set(beat, beat, beat);
+      } else if (data.type === 'gem') {
+        entity.mesh.rotation.y += 0.05;
+        entity.mesh.rotation.x += 0.02;
+      } else if (data.type === 'bat') {
+        const flap = 1 + Math.sin(Date.now() * 0.03) * 0.8;
+        entity.mesh.scale.y = flap;
+        entity.mesh.rotation.y = Math.sin(Date.now() * 0.005) * 0.5; 
+      } else if (data.type === 'golem') {
+        entity.mesh.rotation.y = Math.sin(Date.now() * 0.002) * 0.2;
+        entity.mesh.position.y += Math.sin(Date.now() * 0.005) * 0.2; // lumbering walk
+      } else if (data.type === 'slime') {
+        const squish = 1 + Math.sin(Date.now() * 0.01) * 0.2;
+        entity.mesh.scale.set(1/squish, squish, 1/squish);
+      } else {
+        entity.mesh.rotation.y += 0.02;
+      }
 
       // Make aura expand dynamically
       if (data.type === 'aura') {
@@ -486,16 +505,16 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
   private createEntityMesh(data: PhysicsEntity): ParticleEntity {
     const geo = new THREE.BufferGeometry();
-    const count = data.type === 'boss' ? 2000 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (data.type === 'coin' || data.type === 'gem' || data.type === 'heart' ? 30 : 300)));
+    const count = data.type === 'boss' ? 4000 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (data.type === 'coin' || data.type === 'gem' || data.type === 'heart' ? 200 : 800)));
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
 
     // Color based on type
     let color = new THREE.Color(0xffffff);
     if (data.type === 'bat') color.setHex(0xef4444);
-    else if (data.type === 'slime') color.setHex(0xf97316);
-    else if (data.type === 'golem') color.setHex(0x7f1d1d);
-    else if (data.type === 'boss') color.setHex(0x991b1b);
+    else if (data.type === 'slime') color.setHex(0x22c55e); // Green Slime
+    else if (data.type === 'golem') color.setHex(0x7f1d1d); // Dark Red Golem
+    else if (data.type === 'boss') color.setHex(0xf97316); // Orange fiery Boss
     else if (data.type === 'projectile_player') color.setHex(0xfbbf24);
     else if (data.type === 'projectile_enemy') color.setHex(0xef4444);
     else if (data.type === 'aura') color.setHex(0x06b6d4);
@@ -503,25 +522,107 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     else if (data.type === 'gem') color.setHex(0xc084fc); // Purple
     else if (data.type === 'heart') color.setHex(0xec4899); // Pinkish red
 
+    const r = data.size / 30; // Scale factor
+
     for (let i=0; i<count; i++) {
       const idx = i*3;
-      
-      if (data.type === 'aura') {
+      let x = 0, y = 0, z = 0;
+
+      if (data.type === 'slime') {
+          // Hemisphere blob
+          const u = Math.random() * Math.PI * 2;
+          const v = Math.acos(Math.random()); // top half
+          const rad = Math.cbrt(Math.random()) * r;
+          x = rad * Math.sin(v) * Math.cos(u);
+          z = rad * Math.sin(v) * Math.sin(u);
+          y = (rad * Math.cos(v) - r * 0.5) * 0.8; 
+      }
+      else if (data.type === 'bat') {
+          // V-shaped wings
+          const isLeft = Math.random() > 0.5;
+          const wingX = Math.random() * r * 2;
+          x = isLeft ? -wingX : wingX;
+          y = Math.abs(x) * 0.5 + (Math.random() - 0.5) * 0.2 * r;
+          z = (Math.random() - 0.5) * 0.2 * r;
+          // Add a small body
+          if (Math.random() < 0.2) {
+              x = (Math.random() - 0.5) * 0.5 * r;
+              y = (Math.random() - 0.5) * 0.5 * r;
+              z = (Math.random() - 0.5) * 0.5 * r;
+          }
+      }
+      else if (data.type === 'golem') {
+          // Boxy / Cuboid shape
+          x = (Math.random() - 0.5) * r * 1.5;
+          y = (Math.random() - 0.5) * r * 2;
+          z = (Math.random() - 0.5) * r * 1.5;
+      }
+      else if (data.type === 'boss') {
+          // Giant Skull-like shape (Sphere with hollow eyes/mouth)
+          const u = Math.random() * Math.PI * 2;
+          const v = Math.acos(2 * Math.random() - 1);
+          const rad = Math.cbrt(Math.random()) * r * 1.5;
+          x = rad * Math.sin(v) * Math.cos(u);
+          y = rad * Math.sin(v) * Math.sin(u);
+          z = rad * Math.cos(v);
+          
+          // Hollow out eyes
+          if (y > 0.2 * r && y < 0.8 * r && z > 0) {
+              if (Math.abs(x) > 0.3 * r && Math.abs(x) < 0.8 * r) {
+                  z = -Math.abs(z); // Push to back
+              }
+          }
+          // Hollow out mouth
+          if (y > -0.8 * r && y < -0.3 * r && z > 0 && Math.abs(x) < 0.6 * r) {
+              z = -Math.abs(z); // Push to back
+          }
+      }
+      else if (data.type === 'heart') {
+          // Math curve for a heart
+          const t = Math.random() * Math.PI * 2;
+          const rad = Math.random() * r * 0.05; 
+          x = 16 * Math.pow(Math.sin(t), 3) * rad;
+          y = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * rad;
+          z = (Math.random() - 0.5) * r * 0.2;
+      }
+      else if (data.type === 'gem') {
+          // Diamond shape (Octahedron)
+          x = (Math.random() - 0.5) * r;
+          y = (Math.random() - 0.5) * r * 2;
+          z = (Math.random() - 0.5) * r;
+          const sum = Math.abs(x/r) + Math.abs(y/(r*2)) + Math.abs(z/r);
+          if (sum > 0.5) {
+             x /= (sum * 2); y /= (sum * 2); z /= (sum * 2);
+          }
+      }
+      else if (data.type === 'coin') {
+          // Torus / Ring
+          const angle = Math.random() * Math.PI * 2;
+          const rad = r * 0.8 + (Math.random() - 0.5) * r * 0.2;
+          x = Math.cos(angle) * rad;
+          y = Math.sin(angle) * rad;
+          z = (Math.random() - 0.5) * r * 0.1;
+      }
+      else if (data.type === 'aura') {
          // Ring of particles
          const angle = Math.random() * Math.PI * 2;
-         const r = (data.size / 30); // scale factor to 3d space
-         pos[idx] = Math.cos(angle) * r;
-         pos[idx+1] = Math.sin(angle) * r;
-         pos[idx+2] = (Math.random() - 0.5) * 0.5;
-      } else {
-         // Sphere of particles
+         x = Math.cos(angle) * r;
+         y = Math.sin(angle) * r;
+         z = (Math.random() - 0.5) * 0.5;
+      } 
+      else {
+         // Default Sphere
          const u = Math.random() * Math.PI * 2;
          const v = Math.acos(2 * Math.random() - 1);
-         const r = Math.cbrt(Math.random()) * (data.size / 30);
-         pos[idx] = r * Math.sin(v) * Math.cos(u);
-         pos[idx+1] = r * Math.sin(v) * Math.sin(u);
-         pos[idx+2] = r * Math.cos(v);
+         const rad = Math.cbrt(Math.random()) * r;
+         x = rad * Math.sin(v) * Math.cos(u);
+         y = rad * Math.sin(v) * Math.sin(u);
+         z = rad * Math.cos(v);
       }
+
+      pos[idx] = x;
+      pos[idx+1] = y;
+      pos[idx+2] = z;
 
       // Add a bit of jitter to colors
       col[idx] = color.r * (0.8 + Math.random()*0.4);
