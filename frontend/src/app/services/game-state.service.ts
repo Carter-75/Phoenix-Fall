@@ -13,6 +13,10 @@ export interface WorldStats {
   burstDamage: number; // Double tap damage
   auraRadius: number; // Hold still radius
   homingLevel: number; // Seeker upgrade
+  attackRange: number; // How far projectiles fly
+  unlockedAbilities: Record<string, { level: number }>;
+  activeTapAbility: string | null;
+  activeHoldAbility: string | null;
 }
 
 export interface PhysicsEntity {
@@ -43,9 +47,21 @@ export const WORLDS: World[] = [
   { id: 9, name: 'Abyssal Rift', theme: 'void', textColorClass: 'from-slate-700 to-black' },
 ];
 
+export const ABILITIES: Record<string, { id: string, type: 'tap' | 'hold', name: string, desc: string, icon: string, unlockCost: number, upgradeCost: number }> = {
+  'drill_attack': { id: 'drill_attack', type: 'tap', name: 'Drill Attack', desc: 'Spin dash through enemies', icon: '🌪️', unlockCost: 500, upgradeCost: 200 },
+  'fire_breath': { id: 'fire_breath', type: 'tap', name: 'Fire Breath', desc: 'Continuous short-range flame', icon: '🔥', unlockCost: 500, upgradeCost: 200 },
+  'burst': { id: 'burst', type: 'tap', name: 'Burst', desc: 'Explosive radial attack', icon: '💥', unlockCost: 0, upgradeCost: 350 },
+  
+  'phoenix_turret': { id: 'phoenix_turret', type: 'hold', name: 'Phoenix Turret', desc: 'Drop an egg that hatches a turret', icon: '🥚', unlockCost: 800, upgradeCost: 300 },
+  'rebirth': { id: 'rebirth', type: 'hold', name: 'Rebirth (Passive)', desc: 'Revive upon death with shockwave', icon: '✨', unlockCost: 1000, upgradeCost: 500 },
+  'aura': { id: 'aura', type: 'hold', name: 'Aura', desc: 'Continuous damage zone', icon: '🌀', unlockCost: 0, upgradeCost: 400 },
+};
+
 const DEFAULT_STATS: WorldStats = { 
   maxHealth: 100, speed: 1.0, magnetism: 1.0, damage: 10, attackSpeed: 1.0, 
-  burstDamage: 20, auraRadius: 250, homingLevel: 0
+  burstDamage: 20, auraRadius: 250, homingLevel: 0, attackRange: 400,
+  unlockedAbilities: { 'burst': { level: 1 }, 'aura': { level: 1 } }, 
+  activeTapAbility: 'burst', activeHoldAbility: 'aura'
 };
 
 @Injectable({
@@ -158,7 +174,16 @@ export class GameStateService {
           this.gems.set(user.gems || 0);
           this.unlockedWorlds.set(user.unlockedWorlds && user.unlockedWorlds.length > 0 ? user.unlockedWorlds : [0]);
           if (user.worldUpgrades && Object.keys(user.worldUpgrades).length > 0) {
-              this.worldUpgrades.set(user.worldUpgrades);
+              const upgrades = user.worldUpgrades;
+              // Migration for old saves
+              Object.keys(upgrades).forEach(key => {
+                  if (upgrades[key].auraRadius < 250) upgrades[key].auraRadius = 250;
+                  if (upgrades[key].attackRange === undefined) upgrades[key].attackRange = 400;
+                  if (!upgrades[key].unlockedAbilities) upgrades[key].unlockedAbilities = {};
+                  if (upgrades[key].activeTapAbility === undefined) upgrades[key].activeTapAbility = null;
+                  if (upgrades[key].activeHoldAbility === undefined) upgrades[key].activeHoldAbility = null;
+              });
+              this.worldUpgrades.set(upgrades);
           }
       }
   }

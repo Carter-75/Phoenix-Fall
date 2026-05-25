@@ -135,7 +135,7 @@ interface EnemyData {
           @if (gameWon()) {
             <div class="flex items-center gap-3 mb-8 bg-purple-900/50 px-6 py-3 rounded-full border border-purple-500/50">
               <span class="text-white font-bold">Reward:</span>
-              <span class="text-purple-400 font-bold text-2xl">+10</span>
+              <span class="text-purple-400 font-bold text-2xl">+1</span>
               <img src="assets/gem_icon.png" class="w-8 h-8"/>
             </div>
           }
@@ -175,8 +175,9 @@ export class GameComponent implements OnInit, OnDestroy {
   public bossHealthPercent = computed(() => (this.bossHealth() / this.bossMaxHealth()) * 100);
 
   // Abilities
-  public burstCooldown = signal<number>(0);
-  public auraCooldown = signal<number>(0);
+  public tapCooldown = signal<number>(0);
+  public holdCooldown = signal<number>(0);
+  public hasRebirthed = false;
   private lastClickTime = 0;
   private pauseClickCount = 0;
   
@@ -335,8 +336,8 @@ export class GameComponent implements OnInit, OnDestroy {
       const delta = 1 / 60; // Matter runs approx 60 ticks per sec
       
       // Cooldowns
-      this.burstCooldown.update(c => Math.max(0, c - delta));
-      this.auraCooldown.update(c => Math.max(0, c - delta));
+      this.tapCooldown.update(c => Math.max(0, c - delta));
+      this.holdCooldown.update(c => Math.max(0, c - delta));
 
       // 1. Sync hitbox to EXACT visual 3D position of Phoenix
       if (!this.isDead()) {
@@ -353,8 +354,11 @@ export class GameComponent implements OnInit, OnDestroy {
             this.holdTimer = 0;
         } else {
             this.holdTimer += delta * 1000;
-            if (this.holdTimer >= 3000 && this.auraCooldown() <= 0) {
-                this.triggerAura();
+            if (this.holdTimer >= 3000 && this.holdCooldown() <= 0) {
+                const ability = this.gameState.currentStats().activeHoldAbility;
+                if (ability === 'aura') this.triggerAura();
+                else if (ability === 'phoenix_turret') this.triggerPhoenixTurret();
+                
                 this.holdTimer = 0;
             }
         }
@@ -419,7 +423,8 @@ export class GameComponent implements OnInit, OnDestroy {
                       if (minDist < 600) {
                           const force = Matter.Vector.sub(nearest.position, body.position);
                           const normalized = Matter.Vector.normalise(force);
-                          const pullStrength = 0.0005 * homingLvl;
+                          // Level 1: 0.0001, Level 5: 0.0005, Level 10: 0.001
+                          const pullStrength = 0.0001 * homingLvl;
                           Matter.Body.applyForce(body, body.position, Matter.Vector.mult(normalized, pullStrength));
                       }
                   }
@@ -476,8 +481,82 @@ export class GameComponent implements OnInit, OnDestroy {
     }, 1000 / attackSpeed);
   }
 
+  private triggerDrillAttack() {
+      this.tapCooldown.set(8);
+      const damage = this.gameState.currentStats().damage * 3;
+      this.audioService.playSFX('shoot');
+      
+      const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 60, {
+          isSensor: true,
+          label: 'projectile',
+          plugin: { data: { id: Math.random().toString(), type: 'drill', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData }
+      });
+      const dir = Matter.Vector.normalise(Matter.Vector.sub({ x: this.mouseX, y: this.mouseY }, this.playerBody.position));
+      Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 20));
+      Matter.Composite.add(this.engine.world, proj);
+      setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1500);
+  }
+
+  private triggerFireBreath() {
+      this.tapCooldown.set(4);
+      const damage = this.gameState.currentStats().damage * 0.5;
+      this.audioService.playSFX('shoot');
+      
+      const dir = Matter.Vector.normalise(Matter.Vector.sub({ x: this.mouseX, y: this.mouseY }, this.playerBody.position));
+      
+      for(let i=0; i<10; i++) {
+          setTimeout(() => {
+              const spreadAngle = (Math.random() - 0.5) * 0.5;
+              const angle = Math.atan2(dir.y, dir.x) + spreadAngle;
+              const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+              const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 15, {
+                  isSensor: true, label: 'projectile',
+                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData }
+              });
+              Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 12));
+              Matter.Composite.add(this.engine.world, proj);
+              setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 500);
+          }, i * 50);
+      }
+  }
+
+  private triggerPhoenixTurret() {
+      this.holdCooldown.set(20);
+      const turret = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 30, {
+          isStatic: true, isSensor: true, label: 'projectile',
+          plugin: { data: { id: Math.random().toString(), type: 'turret', health: 1, maxHealth: 1 } as EnemyData }
+      });
+      Matter.Composite.add(this.engine.world, turret);
+      
+      const turretInterval = setInterval(() => {
+          if (this.enemies.length > 0 && turret.parent) {
+              let nearest = this.enemies[0];
+              let minDist = Infinity;
+              this.enemies.forEach(e => {
+                  const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, turret.position));
+                  if (dist < minDist) { minDist = dist; nearest = e; }
+              });
+              if (minDist < 600) {
+                  const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, turret.position));
+                  const proj = Matter.Bodies.circle(turret.position.x, turret.position.y, 10, {
+                      isSensor: true, label: 'projectile',
+                      plugin: { data: { id: Math.random().toString(), type: 'projectile_player', health: 1, maxHealth: 1 } as EnemyData }
+                  });
+                  Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 15));
+                  Matter.Composite.add(this.engine.world, proj);
+                  setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 2000);
+              }
+          } else clearInterval(turretInterval);
+      }, 500);
+      
+      setTimeout(() => {
+          if (turret.parent) Matter.Composite.remove(this.engine.world, turret);
+          clearInterval(turretInterval);
+      }, 10000);
+  }
+
   private triggerBurst() {
-      this.burstCooldown.set(5);
+      this.tapCooldown.set(5);
       const damage = this.gameState.currentStats().burstDamage;
       this.audioService.playSFX('shoot');
       
@@ -498,7 +577,7 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private triggerAura() {
-      this.auraCooldown.set(15);
+      this.holdCooldown.set(15);
       const radius = this.gameState.currentStats().auraRadius;
       
       const aura = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, radius, {
@@ -647,7 +726,7 @@ export class GameComponent implements OnInit, OnDestroy {
       
       if (data.type === 'boss') {
         this.gameState.awardTrophy("Realm Conqueror");
-        this.dropItem(enemy.position.x, enemy.position.y, 'gem', 10);
+        this.dropItem(enemy.position.x, enemy.position.y, 'gem', 1);
         for(let i=0; i<20; i++) {
            this.dropItem(enemy.position.x + (Math.random()-0.5)*100, enemy.position.y + (Math.random()-0.5)*100, 'coin', 25);
         }
@@ -688,6 +767,14 @@ export class GameComponent implements OnInit, OnDestroy {
     setTimeout(() => this.damageFlash.set(false), 200);
 
     if (this.currentHealth() <= 0) {
+      const activeHold = this.gameState.currentStats().activeHoldAbility;
+      if (activeHold === 'rebirth' && !this.hasRebirthed) {
+         this.hasRebirthed = true;
+         this.currentHealth.set(this.maxHealth() / 2); // Revive with 50% health
+         this.triggerAura(); // Use aura explosion effect
+         this.audioService.playSFX('explosion');
+         return;
+      }
       this.triggerDeathSequence();
     }
   }
@@ -804,8 +891,11 @@ export class GameComponent implements OnInit, OnDestroy {
       this.holdTimer = 0;
 
       const now = Date.now();
-      if (now - this.lastClickTime < 300 && this.burstCooldown() <= 0 && !this.gameState.isPaused()) {
-          this.triggerBurst();
+      if (now - this.lastClickTime < 300 && this.tapCooldown() <= 0 && !this.gameState.isPaused()) {
+          const ability = this.gameState.currentStats().activeTapAbility;
+          if (ability === 'burst') this.triggerBurst();
+          else if (ability === 'drill_attack') this.triggerDrillAttack();
+          else if (ability === 'fire_breath') this.triggerFireBreath();
       }
       this.lastClickTime = now;
   }

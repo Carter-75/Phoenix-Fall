@@ -1,5 +1,5 @@
 import { Component, signal, computed } from '@angular/core';
-import { GameStateService } from '../../services/game-state.service';
+import { GameStateService, ABILITIES } from '../../services/game-state.service';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -33,13 +33,20 @@ import { CommonModule } from '@angular/common';
       </div>
 
       <!-- Tabs -->
-      <div class="w-full max-w-sm flex bg-black/40 border border-white/10 rounded-full p-1 mb-8">
-        <button (click)="activeTab.set('upgrades')" 
-                [class.bg-white_10]="activeTab() === 'upgrades'"
-                [class.text-orange-400]="activeTab() === 'upgrades'"
+      <div class="w-full max-w-lg flex bg-black/40 border border-white/10 rounded-full p-1 mb-8">
+        <button (click)="activeTab.set('passives')" 
+                [class.bg-white_10]="activeTab() === 'passives'"
+                [class.text-orange-400]="activeTab() === 'passives'"
                 class="flex-1 py-3 rounded-full font-bold transition-all"
-                [ngClass]="activeTab() === 'upgrades' ? 'bg-white/10 text-orange-400 shadow-md' : 'text-white/50 hover:text-white'">
-          Upgrades
+                [ngClass]="activeTab() === 'passives' ? 'bg-white/10 text-orange-400 shadow-md' : 'text-white/50 hover:text-white'">
+          Passives
+        </button>
+        <button (click)="activeTab.set('abilities')" 
+                [class.bg-white_10]="activeTab() === 'abilities'"
+                [class.text-cyan-400]="activeTab() === 'abilities'"
+                class="flex-1 py-3 rounded-full font-bold transition-all"
+                [ngClass]="activeTab() === 'abilities' ? 'bg-white/10 text-cyan-400 shadow-md' : 'text-white/50 hover:text-white'">
+          Abilities
         </button>
         <button (click)="activeTab.set('gems')" 
                 [class.bg-white_10]="activeTab() === 'gems'"
@@ -50,8 +57,8 @@ import { CommonModule } from '@angular/common';
         </button>
       </div>
 
-      <!-- Upgrades Tab -->
-      @if (activeTab() === 'upgrades') {
+      <!-- Passives Tab -->
+      @if (activeTab() === 'passives') {
         <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in pb-12">
           
           <!-- Max Health Upgrade -->
@@ -129,18 +136,18 @@ import { CommonModule } from '@angular/common';
             </button>
           </div>
 
-          <!-- Burst Damage Upgrade -->
+          <!-- Attack Range Upgrade -->
           <div class="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col items-center gap-4 hover:bg-white/10 transition shadow-lg shadow-black/50">
-            <div class="w-20 h-20 bg-pink-500/20 rounded-full flex items-center justify-center border border-pink-500/30">
-              <span class="text-4xl">💥</span>
+            <div class="w-20 h-20 bg-teal-500/20 rounded-full flex items-center justify-center border border-teal-500/30">
+              <span class="text-4xl">🔭</span>
             </div>
             <div class="text-center">
-              <h3 class="text-2xl font-bold text-white">Burst (2x Tap)</h3>
-              <p class="text-white/50 text-sm">Increase Burst Damage</p>
-              <p class="text-pink-400 font-mono mt-1">Lvl {{ gameState.currentStats().burstDamage - 20 }}</p>
+              <h3 class="text-2xl font-bold text-white">Reach</h3>
+              <p class="text-white/50 text-sm">Increase Attack Range</p>
+              <p class="text-teal-400 font-mono mt-1">Lvl {{ (gameState.currentStats().attackRange - 400) / 50 }}</p>
             </div>
-            <button (click)="buyBurstDamage()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < 350">
-              <img src="assets/coin_icon.png" class="w-5 h-5"/> 350
+            <button (click)="buyAttackRange()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < 250">
+              <img src="assets/coin_icon.png" class="w-5 h-5"/> 250
             </button>
           </div>
 
@@ -206,6 +213,56 @@ import { CommonModule } from '@angular/common';
         </div>
       }
 
+      <!-- Abilities Tab -->
+      @if (activeTab() === 'abilities') {
+         <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 animate-fade-in pb-12">
+            @for (ability of abilitiesList; track ability.id) {
+               <div class="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col hover:bg-white/10 transition shadow-lg relative">
+                  <!-- Equipped Badge -->
+                  @if (gameState.currentStats().activeTapAbility === ability.id || gameState.currentStats().activeHoldAbility === ability.id) {
+                     <div class="absolute -top-3 right-4 bg-cyan-500 text-black px-3 py-1 rounded-full text-xs font-bold uppercase shadow-lg">Equipped</div>
+                  }
+                  <div class="flex items-center gap-4 mb-4">
+                     <div class="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 shrink-0 text-3xl">
+                        {{ ability.icon }}
+                     </div>
+                     <div>
+                        <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                           {{ ability.name }}
+                           <span class="text-xs bg-white/20 px-2 py-0.5 rounded text-white/70 uppercase">{{ ability.type }}</span>
+                        </h3>
+                        <p class="text-white/50 text-sm mt-1">{{ ability.desc }}</p>
+                     </div>
+                  </div>
+                  
+                  <div class="mt-auto pt-4 border-t border-white/10 flex items-center gap-4">
+                     @if (!gameState.currentStats().unlockedAbilities[ability.id]) {
+                        <!-- Locked -->
+                        <button (click)="unlockAbility(ability.id, ability.unlockCost)" class="flex-1 py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50" [disabled]="gameState.coins() < ability.unlockCost">
+                           Unlock <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ ability.unlockCost }}
+                        </button>
+                     } @else {
+                        <!-- Unlocked -->
+                        <div class="flex flex-col w-full gap-2">
+                           <div class="flex items-center justify-between">
+                              <span class="text-cyan-400 font-mono text-sm">Level {{ gameState.currentStats().unlockedAbilities[ability.id].level }}</span>
+                           </div>
+                           <div class="flex gap-2">
+                              <button (click)="equipAbility(ability.id, ability.type)" class="flex-1 py-2 bg-white/10 border border-white/20 rounded-xl font-bold text-white hover:bg-white/20 transition">
+                                 Equip
+                              </button>
+                              <button (click)="upgradeAbility(ability.id, ability.upgradeCost)" class="flex-1 py-2 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-white flex items-center justify-center gap-2 hover:brightness-110 transition disabled:opacity-50" [disabled]="gameState.coins() < ability.upgradeCost">
+                                 Upgrade <img src="assets/coin_icon.png" class="w-4 h-4"/> {{ ability.upgradeCost }}
+                              </button>
+                           </div>
+                        </div>
+                     }
+                  </div>
+               </div>
+            }
+         </div>
+      }
+
       <!-- Gems Tab -->
       @if (activeTab() === 'gems') {
         <div class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
@@ -214,11 +271,11 @@ import { CommonModule } from '@angular/common';
           <div class="bg-white/5 border border-purple-500/20 rounded-3xl p-6 flex flex-col items-center gap-4 hover:bg-white/10 transition shadow-[0_0_20px_rgba(168,85,247,0.1)] hover:shadow-[0_0_30px_rgba(168,85,247,0.2)]">
             <img src="assets/gem_icon.png" class="w-24 h-24 object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]" />
             <div class="text-center">
-              <h3 class="text-2xl font-bold text-white">Handful of Gems</h3>
-              <p class="text-purple-400 font-bold text-xl mt-1">100 Gems</p>
+              <h3 class="text-2xl font-bold text-white">Single Gem</h3>
+              <p class="text-purple-400 font-bold text-xl mt-1">1 Gem</p>
             </div>
-            <button (click)="buyGems(100, 0.99)" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition">
-              $0.99
+            <button (click)="buyGems(1, 4.99)" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition">
+              $4.99
             </button>
           </div>
 
@@ -227,11 +284,11 @@ import { CommonModule } from '@angular/common';
             <div class="absolute -top-3 bg-purple-500 text-white px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase shadow-lg">Most Popular</div>
             <img src="assets/gem_icon.png" class="w-32 h-32 object-contain drop-shadow-[0_0_25px_rgba(168,85,247,0.8)] mt-2" />
             <div class="text-center">
-              <h3 class="text-2xl font-bold text-white">Pouch of Gems</h3>
-              <p class="text-purple-400 font-bold text-xl mt-1">550 Gems</p>
+              <h3 class="text-2xl font-bold text-white">Handful of Gems</h3>
+              <p class="text-purple-400 font-bold text-xl mt-1">10 Gems</p>
             </div>
-            <button (click)="buyGems(550, 4.99)" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30">
-              $4.99
+            <button (click)="buyGems(10, 44.99)" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30">
+              $44.99
             </button>
           </div>
 
@@ -240,10 +297,10 @@ import { CommonModule } from '@angular/common';
             <img src="assets/gem_icon.png" class="w-24 h-24 object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]" />
             <div class="text-center">
               <h3 class="text-2xl font-bold text-white">Chest of Gems</h3>
-              <p class="text-purple-400 font-bold text-xl mt-1">1200 Gems</p>
+              <p class="text-purple-400 font-bold text-xl mt-1">25 Gems</p>
             </div>
-            <button (click)="buyGems(1200, 9.99)" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition">
-              $9.99
+            <button (click)="buyGems(25, 99.99)" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition">
+              $99.99
             </button>
           </div>
 
@@ -270,14 +327,55 @@ import { CommonModule } from '@angular/common';
   `]
 })
 export class ShopComponent {
-  activeTab = signal<'upgrades' | 'gems'>('upgrades');
+  activeTab = signal<'passives' | 'abilities' | 'gems'>('passives');
   isProcessingPayment = signal<boolean>(false);
   currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
 
   constructor(public gameState: GameStateService) {}
 
+  get abilitiesList() { return Object.values(ABILITIES); }
+
   closeShop() {
     this.gameState.activeScreen.set('menu');
+  }
+
+  unlockAbility(id: string, cost: number) {
+     if (this.gameState.coins() >= cost) {
+         this.gameState.coins.update(c => c - cost);
+         this.gameState.worldUpgrades.update(upgrades => {
+             const worldId = this.gameState.selectedWorldIndex();
+             const stats = upgrades[worldId];
+             return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1 } } } };
+         });
+         this.gameState.awardTrophy("Ability Unlocked");
+     }
+  }
+
+  upgradeAbility(id: string, cost: number) {
+     if (this.gameState.coins() >= cost) {
+         this.gameState.coins.update(c => c - cost);
+         this.gameState.worldUpgrades.update(upgrades => {
+             const worldId = this.gameState.selectedWorldIndex();
+             const stats = upgrades[worldId];
+             const currentLvl = stats.unlockedAbilities[id]?.level || 1;
+             return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1 } } } };
+         });
+     }
+  }
+
+  equipAbility(id: string, type: 'tap' | 'hold') {
+      this.gameState.worldUpgrades.update(upgrades => {
+          const worldId = this.gameState.selectedWorldIndex();
+          const stats = upgrades[worldId];
+          return {
+              ...upgrades,
+              [worldId]: {
+                  ...stats,
+                  activeTapAbility: type === 'tap' ? id : stats.activeTapAbility,
+                  activeHoldAbility: type === 'hold' ? id : stats.activeHoldAbility
+              }
+          };
+      });
   }
 
   buyHealth() { this.gameState.purchaseUpgrade('maxHealth', 100, 10); }
@@ -285,8 +383,7 @@ export class ShopComponent {
   buyMagnet() { this.gameState.purchaseUpgrade('magnetism', 200, 0.1); }
   buyDamage() { this.gameState.purchaseUpgrade('damage', 250, 1); }
   buyAttackSpeed() { this.gameState.purchaseUpgrade('attackSpeed', 300, 0.1); }
-  buyBurstDamage() { this.gameState.purchaseUpgrade('burstDamage', 350, 10); }
-  buyAuraRadius() { this.gameState.purchaseUpgrade('auraRadius', 400, 10); }
+  buyAttackRange() { this.gameState.purchaseUpgrade('attackRange', 250, 50); }
   buyHoming() { this.gameState.purchaseUpgrade('homingLevel', 300, 1); }
 
   exchangeGem() {

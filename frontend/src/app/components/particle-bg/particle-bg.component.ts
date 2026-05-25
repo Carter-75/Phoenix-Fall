@@ -335,8 +335,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
             directToTarget.normalize().multiplyScalar(0.015);
           }
 
-          const maxTurnForce = 0.001 / this.birdScale; // Spin way slower (was 0.0035)
-          const desiredVelocity = bird.velocity.clone().add(directToTarget).normalize().multiplyScalar(speed);
+          const speedMult = this.gameState.currentStats().speed;
+          const maxTurnForce = (0.001 / this.birdScale) * speedMult; 
+          const desiredVelocity = bird.velocity.clone().add(directToTarget.multiplyScalar(speedMult)).normalize().multiplyScalar(speed);
           const steering = desiredVelocity.sub(bird.velocity);
           if (steering.length() > maxTurnForce) steering.normalize().multiplyScalar(maxTurnForce);
           bird.velocity.add(steering);
