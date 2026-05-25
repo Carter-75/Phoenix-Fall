@@ -2,11 +2,19 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true, lowercase: true },
+  email: { type: String, unique: true, sparse: true, lowercase: true },
   password: { type: String, required: function() { return !this.googleId; } },
-  googleId: { type: String },
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
+  googleId: { type: String, unique: true, sparse: true },
+  username: { type: String, required: true, unique: true },
+  
+  // Game Stats
+  level: { type: Number, default: 1 },
+  xp: { type: Number, default: 0 },
+  coins: { type: Number, default: 0 },
+  gems: { type: Number, default: 0 },
+  unlockedWorlds: { type: [Number], default: [0] },
+  trophies: { type: [String], default: [] },
+  
   createdAt: { type: Date, default: Date.now }
 });
 

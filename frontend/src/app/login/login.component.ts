@@ -1,6 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
-import { ApiService } from '../services/api.service';
+import { Component, inject, OnInit } from '@angular/core';
+import { GameStateService } from '../services/game-state.service';
+import { AuthService } from '../services/auth.service';
+import { AudioService } from '../services/audio.service';
 import { FormsModule } from '@angular/forms';
 
 @Component({
@@ -8,48 +9,134 @@ import { FormsModule } from '@angular/forms';
   standalone: true,
   imports: [FormsModule],
   template: `
-    <div class="container p-4 max-w-md mx-auto min-h-screen flex items-center">
-      <div class="p-8 bg-white rounded-xl shadow-2xl border w-full glass">
-        <h2 class="text-2xl font-bold mb-6 text-center">Login</h2>
-        
-        <div class="space-y-4">
-          <button (click)="loginWithGoogle()" 
-                  class="w-full p-3 bg-white border border-gray-300 rounded-lg flex items-center justify-center hover:bg-gray-50 transition-colors">
-            <img src="https://www.google.com/favicon.ico" class="w-5 h-5 mr-2" alt="Google">
-            Sign in with Google
-          </button>
-          
-          <div class="relative flex items-center justify-center py-2">
-            <div class="border-t w-full"></div>
-            <span class="bg-white px-2 text-gray-500 text-sm absolute">or email</span>
-          </div>
+    <div class="fixed inset-0 flex flex-col items-center justify-center p-4 z-50">
+      <button (click)="goBack()" class="absolute top-6 left-6 text-white/50 hover:text-white transition flex items-center gap-2">
+        <span class="text-2xl">←</span> Back
+      </button>
 
-          <input [(ngModel)]="email" type="email" placeholder="Email" class="w-full p-3 border rounded-lg">
-          <input [(ngModel)]="password" type="password" placeholder="Password" class="w-full p-3 border rounded-lg">
+      <div class="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-[0_0_50px_rgba(255,100,0,0.1)]">
+        <h2 class="text-3xl font-black text-center mb-8 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
+          {{ mode === 'login' ? 'ACCOUNT LOGIN' : (mode === 'register' ? 'CREATE ACCOUNT' : 'CHOOSE USERNAME') }}
+        </h2>
+        
+        @if (error) {
+          <div class="bg-red-500/20 text-red-400 p-3 rounded-lg text-sm mb-4 border border-red-500/20">
+            {{ error }}
+          </div>
+        }
+
+        <div class="space-y-4">
+          @if (mode === 'login' || mode === 'register') {
+              <button (click)="loginWithGoogle()" 
+                      class="w-full p-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors text-white font-semibold gap-3">
+                <svg class="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
+              </button>
+              
+              <div class="relative flex items-center justify-center py-4">
+                <div class="border-t border-white/10 w-full"></div>
+                <span class="bg-transparent px-4 text-white/40 text-sm absolute backdrop-blur-md">or</span>
+              </div>
+          }
+
+          @if (mode === 'login' || mode === 'register') {
+            <input [(ngModel)]="email" type="email" placeholder="Email Address" class="w-full p-4 bg-black/40 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 transition">
+            <input [(ngModel)]="password" type="password" placeholder="Password" class="w-full p-4 bg-black/40 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 transition">
+          }
           
-          <button (click)="login()" 
-                  class="w-full p-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors">
-            Sign In
+          @if (mode === 'set-username') {
+            <p class="text-white/60 text-center mb-4">You successfully authenticated! Now pick a unique username for the leaderboard.</p>
+            <input [(ngModel)]="username" type="text" placeholder="Username" class="w-full p-4 bg-black/40 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 transition">
+          }
+          
+          <button (click)="submit()" 
+                  class="w-full mt-4 p-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-orange-500/20">
+            {{ mode === 'login' ? 'Sign In' : (mode === 'register' ? 'Register' : 'Complete Signup') }}
           </button>
+          
+          @if (mode === 'login') {
+            <p class="text-white/40 text-center text-sm mt-4 cursor-pointer hover:text-white" (click)="mode='register'; error=''">Don't have an account? Register</p>
+          } @else if (mode === 'register') {
+            <p class="text-white/40 text-center text-sm mt-4 cursor-pointer hover:text-white" (click)="mode='login'; error=''">Already have an account? Sign In</p>
+          }
         </div>
       </div>
     </div>
   `
 })
-export class LoginComponent {
-  private api = inject(ApiService);
-  private router = inject(Router);
+export class LoginComponent implements OnInit {
+  private gameState = inject(GameStateService);
+  private authService = inject(AuthService);
+  private audioService = inject(AudioService);
+  
+  mode: 'login' | 'register' | 'set-username' = 'login';
+  
   email = '';
   password = '';
+  username = '';
+  error = '';
 
-  login() {
-    this.api.login({ email: this.email, password: this.password }).subscribe({
-      next: () => this.router.navigate(['/dashboard']),
-      error: (err) => alert(err.error?.message || 'Login failed')
-    });
+  ngOnInit() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('mode') === 'set-username') {
+          this.mode = 'set-username';
+      } else if (urlParams.get('error')) {
+          this.error = 'Google Authentication Failed.';
+      }
+  }
+
+  goBack() {
+    this.audioService.playSFX('hit'); 
+    window.history.replaceState({}, document.title, "/");
+    this.gameState.activeScreen.set('menu');
+  }
+
+  submit() {
+    this.audioService.playSFX('buy');
+    this.error = '';
+    
+    if (this.mode === 'login') {
+        this.authService.login({ email: this.email, password: this.password }).subscribe({
+            next: (user: any) => {
+                if (user.isTemp) {
+                    this.mode = 'set-username';
+                } else {
+                    this.gameState.syncWithUser(user);
+                    this.goBack();
+                }
+            },
+            error: (err) => this.error = err.error?.message || 'Login failed'
+        });
+    } else if (this.mode === 'register') {
+        this.authService.register({ email: this.email, password: this.password }).subscribe({
+            next: (user: any) => {
+                if (user.isTemp) {
+                    this.mode = 'set-username';
+                } else {
+                    this.gameState.syncWithUser(user);
+                    this.goBack();
+                }
+            },
+            error: (err) => this.error = err.error?.message || 'Registration failed'
+        });
+    } else if (this.mode === 'set-username') {
+        this.authService.completeSignup(this.username).subscribe({
+            next: (user) => {
+                this.gameState.syncWithUser(user);
+                this.goBack();
+            },
+            error: (err) => this.error = err.error?.message || 'Failed to set username'
+        });
+    }
   }
 
   loginWithGoogle() {
-    this.api.loginWithGoogle();
+    this.audioService.playSFX('buy');
+    this.authService.loginWithGoogle();
   }
 }

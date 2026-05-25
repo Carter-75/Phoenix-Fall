@@ -11,7 +11,7 @@ export class ApiService {
 
   // Dynamic API URL mapping
   private get apiUrl(): string {
-    const isProd = ('__PRODUCTION__' as string) === 'true';
+    const isProd = ('false' as string) === 'true';
     if (isProd) {
       return '/api';
     }

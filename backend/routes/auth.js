@@ -7,20 +7,24 @@ const bcrypt = require('bcryptjs');
 // --- Local Auth ---
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, firstName, lastName } = req.body;
-    let user = await User.findOne({ email: email.toLowerCase() });
-    if (user) return res.status(400).json({ message: 'User already exists' });
-
-    user = await User.create({ 
-      email: email.toLowerCase(), 
-      password, 
-      firstName, 
-      lastName 
-    });
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: 'Missing fields' });
     
-    req.login(user, (err) => {
+    let user = await User.findOne({ email: email.toLowerCase() });
+    if (user) {
+        return res.status(400).json({ message: 'Email is already registered' });
+    }
+
+    const tempUser = {
+        isTemp: true,
+        isLocal: true,
+        email: email.toLowerCase(),
+        password: password
+    };
+    
+    req.login(tempUser, (err) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.status(201).json(user);
+      res.status(201).json(tempUser);
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -38,21 +42,57 @@ router.post('/login', (req, res, next) => {
   })(req, res, next);
 });
 
+// --- Complete Google / Local Signup ---
+router.post('/complete-signup', async (req, res) => {
+    try {
+        if (!req.isAuthenticated() || !req.user.isTemp) {
+            return res.status(401).json({ message: 'Unauthorized or not in temp state' });
+        }
+        const { username } = req.body;
+        if (!username) return res.status(400).json({ message: 'Username required' });
+        
+        let existing = await User.findOne({ username });
+        if (existing) return res.status(400).json({ message: 'Username is taken' });
+        
+        let newUserConfig = {
+            username: username,
+            email: req.user.email
+        };
+
+        if (req.user.isLocal) {
+            newUserConfig.password = req.user.password;
+        } else {
+            newUserConfig.googleId = req.user.googleId;
+        }
+
+        const newUser = await User.create(newUserConfig);
+        
+        req.login(newUser, (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(newUser);
+        });
+    } catch(err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- Google Auth ---
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 router.get('/google/callback', (req, res, next) => {
   passport.authenticate('google', (err, user, info) => {
+    const frontendUrl = process.env.PROD_FRONTEND_URL || 'http://localhost:4200';
     if (err || !user) {
-      const frontendUrl = process.env.PROD_FRONTEND_URL || 'http://localhost:4200';
-      return res.redirect(`${frontendUrl}/login?error=google`);
+      return res.redirect(`${frontendUrl}?error=google`);
     }
     
     req.login(user, (err) => {
       if (err) return next(err);
-      const frontendUrl = process.env.PROD_FRONTEND_URL || 'http://localhost:4200';
-      res.redirect(`${frontendUrl}/dashboard`);
+      if (user.isTemp) {
+          return res.redirect(`${frontendUrl}?mode=set-username`);
+      }
+      res.redirect(`${frontendUrl}`);
     });
   })(req, res, next);
 });

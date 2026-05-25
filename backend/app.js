@@ -44,6 +44,7 @@ require('./config/passport')(passport);
 // --- Routers ---
 const indexRouter = require('./routes/index');
 const authRouter = require('./routes/auth');
+const leaderboardRouter = require('./routes/leaderboard');
 
 // --- Diagnostic Routes ---
 app.get('/api/health', async (req, res) => {
@@ -57,7 +58,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // --- MongoDB Setup ---
-const mongoURI = process.env.MONGODB_URI;
+const mongoURI = process.env.pf_MONGODB_URI || process.env.MONGODB_URI;
 
 const connectDB = async () => {
   if (mongoose.connection.readyState >= 1) return;
@@ -107,7 +108,11 @@ const dbCheck = async (req, res, next) => {
 
 app.use(helmet({
   frameguard: false,
-  contentSecurityPolicy: false
+  contentSecurityPolicy: {
+    directives: {
+      frameAncestors: ["'self'", "https://carter-portfolio.fyi"]
+    }
+  }
 }));
 
 app.use(cors({
@@ -155,6 +160,9 @@ app.use('/', indexRouter);
 
 app.use('/api/auth', authRouter);
 app.use('/auth', authRouter);
+
+app.use('/api/leaderboard', leaderboardRouter);
+app.use('/leaderboard', leaderboardRouter);
 
 // Error handler
 app.use((err, req, res, next) => {
