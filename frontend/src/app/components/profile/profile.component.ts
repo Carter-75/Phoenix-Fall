@@ -2,10 +2,12 @@ import { Component, inject } from '@angular/core';
 import { GameStateService } from '../../services/game-state.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
+  imports: [CommonModule],
   template: `
     <div class="fixed inset-0 flex flex-col items-center p-8 z-50 overflow-y-auto">
       <button (click)="goBack()" class="absolute top-6 left-6 text-white/50 hover:text-white transition flex items-center gap-2">

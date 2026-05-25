@@ -155,6 +155,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
   public gameState = inject(GameStateService);
   private audioService = inject(AudioService);
+  public Math = Math;
   public currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
   
   public maxHealth = computed(() => this.gameState.currentStats().maxHealth);
