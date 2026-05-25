@@ -24,6 +24,8 @@ interface PhoenixState {
 interface ParticleEntity {
   mesh: THREE.Points;
   type: string;
+  basePositions?: Float32Array;
+  timeOffset?: number;
 }
 
 @Component({
@@ -594,20 +596,75 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       } else if (data.type === 'gem') {
         entity.mesh.rotation.y += 0.05;
         entity.mesh.rotation.x += 0.02;
-      } else if (data.type === 'bat') {
-        const flap = 1 + Math.sin(Date.now() * 0.03) * 0.8;
-        entity.mesh.scale.y = flap;
-        entity.mesh.rotation.y = Math.sin(Date.now() * 0.005) * 0.5; 
-      } else if (data.type === 'golem') {
-        entity.mesh.rotation.y = Math.sin(Date.now() * 0.002) * 0.2;
-        entity.mesh.position.y += Math.sin(Date.now() * 0.005) * 0.2; // lumbering walk
-      } else if (data.type === 'slime') {
-        const squish = 1 + Math.sin(Date.now() * 0.01) * 0.2;
-        entity.mesh.scale.set(1/squish, squish, 1/squish);
-      } else if (data.type === 'boss') {
-        entity.mesh.rotation.y -= 0.08; // Fast terrifying spin
-        entity.mesh.rotation.z = Math.sin(Date.now() * 0.005) * 0.2; // Wobble
-      } else if (data.type === 'fire') {
+      }
+      
+      // Complex Vertex Animations
+      if (data.type === 'slime' && entity.basePositions) {
+        const pPositions = entity.mesh.geometry.attributes['position'].array as Float32Array;
+        const time = Date.now() * 0.005 + (entity.timeOffset || 0);
+        const squish = Math.sin(time) * 0.3; 
+        for(let i=0; i<pPositions.length; i+=3) {
+            const baseY = entity.basePositions[i+1];
+            pPositions[i+1] = baseY + (baseY > 0 ? baseY * squish : 0);
+            pPositions[i] = entity.basePositions[i] * (1 - squish * 0.4); 
+            pPositions[i+2] = entity.basePositions[i+2] * (1 - squish * 0.4);
+        }
+        entity.mesh.geometry.attributes['position'].needsUpdate = true;
+      }
+      else if (data.type === 'bat' && entity.basePositions) {
+        const pPositions = entity.mesh.geometry.attributes['position'].array as Float32Array;
+        const time = Date.now() * 0.02 + (entity.timeOffset || 0);
+        const r = data.size / 30;
+        for(let i=0; i<pPositions.length; i+=3) {
+            const baseX = entity.basePositions[i];
+            const baseY = entity.basePositions[i+1];
+            if (Math.abs(baseX) > 0.6 * r) { // Wing vertices
+                const flapOffset = Math.sin(time) * Math.abs(baseX) * 0.8;
+                pPositions[i+1] = baseY + flapOffset;
+            } else {
+                pPositions[i+1] = baseY; // Body stays
+            }
+        }
+        entity.mesh.geometry.attributes['position'].needsUpdate = true;
+        entity.mesh.rotation.y = Math.sin(time * 0.1) * 0.3; // Slight turning
+      }
+      else if (data.type === 'golem' && entity.basePositions) {
+        const pPositions = entity.mesh.geometry.attributes['position'].array as Float32Array;
+        const time = Date.now() * 0.002 + (entity.timeOffset || 0);
+        const bob = Math.abs(Math.sin(time * 2)) * 0.2;
+        entity.mesh.position.y += bob; // Lumbering walk
+        
+        const r = data.size / 30;
+        for(let i=0; i<pPositions.length; i+=3) {
+            const bx = entity.basePositions[i];
+            const bz = entity.basePositions[i+2];
+            if (Math.sqrt(bx*bx + bz*bz) > 0.6 * r) { // Orbiting rocks
+                const cos = Math.cos(time);
+                const sin = Math.sin(time);
+                pPositions[i] = bx * cos - bz * sin;
+                pPositions[i+2] = bx * sin + bz * cos;
+            }
+        }
+        entity.mesh.geometry.attributes['position'].needsUpdate = true;
+      }
+      else if (data.type === 'boss' && entity.basePositions) {
+        const pPositions = entity.mesh.geometry.attributes['position'].array as Float32Array;
+        const time = Date.now() * 0.005 + (entity.timeOffset || 0);
+        const jawOpen = (Math.sin(time * 0.5) * 0.5 + 0.5) * 0.3 * (data.size/30);
+        
+        for(let i=0; i<pPositions.length; i+=3) {
+            const baseY = entity.basePositions[i+1];
+            if (baseY < 0) { // Jaw drops
+                pPositions[i+1] = baseY - jawOpen;
+            } else {
+                pPositions[i+1] = baseY;
+            }
+        }
+        entity.mesh.geometry.attributes['position'].needsUpdate = true;
+        entity.mesh.rotation.y -= 0.02; // Slow ominous spin
+        entity.mesh.rotation.z = Math.sin(time * 0.2) * 0.1; // Float wobble
+      }
+      else if (data.type === 'fire') {
         entity.mesh.scale.multiplyScalar(0.96); // Shrink over time
         entity.mesh.rotation.y += 0.1;
       } else if (data.type === 'turret') {
@@ -673,55 +730,117 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       let x = 0, y = 0, z = 0;
 
       if (data.type === 'slime') {
-          // Hemisphere blob
+          // Complex Slime: 30% Dense Core, 70% Translucent Membrane
+          const isCore = i < count * 0.3;
+          const rad = isCore ? Math.cbrt(Math.random()) * r * 0.4 : Math.cbrt(Math.random()) * r;
           const u = Math.random() * Math.PI * 2;
-          const v = Math.acos(Math.random()); // top half
-          const rad = Math.cbrt(Math.random()) * r;
+          const v = Math.acos(Math.random()); // Hemisphere
+          
           x = rad * Math.sin(v) * Math.cos(u);
           z = rad * Math.sin(v) * Math.sin(u);
-          y = (rad * Math.cos(v) - r * 0.5) * 0.8; 
+          y = (rad * Math.cos(v) - r * 0.5) * (isCore ? 0.9 : 1.1); // Slightly taller membrane
+          
+          // Color gradient: Core is toxic yellow/white, membrane is dark green
+          if (isCore) {
+              const mix = Math.random();
+              col[idx] = 0.8 + mix * 0.2; col[idx+1] = 1.0; col[idx+2] = 0.2 + mix * 0.5; // Toxic Yellow-Green
+          } else {
+              col[idx] = 0.1; col[idx+1] = 0.6 + Math.random() * 0.4; col[idx+2] = 0.2; // Neon Green
+          }
       }
       else if (data.type === 'bat') {
-          // V-shaped wings
-          const isLeft = Math.random() > 0.5;
-          const wingX = Math.random() * r * 2;
-          x = isLeft ? -wingX : wingX;
-          y = Math.abs(x) * 0.5 + (Math.random() - 0.5) * 0.2 * r;
-          z = (Math.random() - 0.5) * 0.2 * r;
-          // Add a small body
-          if (Math.random() < 0.2) {
-              x = (Math.random() - 0.5) * 0.5 * r;
-              y = (Math.random() - 0.5) * 0.5 * r;
-              z = (Math.random() - 0.5) * 0.5 * r;
+          // Complex Bat: Body (20%), Left Wing (40%), Right Wing (40%)
+          const p = Math.random();
+          if (p < 0.2) {
+              // Body
+              x = (Math.random() - 0.5) * 0.6 * r;
+              y = (Math.random() - 0.5) * 0.8 * r;
+              z = (Math.random() - 0.5) * 0.6 * r;
+              // Red glowing eyes
+              if (y > 0.2 * r && Math.abs(x) > 0.1 * r && z > 0.2 * r) {
+                  col[idx] = 1.0; col[idx+1] = 0.0; col[idx+2] = 0.0;
+              } else {
+                  col[idx] = 0.2 + Math.random()*0.2; col[idx+1] = 0.0; col[idx+2] = 0.0; // Dark crimson body
+              }
+          } else {
+              // Wings
+              const isLeft = p < 0.6;
+              const span = Math.random() * r * 2.5; // Wing span
+              const depth = (Math.random() - 0.5) * 0.3 * r;
+              const swoop = Math.sin((span / (r*2.5)) * Math.PI) * 0.5 * r; // Wing curve
+              
+              x = isLeft ? -span : span;
+              y = swoop + (Math.random() - 0.5) * 0.2 * r;
+              z = depth - (span * 0.2); // Wings angle slightly back
+              
+              const edge = span / (r*2.5);
+              col[idx] = 0.5 - edge * 0.3; col[idx+1] = 0.0; col[idx+2] = 0.1 + edge * 0.2; // Purple-ish edges
           }
       }
       else if (data.type === 'golem') {
-          // Boxy / Cuboid shape
-          x = (Math.random() - 0.5) * r * 1.5;
-          y = (Math.random() - 0.5) * r * 2;
-          z = (Math.random() - 0.5) * r * 1.5;
-      }
-      else if (data.type === 'boss') {
-          if (Math.random() < 0.4) {
+          // Complex Golem: Core (20%), Floating jagged rocks (80%)
+          const p = Math.random();
+          if (p < 0.2) {
+              // Magma Core
+              const rad = Math.cbrt(Math.random()) * r * 0.6;
               const u = Math.random() * Math.PI * 2;
               const v = Math.acos(2 * Math.random() - 1);
-              const rad = Math.cbrt(Math.random()) * r * 0.8;
               x = rad * Math.sin(v) * Math.cos(u);
               y = rad * Math.sin(v) * Math.sin(u);
               z = rad * Math.cos(v);
+              col[idx] = 1.0; col[idx+1] = 0.2 + Math.random()*0.4; col[idx+2] = 0.0; // Hot Orange/Red
           } else {
-              const t = Math.random() * Math.PI * 4; 
-              const armIndex = Math.random() > 0.5 ? 0 : Math.PI;
-              const spread = (Math.random() - 0.5) * 0.5 * r;
+              // Rocks
+              const rockCenter = {
+                  x: (Math.random() - 0.5) * r * 2.5,
+                  y: (Math.random() - 0.5) * r * 3,
+                  z: (Math.random() - 0.5) * r * 2.5
+              };
+              // Distribute particles around rock center
+              x = rockCenter.x + (Math.random() - 0.5) * 0.5 * r;
+              y = rockCenter.y + (Math.random() - 0.5) * 0.5 * r;
+              z = rockCenter.z + (Math.random() - 0.5) * 0.5 * r;
               
-              const radiusOut = (t / (Math.PI * 4)) * r * 3; 
-              const yOffset = (Math.random() - 0.5) * r;
+              const gray = 0.1 + Math.random() * 0.15;
+              col[idx] = gray; col[idx+1] = gray * 0.8; col[idx+2] = gray * 0.8; // Dark rocky color
+          }
+      }
+      else if (data.type === 'boss') {
+          // Demonic Fiery Skull
+          const p = Math.random();
+          if (p < 0.6) {
+              // Skull Dome (Upper half sphere)
+              const u = Math.random() * Math.PI * 2;
+              const v = Math.acos(Math.random()); // Top half
+              const rad = r * 1.5 + (Math.random() - 0.5) * 0.3 * r;
+              x = rad * Math.sin(v) * Math.cos(u);
+              z = rad * Math.sin(v) * Math.sin(u);
+              y = rad * Math.cos(v) + r * 0.5; // Shift up
               
-              x = Math.cos(t + armIndex) * radiusOut + spread;
-              z = Math.sin(t + armIndex) * radiusOut + spread;
-              y = yOffset;
-              
-              y += Math.abs(x) * 0.5;
+              // Eye Sockets (hollow them out)
+              if (y > r * 0.8 && y < r * 1.5 && z > r * 0.5 && Math.abs(Math.abs(x) - r * 0.6) < r * 0.4) {
+                  // Push particles into the eye socket to make it hollow and glowing
+                  z -= r * 0.8;
+                  col[idx] = 1.0; col[idx+1] = 1.0; col[idx+2] = 1.0; // White hot eyes
+              } else {
+                  const heat = 1.0 - (y / (r * 2));
+                  col[idx] = 1.0; col[idx+1] = heat * 0.5; col[idx+2] = 0.0; // Orange to Red gradient
+              }
+          } else if (p < 0.85) {
+              // Jaw (Lower half, detached slightly)
+              x = (Math.random() - 0.5) * r * 2.2;
+              y = -r * 0.5 + (Math.random() - 0.5) * 0.4 * r;
+              z = (Math.random() - 0.5) * r * 1.8 + (Math.abs(x) * 0.5); // Curved jaw
+              col[idx] = 0.8; col[idx+1] = 0.2; col[idx+2] = 0.0; // Darker red jaw
+          } else {
+              // Floating horns/crown
+              const isLeft = Math.random() > 0.5;
+              const t = Math.random();
+              const spread = t * r * 1.5;
+              x = isLeft ? -(r + spread) : (r + spread);
+              y = r * 1.5 + t * r * 2 + (Math.random() - 0.5) * 0.3 * r;
+              z = -t * r + (Math.random() - 0.5) * 0.3 * r; // Horns curve back
+              col[idx] = 1.0; col[idx+1] = 0.6 - t * 0.6; col[idx+2] = 0.0; // Orange to Red horns
           }
       }
       else if (data.type === 'heart') {
@@ -831,10 +950,14 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     
-    const mat = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
-    const mesh = new THREE.Points(geo, mat);
+    const material = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
+    const mesh = new THREE.Points(geo, material);
+    mesh.frustumCulled = false;
     
-    return { mesh, type: data.type };
+    // Store base positions for complex entities to allow vertex animation
+    const basePositions = ['slime', 'bat', 'golem', 'boss'].includes(data.type) ? new Float32Array(pos) : undefined;
+
+    return { mesh, type: data.type, basePositions, timeOffset: Math.random() * 1000 };
   }
 
   private onResize() {
