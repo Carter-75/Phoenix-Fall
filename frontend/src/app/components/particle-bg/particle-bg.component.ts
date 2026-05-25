@@ -493,6 +493,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       } else if (data.type === 'slime') {
         const squish = 1 + Math.sin(Date.now() * 0.01) * 0.2;
         entity.mesh.scale.set(1/squish, squish, 1/squish);
+      } else if (data.type === 'boss') {
+        entity.mesh.rotation.y -= 0.08; // Fast terrifying spin
+        entity.mesh.rotation.z = Math.sin(Date.now() * 0.005) * 0.2; // Wobble
       } else {
         entity.mesh.rotation.y += 0.02;
       }
@@ -559,23 +562,26 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           z = (Math.random() - 0.5) * r * 1.5;
       }
       else if (data.type === 'boss') {
-          // Giant Skull-like shape (Sphere with hollow eyes/mouth)
-          const u = Math.random() * Math.PI * 2;
-          const v = Math.acos(2 * Math.random() - 1);
-          const rad = Math.cbrt(Math.random()) * r * 1.5;
-          x = rad * Math.sin(v) * Math.cos(u);
-          y = rad * Math.sin(v) * Math.sin(u);
-          z = rad * Math.cos(v);
-          
-          // Hollow out eyes
-          if (y > 0.2 * r && y < 0.8 * r && z > 0) {
-              if (Math.abs(x) > 0.3 * r && Math.abs(x) < 0.8 * r) {
-                  z = -Math.abs(z); // Push to back
-              }
-          }
-          // Hollow out mouth
-          if (y > -0.8 * r && y < -0.3 * r && z > 0 && Math.abs(x) < 0.6 * r) {
-              z = -Math.abs(z); // Push to back
+          if (Math.random() < 0.4) {
+              const u = Math.random() * Math.PI * 2;
+              const v = Math.acos(2 * Math.random() - 1);
+              const rad = Math.cbrt(Math.random()) * r * 0.8;
+              x = rad * Math.sin(v) * Math.cos(u);
+              y = rad * Math.sin(v) * Math.sin(u);
+              z = rad * Math.cos(v);
+          } else {
+              const t = Math.random() * Math.PI * 4; 
+              const armIndex = Math.random() > 0.5 ? 0 : Math.PI;
+              const spread = (Math.random() - 0.5) * 0.5 * r;
+              
+              const radiusOut = (t / (Math.PI * 4)) * r * 3; 
+              const yOffset = (Math.random() - 0.5) * r;
+              
+              x = Math.cos(t + armIndex) * radiusOut + spread;
+              z = Math.sin(t + armIndex) * radiusOut + spread;
+              y = yOffset;
+              
+              y += Math.abs(x) * 0.5;
           }
       }
       else if (data.type === 'heart') {

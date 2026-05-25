@@ -16,6 +16,9 @@ const userSchema = new mongoose.Schema({
   worldUpgrades: { type: mongoose.Schema.Types.Mixed, default: {} },
   trophies: { type: [String], default: [] },
   
+  // Compliance
+  acceptedLegalPolicies: { type: Boolean, default: false },
+  
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -78,10 +78,31 @@ import { CommonModule } from '@angular/common';
         </button>
       </div>
       
-      <!-- Audio Toggle -->
+       <!-- Audio Toggle -->
       <button (click)="toggleAudio()" class="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition pointer-events-auto">
          {{ audio.isMuted() ? '🔇' : '🔊' }}
       </button>
+
+      <!-- Legacy User Policy Modal -->
+      @if (auth.currentUser() && !auth.currentUser()?.acceptedLegalPolicies) {
+         <div class="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[200] px-4 backdrop-blur-md pointer-events-auto">
+            <div class="w-full max-w-lg bg-red-900/20 border border-red-500/50 rounded-3xl p-8 flex flex-col items-center text-center shadow-[0_0_50px_rgba(255,0,0,0.2)]">
+               <h2 class="text-3xl font-black text-white mb-4">Action Required</h2>
+               <p class="text-white/80 mb-6">
+                  We've updated our Terms of Service, Privacy Policy, and Refund Policy. 
+                  You must accept these new policies to continue playing Phoenix Fall.
+               </p>
+               <div class="flex flex-col w-full gap-4">
+                  <button (click)="acceptLegacyPolicies()" class="w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 rounded-xl font-bold text-xl hover:brightness-110 active:scale-95 transition">
+                     I Accept
+                  </button>
+                  <button (click)="deleteLegacyAccount()" class="w-full py-4 bg-black/50 border border-white/10 text-white/50 hover:bg-red-900/50 hover:text-white hover:border-red-500/50 rounded-xl font-bold transition">
+                     Refuse & Delete Account
+                  </button>
+               </div>
+            </div>
+         </div>
+      }
     </div>
   `
 })
@@ -132,6 +153,19 @@ export class MainMenuComponent {
       this.gameState.startGame();
     } else {
       this.audio.playSFX('hit');
+    }
+  }
+
+  acceptLegacyPolicies() {
+    this.audio.playSFX('buy');
+    this.auth.acceptPolicies().subscribe();
+  }
+
+  deleteLegacyAccount() {
+    if (confirm('Are you absolutely sure you want to delete your account and all progress? This cannot be undone.')) {
+        this.auth.deleteAccount().subscribe(() => {
+            window.location.reload();
+        });
     }
   }
 }

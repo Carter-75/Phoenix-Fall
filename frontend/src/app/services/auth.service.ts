@@ -13,6 +13,7 @@ export interface User {
   unlockedWorlds: number[];
   trophies: string[];
   isTemp?: boolean;
+  acceptedLegalPolicies?: boolean;
 }
 
 @Injectable({
@@ -27,6 +28,29 @@ export class AuthService {
   login(credentials: any): Observable<User> {
     return this.http.post<User>(`${this.apiUrl}/login`, credentials).pipe(
       tap(user => this.currentUser.set(user))
+    );
+  }
+
+  sync(data: Partial<User>): Observable<User> {
+    return this.http.post<User>(`${this.apiUrl}/sync`, data).pipe(
+      tap(user => this.currentUser.set(user))
+    );
+  }
+
+  acceptPolicies(): Observable<any> {
+    return this.http.post(`${this.apiUrl}/accept-policies`, {}).pipe(
+      tap(() => {
+        const user = this.currentUser();
+        if (user) {
+          this.currentUser.set({ ...user, acceptedLegalPolicies: true });
+        }
+      })
+    );
+  }
+
+  deleteAccount(): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/user`).pipe(
+      tap(() => this.currentUser.set(null))
     );
   }
 

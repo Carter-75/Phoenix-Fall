@@ -78,6 +78,8 @@ export class GameStateService {
   public trophies = signal<string[]>([]);
   public coins = signal<number>(100); 
   public gems = signal<number>(0);
+  public hasPurchasedGems = signal<boolean>(false);
+  public upsellChance = signal<number>(1.0);
 
   // Stats Tracking (Session only, for trophies)
   public sessionKills = signal<Record<string, number>>({});
@@ -113,10 +115,23 @@ export class GameStateService {
               this.level.set(parsed.level || 0);
               this.xp.set(parsed.xp || 0);
               this.trophies.set(parsed.trophies || []);
-              this.coins.set(parsed.coins !== undefined ? parsed.coins : 100);
-              this.gems.set(parsed.gems || 0);
-              this.unlockedWorlds.set(parsed.unlockedWorlds || [0]);
-              if (parsed.worldUpgrades) this.worldUpgrades.set(parsed.worldUpgrades);
+              const data = JSON.parse(localData);
+              this.level.set(data.level || 0);
+              this.xp.set(data.xp || 0);
+              this.trophies.set(data.trophies || []);
+              this.coins.set(data.coins !== undefined ? data.coins : 100);
+              
+              // Boot-up creep: Increase chance of popup by 10% each session
+              if (data.gems !== undefined) this.gems.set(data.gems);
+              if (data.hasPurchasedGems !== undefined) this.hasPurchasedGems.set(data.hasPurchasedGems);
+              if (data.upsellChance !== undefined) {
+                  this.upsellChance.set(Math.min(1.0, data.upsellChance + 0.1));
+              } else {
+                  this.upsellChance.set(0.1);
+              }
+              
+              this.unlockedWorlds.set(data.unlockedWorlds || [0]);
+              if (data.worldUpgrades) this.worldUpgrades.set(data.worldUpgrades);
           } catch (e) {}
       }
 
@@ -137,6 +152,8 @@ export class GameStateService {
               trophies: this.trophies(),
               coins: this.coins(),
               gems: this.gems(),
+              hasPurchasedGems: this.hasPurchasedGems(),
+              upsellChance: this.upsellChance(),
               unlockedWorlds: this.unlockedWorlds(),
               worldUpgrades: this.worldUpgrades()
           };
@@ -274,7 +291,7 @@ export class GameStateService {
           ...upgrades,
           [currentWorldId]: {
             ...currentWorldStats,
-            [type]: currentWorldStats[type] + amount
+            [type]: (currentWorldStats[type] as number) + amount
           }
         };
       });

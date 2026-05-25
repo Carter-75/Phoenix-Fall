@@ -7,10 +7,11 @@ import confetti from 'canvas-confetti';
 
 interface EnemyData {
   id: string;
-  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart';
+  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret';
   health: number;
   maxHealth: number;
   lastAttackTime?: number;
+  lastMinionTime?: number;
   burstDamage?: number; // Custom damage payload
   value?: number;
 }
@@ -106,18 +107,14 @@ interface EnemyData {
             <span class="text-gray-500 mt-2 font-mono text-sm">R.I.P</span>
           </div>
 
-          <h2 class="text-5xl font-black text-red-500 mb-8 drop-shadow-lg">YOU DIED</h2>
+          <h2 class="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">YOU DIED</h2>
+          <p class="text-white text-xl font-bold mb-8">Revive in: <span class="text-orange-400 font-mono">{{ reviveCountdown() }}s</span></p>
           
           <div class="flex flex-col gap-4 w-full max-w-sm">
-            <button (click)="reviveWithCoins()" class="w-full py-4 bg-white/10 hover:bg-white/20 border border-white/30 rounded-2xl flex justify-center items-center gap-3 transition">
-              <span class="text-white font-bold text-xl">Revive</span>
-              <img src="assets/coin_icon.png" class="w-6 h-6"/>
-              <span class="text-orange-400 font-bold text-xl">500</span>
-            </button>
-            <button (click)="reviveWithGems()" class="w-full py-4 bg-white/10 hover:bg-white/20 border border-white/30 rounded-2xl flex justify-center items-center gap-3 transition">
-              <span class="text-white font-bold text-xl">Revive</span>
+            <button (click)="reviveWithGems()" class="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:brightness-125 border border-fuchsia-400/50 rounded-2xl flex justify-center items-center gap-3 transition shadow-[0_0_20px_rgba(200,0,255,0.3)]">
+              <span class="text-white font-bold text-xl">Instant Revive</span>
               <img src="assets/gem_icon.png" class="w-6 h-6"/>
-              <span class="text-purple-400 font-bold text-xl">5</span>
+              <span class="text-white font-bold text-xl">1</span>
             </button>
             <button (click)="quitGame()" class="w-full mt-4 py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
               Give Up
@@ -173,6 +170,10 @@ export class GameComponent implements OnInit, OnDestroy {
   public bossHealth = signal<number>(1000);
   public bossMaxHealth = signal<number>(1000);
   public bossHealthPercent = computed(() => (this.bossHealth() / this.bossMaxHealth()) * 100);
+
+  // Revive UI
+  public reviveCountdown = signal<number>(10);
+  private reviveInterval: any;
 
   // Abilities
   public tapCooldown = signal<number>(0);
@@ -230,6 +231,7 @@ export class GameComponent implements OnInit, OnDestroy {
     clearInterval(this.timerInterval);
     clearInterval(this.spawnInterval);
     clearInterval(this.attackInterval);
+    clearInterval(this.reviveInterval);
     
     window.removeEventListener('mousemove', this.onMouseMove.bind(this));
     window.removeEventListener('mousedown', this.onMouseDown.bind(this));
@@ -384,7 +386,19 @@ export class GameComponent implements OnInit, OnDestroy {
             }
         }
         if (data.type === 'boss') {
-            moveSpeed = 0.00003;
+            moveSpeed = 0.0001; // Much faster
+            
+            if (now - (data.lastAttackTime || 0) > 8000) {
+                data.lastAttackTime = now;
+                this.fireBossWaveAttack(enemy.position);
+            }
+            if (now - (data.lastMinionTime || 0) > 5000) {
+                data.lastMinionTime = now;
+                for(let i=0; i<3; i++) {
+                   this.spawnMinion(enemy.position.x, enemy.position.y);
+                }
+            }
+
             // Strict Bounds Checking for Boss
             if (enemy.position.x < 100) Matter.Body.setPosition(enemy, { x: 100, y: enemy.position.y });
             if (enemy.position.x > window.innerWidth - 100) Matter.Body.setPosition(enemy, { x: window.innerWidth - 100, y: enemy.position.y });
@@ -693,6 +707,48 @@ export class GameComponent implements OnInit, OnDestroy {
     setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 3000);
   }
 
+  private spawnMinion(x: number, y: number) {
+      const minion = Matter.Bodies.circle(x, y, 10, {
+          label: 'enemy', frictionAir: 0.05,
+          plugin: { data: { id: Math.random().toString(), type: 'bat', health: 5, maxHealth: 5 } as EnemyData }
+      });
+      Matter.Body.setVelocity(minion, { x: (Math.random()-0.5)*10, y: (Math.random()-0.5)*10 });
+      this.enemies.push(minion);
+      Matter.Composite.add(this.engine.world, minion);
+  }
+
+  private fireBossWaveAttack(pos: Matter.Vector) {
+      this.audioService.playSFX('shoot');
+      for (let i = 0; i < 12; i++) {
+          const angle = (i / 12) * Math.PI * 2;
+          const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+          const proj = Matter.Bodies.circle(pos.x, pos.y, 15, {
+              label: 'projectile', isSensor: true,
+              plugin: { data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1 } as EnemyData }
+          });
+          Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 8));
+          Matter.Composite.add(this.engine.world, proj);
+          
+          setTimeout(() => {
+              if (proj.parent) {
+                  Matter.Body.setVelocity(proj, { x: 0, y: 0 }); // Pause
+                  setTimeout(() => {
+                      if (proj.parent) {
+                          const boss = this.enemies.find(e => e.plugin['data']?.type === 'boss');
+                          if (boss) {
+                              const returnDir = Matter.Vector.normalise(Matter.Vector.sub(boss.position, proj.position));
+                              Matter.Body.setVelocity(proj, Matter.Vector.mult(returnDir, 12));
+                              setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj); }, 2000);
+                          } else {
+                              Matter.Composite.remove(this.engine.world, proj);
+                          }
+                      }
+                  }, 500);
+              }
+          }, 1500);
+      }
+  }
+
   private damageEnemy(enemy: Matter.Body, damage: number) {
     const data = enemy.plugin['data'] as EnemyData;
     data.health -= damage;
@@ -733,8 +789,14 @@ export class GameComponent implements OnInit, OnDestroy {
         this.triggerMassiveExplosion(enemy.position.x, enemy.position.y);
         this.winGame();
       } else {
-        const coinAmount = data.type === 'golem' ? 50 : 5;
-        this.dropItem(enemy.position.x, enemy.position.y, 'coin', coinAmount);
+        // Massive Coin Nerf to encourage P2W Gem Exchange
+        if (data.type === 'golem') {
+            this.dropItem(enemy.position.x, enemy.position.y, 'coin', 5);
+        } else {
+            if (Math.random() < 0.2) { // Only 20% chance to drop 1 coin
+                this.dropItem(enemy.position.x, enemy.position.y, 'coin', 1);
+            }
+        }
         if (Math.random() < 0.1) { // 10% chance for a heart
             this.dropItem(enemy.position.x + 20, enemy.position.y + 20, 'heart', 20); // Heals 20
         }
@@ -811,21 +873,33 @@ export class GameComponent implements OnInit, OnDestroy {
     this.isDead.set(true);
     this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 });
     this.gameState.syncProgressToServer();
-  }
 
-  public reviveWithCoins() {
-    if (this.gameState.coins() >= 500) { this.gameState.coins.update(c => c - 500); this.executeRevival(); }
+    if (this.runner) Matter.Runner.stop(this.runner); // Freeze physics
+    
+    this.reviveCountdown.set(10);
+    this.reviveInterval = setInterval(() => {
+        this.reviveCountdown.update(c => c - 1);
+        if (this.reviveCountdown() <= 0) {
+            clearInterval(this.reviveInterval);
+            this.quitGame();
+        }
+    }, 1000);
   }
 
   public reviveWithGems() {
-    if (this.gameState.gems() >= 5) { this.gameState.gems.update(g => g - 5); this.executeRevival(); }
+    if (this.gameState.gems() >= 1) { 
+        this.gameState.gems.update(g => g - 1); 
+        this.executeRevival(); 
+    }
   }
 
   private executeRevival() {
+    clearInterval(this.reviveInterval);
     this.isDead.set(false);
     this.currentHealth.set(this.maxHealth());
     this.gameState.phoenixOverridePosition.set(null);
-    this.clearEnemies(); 
+    this.clearEnemies();
+    if (this.runner && this.engine) Matter.Runner.run(this.runner, this.engine); // Unfreeze physics
   }
 
   private clearEnemies() {

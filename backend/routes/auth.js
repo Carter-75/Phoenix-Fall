@@ -56,7 +56,8 @@ router.post('/complete-signup', async (req, res) => {
         
         let newUserConfig = {
             username: username,
-            email: req.user.email
+            email: req.user.email,
+            acceptedLegalPolicies: true
         };
 
         if (req.user.isLocal) {
@@ -130,6 +131,30 @@ router.get('/logout', (req, res, next) => {
     if (err) return next(err);
     res.json({ message: 'Logged out' });
   });
+});
+
+router.post('/accept-policies', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+        req.user.acceptedLegalPolicies = true;
+        await req.user.save();
+        res.json({ message: 'Policies accepted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/user', async (req, res, next) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+        await User.findByIdAndDelete(req.user._id);
+        req.logout((err) => {
+            if (err) return next(err);
+            res.json({ message: 'Account deleted successfully' });
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;
