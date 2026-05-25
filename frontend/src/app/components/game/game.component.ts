@@ -439,8 +439,8 @@ export class GameComponent implements OnInit, OnDestroy {
                       if (minDist < 600) {
                           const force = Matter.Vector.sub(nearest.position, body.position);
                           const normalized = Matter.Vector.normalise(force);
-                          // Level 1: 0.0001, Level 5: 0.0005, Level 10: 0.001
-                          const pullStrength = 0.0001 * homingLvl;
+                          // Starts weak, but scales quadratically with level for stronger homing over time
+                          const pullStrength = 0.00003 + (0.000015 * Math.pow(homingLvl, 1.5));
                           Matter.Body.applyForce(body, body.position, Matter.Vector.mult(normalized, pullStrength));
                       }
                   }

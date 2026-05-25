@@ -131,7 +131,18 @@ export class GameStateService {
               }
               
               this.unlockedWorlds.set(data.unlockedWorlds || [0]);
-              if (data.worldUpgrades) this.worldUpgrades.set(data.worldUpgrades);
+              if (data.worldUpgrades) {
+                  // Auto-heal NaN values from broken saves
+                  Object.keys(data.worldUpgrades).forEach(key => {
+                      const upgrades = data.worldUpgrades[key as unknown as number];
+                      Object.keys(upgrades).forEach(statKey => {
+                          if (typeof upgrades[statKey as keyof WorldStats] === 'number' && isNaN(upgrades[statKey as keyof WorldStats] as number)) {
+                              (upgrades as any)[statKey] = (DEFAULT_STATS as any)[statKey];
+                          }
+                      });
+                  });
+                  this.worldUpgrades.set(data.worldUpgrades);
+              }
           } catch (e) {}
       }
 
@@ -172,8 +183,15 @@ export class GameStateService {
   // World State
   public worlds = WORLDS;
 
-  // Computed helper for current world's stats
-  public currentStats = computed(() => this.worldUpgrades()[this.selectedWorldIndex()]);
+  // Computed helper for current world's stats, falling back to defaults for any newly added stats missing in local storage
+  public currentStats = computed(() => {
+      const stats = this.worldUpgrades()[this.selectedWorldIndex()];
+      return { 
+          ...DEFAULT_STATS, 
+          ...stats,
+          unlockedAbilities: { ...DEFAULT_STATS.unlockedAbilities, ...(stats?.unlockedAbilities || {}) }
+      };
+  });
 
   // Phoenix Automation State
   public phoenixOverridePosition = signal<{x: number, y: number} | null>(null);
@@ -199,6 +217,13 @@ export class GameStateService {
                   if (!upgrades[key].unlockedAbilities) upgrades[key].unlockedAbilities = {};
                   if (upgrades[key].activeTapAbility === undefined) upgrades[key].activeTapAbility = null;
                   if (upgrades[key].activeHoldAbility === undefined) upgrades[key].activeHoldAbility = null;
+                  
+                  // Auto-heal NaN
+                  Object.keys(upgrades[key]).forEach(statKey => {
+                      if (typeof upgrades[key][statKey] === 'number' && isNaN(upgrades[key][statKey])) {
+                          upgrades[key][statKey] = (DEFAULT_STATS as any)[statKey];
+                      }
+                  });
               });
               this.worldUpgrades.set(upgrades);
           }
@@ -287,11 +312,16 @@ export class GameStateService {
       this.worldUpgrades.update(upgrades => {
         const currentWorldId = this.selectedWorldIndex();
         const currentWorldStats = upgrades[currentWorldId];
+        let currentVal = currentWorldStats[type] as number;
+        if (currentVal === undefined || isNaN(currentVal)) {
+            currentVal = DEFAULT_STATS[type] as number;
+        }
+        
         return {
           ...upgrades,
           [currentWorldId]: {
             ...currentWorldStats,
-            [type]: (currentWorldStats[type] as number) + amount
+            [type]: currentVal + amount
           }
         };
       });
