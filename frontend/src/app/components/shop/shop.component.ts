@@ -94,21 +94,21 @@ export interface ActiveDeal {
 
       <!-- Tabs -->
       <div class="w-full max-w-lg flex bg-black/40 border border-white/10 rounded-full p-1 mb-8">
-        <button (click)="activeTab.set('passives')" 
+        <button (click)="setTab('passives')" 
                 [class.bg-white_10]="activeTab() === 'passives'"
                 [class.text-orange-400]="activeTab() === 'passives'"
                 class="flex-1 py-3 rounded-full font-bold transition-all"
                 [ngClass]="activeTab() === 'passives' ? 'bg-white/10 text-orange-400 shadow-md' : 'text-white/50 hover:text-white'">
           Passives
         </button>
-        <button (click)="activeTab.set('abilities')" 
+        <button (click)="setTab('abilities')" 
                 [class.bg-white_10]="activeTab() === 'abilities'"
                 [class.text-cyan-400]="activeTab() === 'abilities'"
                 class="flex-1 py-3 rounded-full font-bold transition-all"
                 [ngClass]="activeTab() === 'abilities' ? 'bg-white/10 text-cyan-400 shadow-md' : 'text-white/50 hover:text-white'">
           Abilities
         </button>
-        <button (click)="activeTab.set('gems')" 
+        <button (click)="setTab('gems')" 
                 [class.bg-white_10]="activeTab() === 'gems'"
                 [class.text-purple-400]="activeTab() === 'gems'"
                 class="flex-1 py-3 rounded-full font-bold transition-all flex justify-center items-center gap-2"
@@ -241,36 +241,7 @@ export interface ActiveDeal {
             </button>
           </div>
 
-          <!-- Currency Exchange -->
-          <div class="col-span-full md:col-span-2 lg:col-span-3 xl:col-span-4 bg-white/5 border border-purple-500/30 rounded-3xl p-6 mt-4 flex flex-col items-center gap-4 hover:bg-white/10 transition shadow-[0_0_20px_rgba(168,85,247,0.15)] relative overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-transparent"></div>
-            <div class="flex flex-col md:flex-row items-center justify-between w-full relative z-10 gap-6">
-               <div class="flex items-center gap-4">
-                  <div class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-500/50 shrink-0">
-                    <img src="assets/gem_icon.png" class="w-10 h-10 drop-shadow-[0_0_10px_rgba(168,85,247,1)]" [class.animate-spin]="isGachaSpinning()"/>
-                  </div>
-                  <div>
-                    <h3 class="text-2xl font-bold text-white">Alchemist's Exchange</h3>
-                    <p class="text-white/50 text-sm">Convert your rare Gems into Coins instantly.</p>
-                  </div>
-               </div>
-               <div class="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
-                  <div class="text-right">
-                    <p class="text-white font-bold text-xl flex items-center gap-2 justify-end">
-                       -1 <img src="assets/gem_icon.png" class="w-5 h-5"/>
-                    </p>
-                    <p class="text-orange-400 font-bold text-xl flex items-center gap-2 justify-end mt-1">
-                       +850 <img src="assets/coin_icon.png" class="w-5 h-5"/>
-                    </p>
-                  </div>
-                  <button (click)="exchangeGem()" class="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-xl hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale shrink-0 relative overflow-hidden group" [disabled]="gameState.gems() < 1 || isGachaSpinning()">
-                    <span class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform"></span>
-                    Exchange
-                  </button>
-               </div>
-            </div>
           </div>
-
         </div>
       }
 
@@ -383,6 +354,38 @@ export interface ActiveDeal {
             </button>
           </div>
 
+          </div>
+          
+          <!-- Currency Exchange -->
+          <div class="col-span-full md:col-span-3 bg-white/5 border border-purple-500/30 rounded-3xl p-6 mt-4 flex flex-col items-center gap-4 hover:bg-white/10 transition shadow-[0_0_20px_rgba(168,85,247,0.15)] relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-transparent"></div>
+            <div class="flex flex-col md:flex-row items-center justify-between w-full relative z-10 gap-6">
+               <div class="flex items-center gap-4">
+                  <div class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-500/50 shrink-0">
+                    <img src="assets/gem_icon.png" class="w-10 h-10 drop-shadow-[0_0_10px_rgba(168,85,247,1)]" [class.animate-spin]="isGachaSpinning()"/>
+                  </div>
+                  <div>
+                    <h3 class="text-2xl font-bold text-white">Alchemist's Exchange</h3>
+                    <p class="text-white/50 text-sm">Convert your rare Gems into Coins instantly.</p>
+                  </div>
+               </div>
+               <div class="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
+                  <div class="text-right">
+                    <p class="text-white font-bold text-xl flex items-center gap-2 justify-end">
+                       -1 <img src="assets/gem_icon.png" class="w-5 h-5"/>
+                    </p>
+                    <p class="text-orange-400 font-bold text-xl flex items-center gap-2 justify-end mt-1">
+                       +850 <img src="assets/coin_icon.png" class="w-5 h-5"/>
+                    </p>
+                  </div>
+                  <button (click)="exchangeGem()" class="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-xl hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale shrink-0 relative overflow-hidden group" [disabled]="gameState.gems() < 1 || isGachaSpinning()">
+                    <span class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform"></span>
+                    Exchange
+                  </button>
+               </div>
+            </div>
+          </div>
+
         </div>
       }
       <!-- Payment Processing Modal -->
@@ -477,7 +480,20 @@ export class ShopComponent implements OnInit, OnDestroy {
 
   constructor(public gameState: GameStateService) {}
 
+  setTab(tab: 'passives' | 'abilities' | 'gems') {
+      this.activeTab.set(tab);
+      localStorage.setItem('phoenix_shop_last_tab', tab);
+  }
+
   ngOnInit() {
+      const savedTab = localStorage.getItem('phoenix_shop_last_tab');
+      if (savedTab === 'passives' || savedTab === 'abilities' || savedTab === 'gems') {
+          this.activeTab.set(savedTab);
+      } else {
+          this.activeTab.set('gems');
+          localStorage.setItem('phoenix_shop_last_tab', 'gems');
+      }
+      
       this.evaluatePricing();
       
       this.timerInterval = setInterval(() => {

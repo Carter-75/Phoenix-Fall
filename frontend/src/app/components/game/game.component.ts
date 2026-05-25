@@ -608,42 +608,49 @@ export class GameComponent implements OnInit, OnDestroy {
           // (No constraint created)
 
           // 1. Continuous Boids Steering Logic
+          let isReturning = false;
           const boidLogic = () => {
               if (!baby.parent || !egg.parent) return;
               
-              const speed = 8;
+              const speed = isReturning ? 8 : 4;
               const maxTurnForce = 0.5;
               let combinedForce = { x: 0, y: 0 };
               
-              // Organic Wander
-              const t = Date.now() * 0.002;
-              const wanderForce = { x: Math.cos(t), y: Math.sin(t) };
-              combinedForce.x += wanderForce.x * 0.5;
-              combinedForce.y += wanderForce.y * 0.5;
-              
-              // Enemy Seek
-              let nearest = null;
-              if (this.enemies.length > 0) {
-                  nearest = this.enemies[0];
-                  let minDist = Infinity;
-                  this.enemies.forEach(e => {
-                      const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
-                      if (dist < minDist) { minDist = dist; nearest = e; }
-                  });
-                  if (minDist < seekRange) {
-                      const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, baby.position));
-                      combinedForce.x += dir.x * 2.0;
-                      combinedForce.y += dir.y * 2.0;
+              if (isReturning) {
+                  const dir = Matter.Vector.normalise(Matter.Vector.sub(egg.position, baby.position));
+                  combinedForce.x = dir.x * 5.0;
+                  combinedForce.y = dir.y * 5.0;
+              } else {
+                  // Organic Wander
+                  const t = Date.now() * 0.002;
+                  const wanderForce = { x: Math.cos(t), y: Math.sin(t) };
+                  combinedForce.x += wanderForce.x * 0.5;
+                  combinedForce.y += wanderForce.y * 0.5;
+                  
+                  // Enemy Seek
+                  let nearest = null;
+                  if (this.enemies.length > 0) {
+                      nearest = this.enemies[0];
+                      let minDist = Infinity;
+                      this.enemies.forEach(e => {
+                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
+                          if (dist < minDist) { minDist = dist; nearest = e; }
+                      });
+                      if (minDist < seekRange) {
+                          const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, baby.position));
+                          combinedForce.x += dir.x * 2.0;
+                          combinedForce.y += dir.y * 2.0;
+                      }
                   }
-              }
-              
-              // Soft Containment (Repel if far from egg)
-              const distToEgg = Matter.Vector.magnitude(Matter.Vector.sub(baby.position, egg.position));
-              if (distToEgg > tetherRange) {
-                  const repel = Matter.Vector.normalise(Matter.Vector.sub(egg.position, baby.position));
-                  const repelStrength = (distToEgg - tetherRange) * 0.1; // Dynamic weight based on how far out it is
-                  combinedForce.x += repel.x * repelStrength;
-                  combinedForce.y += repel.y * repelStrength;
+                  
+                  // Soft Containment (Repel if far from egg)
+                  const distToEgg = Matter.Vector.magnitude(Matter.Vector.sub(baby.position, egg.position));
+                  if (distToEgg > tetherRange) {
+                      const repel = Matter.Vector.normalise(Matter.Vector.sub(egg.position, baby.position));
+                      const repelStrength = (distToEgg - tetherRange) * 0.1; // Dynamic weight based on how far out it is
+                      combinedForce.x += repel.x * repelStrength;
+                      combinedForce.y += repel.y * repelStrength;
+                  }
               }
               
               // Reynolds Steering
@@ -709,16 +716,19 @@ export class GameComponent implements OnInit, OnDestroy {
           setTimeout(() => {
               if (!baby.parent || !egg.parent) return;
               clearInterval(fireInterval);
-              Matter.Events.off(this.engine, 'beforeUpdate', boidLogic);
+              isReturning = true;
               
-              setTimeout(() => {
-                  // Volcanic explosion for turret
-                  this.audioService.playSFX('explosion');
-                  const radius = 250;
+              const explode = () => {
+                  if (!baby.parent || !egg.parent) return;
+                  Matter.Events.off(this.engine, 'beforeUpdate', boidLogic);
                   
-                  for (let i = 0; i < 20; i++) {
-                      const angle = (i / 20) * Math.PI * 2;
-                      const speed = 5 + Math.random() * 5;
+                  // Volcanic explosion for turret
+                  this.audioService.playSFX('explode');
+                  const radius = 200;
+                  
+                  for (let i = 0; i < 40; i++) {
+                      const angle = Math.random() * Math.PI * 2;
+                      const speed = Math.random() * 8 + 4;
                       const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
                       const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 15, {
                           isSensor: true, label: 'projectile',
@@ -736,7 +746,21 @@ export class GameComponent implements OnInit, OnDestroy {
                   
                   Matter.Composite.remove(this.engine.world, baby);
                   Matter.Composite.remove(this.engine.world, egg);
-              }, 500);
+              };
+
+              const returnCheck = setInterval(() => {
+                  if (!baby.parent || !egg.parent) { clearInterval(returnCheck); return; }
+                  const dist = Matter.Vector.magnitude(Matter.Vector.sub(baby.position, egg.position));
+                  if (dist < 20) {
+                      clearInterval(returnCheck);
+                      explode();
+                  }
+              }, 50);
+              
+              setTimeout(() => {
+                  clearInterval(returnCheck);
+                  if (baby.parent && egg.parent) explode();
+              }, 2000); // 2 second max return time
           }, duration);
       }, 2000);
   }

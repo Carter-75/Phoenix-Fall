@@ -738,10 +738,13 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           col[idx+1] = bColors[idx+1];
           col[idx+2] = bColors[idx+2];
       } else if (data.type === 'egg') {
-          const isSpeckle = Math.random() > 0.8;
-          col[idx] = isSpeckle ? 1.0 : 0.9;
-          col[idx+1] = isSpeckle ? 0.4 : 0.8;
-          col[idx+2] = isSpeckle ? 0.0 : 0.7;
+          // Use Y to create bands of magma and ash
+          const normalizedY = y / r;
+          const rand = Math.random();
+          if (rand > 0.85) { col[idx] = 0.1; col[idx+1] = 0.1; col[idx+2] = 0.1; } // Ash speckles
+          else if (normalizedY < -0.5) { col[idx] = 1.0; col[idx+1] = 0.2; col[idx+2] = 0.0; } // Deep red bottom
+          else if (normalizedY > 0.5) { col[idx] = 1.0; col[idx+1] = 0.8; col[idx+2] = 0.2; } // Bright gold top
+          else { col[idx] = 0.8; col[idx+1] = 0.4; col[idx+2] = 0.0; } // Orange middle
       } else {
           col[idx] = color.r * (0.8 + Math.random()*0.4);
           col[idx+1] = color.g * (0.8 + Math.random()*0.4);
