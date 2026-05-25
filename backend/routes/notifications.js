@@ -2,11 +2,15 @@ const express = require('express');
 const router = express.Router();
 const webpush = require('web-push');
 
-webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || 'mailto:admin@phoenixfall.com',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-);
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+        process.env.VAPID_SUBJECT || 'mailto:admin@phoenixfall.com',
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+    );
+} else {
+    console.warn("VAPID keys not configured. Push notifications will not work.");
+}
 
 router.get('/vapidPublicKey', (req, res) => {
     res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
