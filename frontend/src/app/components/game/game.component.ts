@@ -1023,12 +1023,20 @@ export class GameComponent implements OnInit, OnDestroy {
         this.bossDefeatTimestamp = Date.now();
         this.bossGemsCollected = 0;
         
-        // Base gems based on realm index
+        // Base gems based on realm index (Only drop on first defeat!)
         const currentWorldIndex = this.gameState.selectedWorldIndex();
-        this.bossGemsDropped = currentWorldIndex === 0 ? 3 : (currentWorldIndex === 1 ? 5 : 10);
+        const isFirstDefeat = !this.gameState.unlockedWorlds().includes(currentWorldIndex + 1);
+        this.bossGemsDropped = isFirstDefeat ? (currentWorldIndex === 0 ? 3 : (currentWorldIndex === 1 ? 5 : 10)) : 0;
         
-        for(let i=0; i<this.bossGemsDropped; i++) {
-            this.dropItem(enemy.position.x + (Math.random()-0.5)*50, enemy.position.y + (Math.random()-0.5)*50, 'gem', 1);
+        if (this.bossGemsDropped > 0) {
+            for(let i=0; i<this.bossGemsDropped; i++) {
+                this.dropItem(enemy.position.x + (Math.random()-0.5)*50, enemy.position.y + (Math.random()-0.5)*50, 'gem', 1);
+            }
+        } else {
+            // If no gems dropped, automatically ascend after a delay to let the coins bounce
+            setTimeout(() => {
+                if (!this.animatingAscension()) this.triggerAscension();
+            }, 1500);
         }
         for(let i=0; i<20; i++) {
            this.dropItem(enemy.position.x + (Math.random()-0.5)*100, enemy.position.y + (Math.random()-0.5)*100, 'coin', 25);

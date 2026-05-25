@@ -610,8 +610,8 @@ export interface ActiveDeal {
       }
       <!-- Whale Trap Modal -->
       @if (showWhaleTrap()) {
-         <div class="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[100] px-4 backdrop-blur-md">
-            <div class="w-full max-w-md bg-gradient-to-b from-purple-900 to-black border-2 border-fuchsia-500 rounded-3xl p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(200,0,255,0.6)] animate-bounce relative overflow-hidden">
+         <div class="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[100] px-4 backdrop-blur-md animate-fade-in">
+            <div class="w-full max-w-md bg-gradient-to-b from-purple-900 to-black border-2 border-fuchsia-500 rounded-3xl p-8 flex flex-col items-center text-center shadow-[0_0_100px_rgba(200,0,255,0.6)] relative overflow-hidden">
                <div class="absolute top-0 w-full bg-red-600 text-white font-black uppercase tracking-widest py-1 text-sm">Do Not Close This Window</div>
                
                <h2 class="text-4xl font-black text-white mt-6 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">WAIT!</h2>
@@ -663,7 +663,7 @@ export class ShopComponent implements OnInit, OnDestroy {
 
   // Dynamic Pricing State
   basePrices = [1.99, 9.99, 49.99];
-  baseGems = [1, 12, 30];
+  baseGems = [20, 150, 1000];
   
   activeDeal = signal<ActiveDeal>({ name: 'None', type: 'none', priceMultiplier: 1, gemMultiplier: 1, bannerColor: '' });
   dealRadarDays = signal<number>(0);
