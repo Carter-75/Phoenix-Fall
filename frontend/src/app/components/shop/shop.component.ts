@@ -833,7 +833,7 @@ export class ShopComponent implements OnInit, OnDestroy {
                 return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1 } } } };
             });
             this.gameState.awardTrophy("Ability Unlocked");
-            this.audio.playUpgrade();
+            this.gameState.audio.playSFX('buy');
         }
     } else if (this.gameState.coins() >= cost && !this.gameState.currentStats().unlockedAbilities[id]) {
         this.gameState.coins.update(c => c - cost);
@@ -843,7 +843,7 @@ export class ShopComponent implements OnInit, OnDestroy {
             return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1 } } } };
         });
         this.gameState.awardTrophy("Ability Unlocked");
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -858,7 +858,7 @@ export class ShopComponent implements OnInit, OnDestroy {
                  const currentLvl = stats.unlockedAbilities[id]?.level || 1;
                  return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1 } } } };
              });
-             this.audio.playUpgrade();
+             this.gameState.audio.playSFX('buy');
          }
      } else if (this.gameState.coins() >= cost && this.gameState.currentStats().unlockedAbilities[id]) {
          this.gameState.coins.update(c => c - cost);
@@ -868,7 +868,7 @@ export class ShopComponent implements OnInit, OnDestroy {
              const currentLvl = stats.unlockedAbilities[id]?.level || 1;
              return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1 } } } };
          });
-         this.audio.playUpgrade();
+         this.gameState.audio.playSFX('buy');
      }
   }
 
@@ -897,6 +897,10 @@ export class ShopComponent implements OnInit, OnDestroy {
       return Math.max(1, Math.ceil(coinCost / 1000));
   }
 
+  canAffordWithGemsButNotCoins(cost: number): boolean {
+      return this.gameState.coins() < cost && this.gameState.gems() >= this.getGemCost(cost);
+  }
+
   getAbilityCost(id: string, baseCost: number): number {
      const level = this.gameState.currentStats().unlockedAbilities[id]?.level || 1;
      return Math.floor(baseCost * Math.pow(1.5, level - 1));
@@ -906,7 +910,7 @@ export class ShopComponent implements OnInit, OnDestroy {
     if (this.gameState.gems() >= 50 && this.gameState.coinMultiplier() === 1) {
         this.gameState.gems.update(g => g - 50);
         this.gameState.coinMultiplier.set(2);
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -916,7 +920,7 @@ export class ShopComponent implements OnInit, OnDestroy {
     if (this.gameState.gems() >= 200 && !this.gameState.hasCosmicTrail()) {
         this.gameState.gems.update(g => g - 200);
         this.gameState.hasCosmicTrail.set(true);
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -924,7 +928,7 @@ export class ShopComponent implements OnInit, OnDestroy {
     if (this.gameState.gems() >= 300 && !this.gameState.hasGoldenAura()) {
         this.gameState.gems.update(g => g - 300);
         this.gameState.hasGoldenAura.set(true);
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -932,7 +936,7 @@ export class ShopComponent implements OnInit, OnDestroy {
     if (this.gameState.gems() >= 400 && !this.gameState.hasCelestialShield()) {
         this.gameState.gems.update(g => g - 400);
         this.gameState.hasCelestialShield.set(true);
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -940,7 +944,7 @@ export class ShopComponent implements OnInit, OnDestroy {
     if (this.gameState.gems() >= 50 && this.gameState.xpMultiplier() === 1) {
         this.gameState.gems.update(g => g - 50);
         this.gameState.xpMultiplier.set(2);
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -954,7 +958,7 @@ export class ShopComponent implements OnInit, OnDestroy {
           u[this.gameState.selectedWorldIndex()].maxHealth += 10;
           return { ...u };
         });
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
       }
     } else if (this.gameState.coins() >= cost) {
       this.gameState.coins.update(c => c - cost);
@@ -962,7 +966,7 @@ export class ShopComponent implements OnInit, OnDestroy {
         u[this.gameState.selectedWorldIndex()].maxHealth += 10;
         return { ...u };
       });
-      this.audio.playUpgrade();
+      this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -976,7 +980,7 @@ export class ShopComponent implements OnInit, OnDestroy {
           u[this.gameState.selectedWorldIndex()].speed = +(u[this.gameState.selectedWorldIndex()].speed + 0.1).toFixed(2);
           return { ...u };
         });
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
       }
     } else if (this.gameState.coins() >= cost) {
       this.gameState.coins.update(c => c - cost);
@@ -984,7 +988,7 @@ export class ShopComponent implements OnInit, OnDestroy {
         u[this.gameState.selectedWorldIndex()].speed = +(u[this.gameState.selectedWorldIndex()].speed + 0.1).toFixed(2);
         return { ...u };
       });
-      this.audio.playUpgrade();
+      this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -998,7 +1002,7 @@ export class ShopComponent implements OnInit, OnDestroy {
           u[this.gameState.selectedWorldIndex()].magnetism = +(u[this.gameState.selectedWorldIndex()].magnetism + 0.1).toFixed(2);
           return { ...u };
         });
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
       }
     } else if (this.gameState.coins() >= cost) {
       this.gameState.coins.update(c => c - cost);
@@ -1006,7 +1010,7 @@ export class ShopComponent implements OnInit, OnDestroy {
         u[this.gameState.selectedWorldIndex()].magnetism = +(u[this.gameState.selectedWorldIndex()].magnetism + 0.1).toFixed(2);
         return { ...u };
       });
-      this.audio.playUpgrade();
+      this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -1020,7 +1024,7 @@ export class ShopComponent implements OnInit, OnDestroy {
           u[this.gameState.selectedWorldIndex()].damage += 1;
           return { ...u };
         });
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
       }
     } else if (this.gameState.coins() >= cost) {
       this.gameState.coins.update(c => c - cost);
@@ -1028,7 +1032,7 @@ export class ShopComponent implements OnInit, OnDestroy {
         u[this.gameState.selectedWorldIndex()].damage += 1;
         return { ...u };
       });
-      this.audio.playUpgrade();
+      this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -1042,7 +1046,7 @@ export class ShopComponent implements OnInit, OnDestroy {
           u[this.gameState.selectedWorldIndex()].attackSpeed = +(u[this.gameState.selectedWorldIndex()].attackSpeed + 0.1).toFixed(2);
           return { ...u };
         });
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
       }
     } else if (this.gameState.coins() >= cost) {
       this.gameState.coins.update(c => c - cost);
@@ -1050,7 +1054,7 @@ export class ShopComponent implements OnInit, OnDestroy {
         u[this.gameState.selectedWorldIndex()].attackSpeed = +(u[this.gameState.selectedWorldIndex()].attackSpeed + 0.1).toFixed(2);
         return { ...u };
       });
-      this.audio.playUpgrade();
+      this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -1064,7 +1068,7 @@ export class ShopComponent implements OnInit, OnDestroy {
           u[this.gameState.selectedWorldIndex()].attackRange += 50;
           return { ...u };
         });
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
       }
     } else if (this.gameState.coins() >= cost) {
       this.gameState.coins.update(c => c - cost);
@@ -1072,7 +1076,7 @@ export class ShopComponent implements OnInit, OnDestroy {
         u[this.gameState.selectedWorldIndex()].attackRange += 50;
         return { ...u };
       });
-      this.audio.playUpgrade();
+      this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -1086,7 +1090,7 @@ export class ShopComponent implements OnInit, OnDestroy {
           u[this.gameState.selectedWorldIndex()].auraRadius += 10;
           return { ...u };
         });
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
       }
     } else if (this.gameState.coins() >= cost) {
       this.gameState.coins.update(c => c - cost);
@@ -1094,7 +1098,7 @@ export class ShopComponent implements OnInit, OnDestroy {
         u[this.gameState.selectedWorldIndex()].auraRadius += 10;
         return { ...u };
       });
-      this.audio.playUpgrade();
+      this.gameState.audio.playSFX('buy');
     }
   }
 
@@ -1108,7 +1112,7 @@ export class ShopComponent implements OnInit, OnDestroy {
           u[this.gameState.selectedWorldIndex()].homingLevel += 1;
           return { ...u };
         });
-        this.audio.playUpgrade();
+        this.gameState.audio.playSFX('buy');
       }
     } else if (this.gameState.coins() >= cost) {
       this.gameState.coins.update(c => c - cost);
@@ -1116,7 +1120,7 @@ export class ShopComponent implements OnInit, OnDestroy {
         u[this.gameState.selectedWorldIndex()].homingLevel += 1;
         return { ...u };
       });
-      this.audio.playUpgrade();
+      this.gameState.audio.playSFX('buy');
     }
   }
 

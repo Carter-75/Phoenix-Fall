@@ -163,7 +163,7 @@ export class GameStateService {
                               }
                           });
                       });
-                  });
+                  }
                   this.worldUpgrades.set(data.worldUpgrades);
               }
           } catch (e) {}
