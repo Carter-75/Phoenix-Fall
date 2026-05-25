@@ -566,6 +566,8 @@ export class ShopComponent implements OnInit, OnDestroy {
   get abilitiesList() { return Object.values(ABILITIES); }
 
   closeShop() {
+    this.gameState.audio.playSFX('click');
+    this.gameState.syncProgressToServer(); // Instantly save any purchased upgrades to backend
     this.gameState.activeScreen.set('menu');
   }
 

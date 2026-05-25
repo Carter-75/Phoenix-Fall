@@ -198,6 +198,8 @@ export class GameStateService {
   public phoenixScreenPos = signal<{x: number, y: number}>({x: 0, y: 0});
   public activeEntities = signal<PhysicsEntity[]>([]);
   public isPaused = signal<boolean>(false);
+  public isDrilling = signal<boolean>(false);
+  public isRebirthing = signal<boolean>(false);
 
   // Sync with DB User
   syncWithUser(user: any) {

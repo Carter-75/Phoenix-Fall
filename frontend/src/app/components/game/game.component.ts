@@ -1,13 +1,13 @@
 import { Component, ElementRef, OnInit, OnDestroy, ViewChild, inject, NgZone, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GameStateService, PhysicsEntity } from '../../services/game-state.service';
+import { GameStateService, PhysicsEntity, ABILITIES } from '../../services/game-state.service';
 import { AudioService } from '../../services/audio.service';
 import * as Matter from 'matter-js';
 import confetti from 'canvas-confetti';
 
 interface EnemyData {
   id: string;
-  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret';
+  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret' | 'egg';
   health: number;
   maxHealth: number;
   lastAttackTime?: number;
@@ -49,20 +49,20 @@ interface EnemyData {
 
       <!-- Cooldown UI -->
       <div class="absolute bottom-8 right-8 flex gap-4 pointer-events-auto">
-        <!-- Burst -->
+        <!-- Tap Ability -->
         <div class="relative w-16 h-16 bg-black/50 border border-white/20 rounded-2xl overflow-hidden flex items-center justify-center backdrop-blur-sm shadow-[0_0_15px_rgba(255,100,200,0.2)]">
-          <span class="text-3xl z-10" [class.opacity-50]="burstCooldown() > 0">💥</span>
-          @if (burstCooldown() > 0) {
-            <div class="absolute bottom-0 left-0 w-full bg-pink-600/50 transition-all" [style.height]="(burstCooldown() / 5) * 100 + '%'"></div>
-            <span class="absolute z-20 text-white font-bold drop-shadow-md">{{ burstCooldown().toFixed(1) }}</span>
+          <span class="text-3xl z-10" [class.opacity-50]="tapCooldown() > 0">{{ getTapIcon() }}</span>
+          @if (tapCooldown() > 0) {
+            <div class="absolute bottom-0 left-0 w-full bg-pink-600/50 transition-all" [style.height]="(tapCooldown() / getTapMaxCooldown()) * 100 + '%'"></div>
+            <span class="absolute z-20 text-white font-bold drop-shadow-md">{{ tapCooldown().toFixed(1) }}</span>
           }
         </div>
-        <!-- Aura -->
+        <!-- Hold Ability -->
         <div class="relative w-16 h-16 bg-black/50 border border-white/20 rounded-2xl overflow-hidden flex items-center justify-center backdrop-blur-sm shadow-[0_0_15px_rgba(0,255,255,0.2)]">
-          <span class="text-3xl z-10" [class.opacity-50]="auraCooldown() > 0">🌀</span>
-          @if (auraCooldown() > 0) {
-            <div class="absolute bottom-0 left-0 w-full bg-cyan-600/50 transition-all" [style.height]="(auraCooldown() / 15) * 100 + '%'"></div>
-            <span class="absolute z-20 text-white font-bold drop-shadow-md">{{ auraCooldown().toFixed(1) }}</span>
+          <span class="text-3xl z-10" [class.opacity-50]="holdCooldown() > 0">{{ getHoldIcon() }}</span>
+          @if (holdCooldown() > 0) {
+            <div class="absolute bottom-0 left-0 w-full bg-cyan-600/50 transition-all" [style.height]="(holdCooldown() / getHoldMaxCooldown()) * 100 + '%'"></div>
+            <span class="absolute z-20 text-white font-bold drop-shadow-md">{{ holdCooldown().toFixed(1) }}</span>
           }
         </div>
       </div>
@@ -158,8 +158,6 @@ export class GameComponent implements OnInit, OnDestroy {
   public maxHealth = computed(() => this.gameState.currentStats().maxHealth);
   public currentHealth = signal<number>(this.maxHealth());
   public damageFlash = signal<boolean>(false);
-  public burstCooldown = signal<number>(0);
-  public auraCooldown = signal<number>(0);
   
   private totalTime = 300; 
   public timeRemaining = signal<number>(this.totalTime);
@@ -183,6 +181,22 @@ export class GameComponent implements OnInit, OnDestroy {
   public hasRebirthed = false;
   private lastClickTime = 0;
   private pauseClickCount = 0;
+
+  getTapIcon() { return ABILITIES[this.gameState.currentStats().activeTapAbility || 'burst']?.icon || '💥'; }
+  getHoldIcon() { return ABILITIES[this.gameState.currentStats().activeHoldAbility || 'aura']?.icon || '🌀'; }
+
+  getTapMaxCooldown() {
+      const id = this.gameState.currentStats().activeTapAbility || 'burst';
+      if (id === 'drill_attack') return 3;
+      if (id === 'fire_breath') return 4;
+      return 5; // burst
+  }
+
+  getHoldMaxCooldown() {
+      const id = this.gameState.currentStats().activeHoldAbility || 'aura';
+      if (id === 'phoenix_turret') return 12;
+      return 15; // aura
+  }
   
   // Input Tracking
   private mouseX = window.innerWidth / 2;
@@ -283,6 +297,11 @@ export class GameComponent implements OnInit, OnDestroy {
           if (!data) continue;
 
           if (otherBody.label === 'enemy' || otherBody.label === 'boss') {
+            if (this.gameState.isDrilling()) {
+                this.damageEnemy(otherBody, this.gameState.currentStats().burstDamage * 3);
+                this.triggerImpactEffect(otherBody.position.x, otherBody.position.y, false);
+                continue; // Skip player taking damage while drilling
+            }
             this.takeDamage(data.type === 'boss' ? 50 : 10);
             
             // Knockback logic
@@ -350,7 +369,7 @@ export class GameComponent implements OnInit, OnDestroy {
       }
 
       // 2. Track Hold-Still for Aura
-      if (this.isMouseHeld && !this.isDead() && !this.gameState.isPaused()) {
+      if (this.isMouseHeld && !this.isDead() && !this.gameState.isPaused() && !this.gameState.isRebirthing()) {
         const dist = Math.hypot(this.mouseX - this.holdStartX, this.mouseY - this.holdStartY);
         if (dist > 10) {
             this.holdStartX = this.mouseX;
@@ -498,22 +517,28 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private triggerDrillAttack() {
-      this.tapCooldown.set(8);
-      const damage = this.gameState.currentStats().damage * 3;
+      if (this.gameState.isRebirthing()) return;
+      this.tapCooldown.set(3);
       this.audioService.playSFX('shoot');
       
-      const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 60, {
-          isSensor: true,
-          label: 'projectile',
-          plugin: { data: { id: Math.random().toString(), type: 'drill', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData }
-      });
+      const level = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['drill_attack']?.level || 1;
+      const scaleFactor = 1 + (level * 0.5); // Increase hitbox size per level
+      
+      Matter.Body.scale(this.playerBody, scaleFactor, scaleFactor);
+      
       const dir = Matter.Vector.normalise(Matter.Vector.sub({ x: this.mouseX, y: this.mouseY }, this.playerBody.position));
-      Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 20));
-      Matter.Composite.add(this.engine.world, proj);
-      setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1500);
+      Matter.Body.setVelocity(this.playerBody, Matter.Vector.mult(dir, 40));
+      
+      this.gameState.isDrilling.set(true);
+      setTimeout(() => {
+          this.gameState.isDrilling.set(false);
+          Matter.Body.setVelocity(this.playerBody, { x: 0, y: 0 });
+          Matter.Body.scale(this.playerBody, 1/scaleFactor, 1/scaleFactor); // Revert size
+      }, 600);
   }
 
   private triggerFireBreath() {
+      if (this.gameState.isRebirthing()) return;
       this.tapCooldown.set(4);
       const damage = this.gameState.currentStats().damage * 0.5;
       this.audioService.playSFX('shoot');
@@ -537,41 +562,93 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private triggerPhoenixTurret() {
-      this.holdCooldown.set(20);
-      const turret = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 30, {
+      this.holdCooldown.set(12);
+      const egg = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 20, {
           isStatic: true, isSensor: true, label: 'projectile',
-          plugin: { data: { id: Math.random().toString(), type: 'turret', health: 1, maxHealth: 1 } as EnemyData }
+          plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1, maxHealth: 1, size: 20 } as EnemyData }
       });
-      Matter.Composite.add(this.engine.world, turret);
-      
-      const turretInterval = setInterval(() => {
-          if (this.enemies.length > 0 && turret.parent) {
-              let nearest = this.enemies[0];
-              let minDist = Infinity;
-              this.enemies.forEach(e => {
-                  const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, turret.position));
-                  if (dist < minDist) { minDist = dist; nearest = e; }
-              });
-              if (minDist < 600) {
-                  const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, turret.position));
-                  const proj = Matter.Bodies.circle(turret.position.x, turret.position.y, 10, {
-                      isSensor: true, label: 'projectile',
-                      plugin: { data: { id: Math.random().toString(), type: 'projectile_player', health: 1, maxHealth: 1 } as EnemyData }
-                  });
-                  Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 15));
-                  Matter.Composite.add(this.engine.world, proj);
-                  setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 2000);
-              }
-          } else clearInterval(turretInterval);
-      }, 500);
+      Matter.Composite.add(this.engine.world, egg);
       
       setTimeout(() => {
-          if (turret.parent) Matter.Composite.remove(this.engine.world, turret);
-          clearInterval(turretInterval);
-      }, 10000);
+          if (!egg.parent) return;
+          this.audioService.playSFX('shoot');
+          
+          const baby = Matter.Bodies.circle(egg.position.x, egg.position.y - 30, 15, {
+              isSensor: true, label: 'projectile', frictionAir: 0.1,
+              plugin: { data: { id: Math.random().toString(), type: 'turret', health: 1, maxHealth: 1, size: 15 } as EnemyData }
+          });
+          Matter.Composite.add(this.engine.world, baby);
+          
+          const constraint = Matter.Constraint.create({
+              bodyA: egg, bodyB: baby, length: 150, stiffness: 0.05
+          });
+          Matter.Composite.add(this.engine.world, constraint);
+
+          const turretInterval = setInterval(() => {
+              if (this.enemies.length > 0 && baby.parent) {
+                  let nearest = this.enemies[0];
+                  let minDist = Infinity;
+                  this.enemies.forEach(e => {
+                      const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
+                      if (dist < minDist) { minDist = dist; nearest = e; }
+                  });
+                  if (minDist < 600) {
+                      const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, baby.position));
+                      Matter.Body.applyForce(baby, baby.position, Matter.Vector.mult(dir, 0.02)); // baby flies towards enemy
+                      
+                      // Breathe a cone of fire
+                      for(let i=0; i<5; i++) {
+                          setTimeout(() => {
+                              if (!baby.parent) return;
+                              const spreadAngle = (Math.random() - 0.5) * 0.5;
+                              const angle = Math.atan2(dir.y, dir.x) + spreadAngle;
+                              const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+                              const proj = Matter.Bodies.circle(baby.position.x, baby.position.y, 10, {
+                                  isSensor: true, label: 'projectile',
+                                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: this.gameState.currentStats().damage } as EnemyData }
+                              });
+                              Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
+                              Matter.Composite.add(this.engine.world, proj);
+                              setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1000);
+                          }, i * 50);
+                      }
+                  }
+              } else if (!baby.parent) {
+                  clearInterval(turretInterval);
+              }
+          }, 500);
+
+          setTimeout(() => {
+              if (!baby.parent || !egg.parent) return;
+              clearInterval(turretInterval);
+              constraint.length = 0; // reel in
+              constraint.stiffness = 0.2;
+              
+              setTimeout(() => {
+                  // Explode!
+                  const radius = 250;
+                  const explosion = Matter.Bodies.circle(egg.position.x, egg.position.y, radius, {
+                      isSensor: true, label: 'projectile',
+                      plugin: { data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: radius } as EnemyData }
+                  });
+                  Matter.Composite.add(this.engine.world, explosion);
+                  setTimeout(() => { if (explosion.parent) Matter.Composite.remove(this.engine.world, explosion) }, 300);
+                  
+                  this.enemies.forEach(e => {
+                      const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, egg.position));
+                      if (dist < radius) this.damageEnemy(e, this.gameState.currentStats().damage * 5);
+                  });
+                  
+                  Matter.Composite.remove(this.engine.world, baby);
+                  Matter.Composite.remove(this.engine.world, egg);
+                  Matter.Composite.remove(this.engine.world, constraint);
+              }, 500);
+          }, 8000);
+      }, 2000);
   }
 
   private triggerBurst() {
+      if (this.gameState.isRebirthing()) return;
       this.tapCooldown.set(5);
       const damage = this.gameState.currentStats().burstDamage;
       this.audioService.playSFX('shoot');
@@ -823,7 +900,7 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private takeDamage(amount: number) {
-    if (this.isDead() || this.gameEnded()) return;
+    if (this.isDead() || this.gameEnded() || this.gameState.isRebirthing()) return;
     
     this.audioService.playSFX('hit');
     this.currentHealth.update(h => Math.max(0, h - amount));
@@ -834,9 +911,31 @@ export class GameComponent implements OnInit, OnDestroy {
       const activeHold = this.gameState.currentStats().activeHoldAbility;
       if (activeHold === 'rebirth' && !this.hasRebirthed) {
          this.hasRebirthed = true;
-         this.currentHealth.set(this.maxHealth() / 2); // Revive with 50% health
-         this.triggerAura(); // Use aura explosion effect
-         this.audioService.playSFX('explosion');
+         this.gameState.isRebirthing.set(true);
+         this.audioService.playSFX('hit');
+         
+         // 3 second Ash state
+         setTimeout(() => {
+             this.gameState.isRebirthing.set(false);
+             this.currentHealth.set(Math.floor(this.maxHealth() / 2)); 
+             
+             // Massive explosion
+             const radius = 500;
+             const explosion = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, radius, {
+                 isSensor: true, label: 'projectile',
+                 plugin: { data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: radius } as EnemyData }
+             });
+             Matter.Composite.add(this.engine.world, explosion);
+             setTimeout(() => { if (explosion.parent) Matter.Composite.remove(this.engine.world, explosion) }, 500);
+             
+             this.enemies.forEach(e => {
+                 const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
+                 if (dist < radius) this.damageEnemy(e, this.gameState.currentStats().damage * 10);
+             });
+             
+             this.audioService.playSFX('explosion');
+             confetti({ particleCount: 150, spread: 100, origin: { y: 0.5 }, colors: ['#ffaa00', '#ff0000', '#ffffff'] });
+         }, 3000);
          return;
       }
       this.triggerDeathSequence();

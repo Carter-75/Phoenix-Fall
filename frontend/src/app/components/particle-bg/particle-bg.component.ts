@@ -324,26 +324,38 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
             this.updateMouseTarget(overridePos.x, overridePos.y);
           }
 
-          // Track Mouse
-          bird.targetWaypoint.lerp(this.mouseTarget, 0.1);
-
-          const directToTarget = bird.targetWaypoint.clone().sub(bird.position);
-          
-          if (directToTarget.lengthSq() < 0.1) {
-            directToTarget.set(0,0,0);
+          const mat = bird.particles.material as THREE.PointsMaterial;
+          if (this.gameState.isRebirthing()) {
+              mat.color.setRGB(0.2, 0.2, 0.2); // Ash color
+              bird.velocity.y -= 0.01;
+              bird.velocity.x *= 0.95;
+              bird.velocity.z *= 0.95;
+              bird.position.add(bird.velocity);
           } else {
-            directToTarget.normalize().multiplyScalar(0.015);
-          }
+              mat.color.setRGB(1, 1, 1);
+              bird.flapTime += 0.04;
+              
+              // Track Mouse
+              bird.targetWaypoint.lerp(this.mouseTarget, 0.1);
 
-          const speedMult = this.gameState.currentStats().speed;
-          const maxTurnForce = (0.001 / this.birdScale) * speedMult; 
-          const desiredVelocity = bird.velocity.clone().add(directToTarget.multiplyScalar(speedMult)).normalize().multiplyScalar(speed);
-          const steering = desiredVelocity.sub(bird.velocity);
-          if (steering.length() > maxTurnForce) steering.normalize().multiplyScalar(maxTurnForce);
-          bird.velocity.add(steering);
-          if (bird.velocity.lengthSq() > 0) bird.velocity.normalize().multiplyScalar(speed);
-          
-          bird.position.add(bird.velocity);
+              const directToTarget = bird.targetWaypoint.clone().sub(bird.position);
+              
+              if (directToTarget.lengthSq() < 0.1) {
+                directToTarget.set(0,0,0);
+              } else {
+                directToTarget.normalize().multiplyScalar(0.015);
+              }
+
+              const speedMult = this.gameState.currentStats().speed;
+              const maxTurnForce = (0.001 / this.birdScale) * speedMult; 
+              const desiredVelocity = bird.velocity.clone().add(directToTarget.multiplyScalar(speedMult)).normalize().multiplyScalar(speed);
+              const steering = desiredVelocity.sub(bird.velocity);
+              if (steering.length() > maxTurnForce) steering.normalize().multiplyScalar(maxTurnForce);
+              bird.velocity.add(steering);
+              if (bird.velocity.lengthSq() > 0) bird.velocity.normalize().multiplyScalar(speed);
+              
+              bird.position.add(bird.velocity);
+          }
         }
         
         // --- Output 2D screen coordinate for Matter.js sync ---
@@ -373,7 +385,13 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(dummy.quaternion);
         let targetBank = vDiff.dot(right) * 600; 
         targetBank = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, targetBank));
-        bird.currentBank += (targetBank - bird.currentBank) * 0.05;
+        
+        if (this.gameState.isDrilling()) {
+            bird.currentBank += 0.5; // Continuous barrel roll
+        } else {
+            bird.currentBank += (targetBank - bird.currentBank) * 0.05;
+        }
+        
         dummy.rotateZ(bird.currentBank);
         bird.previousVelocity.copy(bird.velocity);
 
@@ -383,7 +401,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
             bird.historyPos.pop(); bird.historyQuat.pop();
         }
 
-        if (!this.gameState.isPaused()) {
+        if (!this.gameState.isPaused() && !this.gameState.isRebirthing()) {
             bird.flapTime += 0.04;
         }
         const pPositions = bird.particles.geometry.attributes['position'].array as Float32Array;
@@ -411,7 +429,13 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           const flickerX = (Math.random() - 0.5) * 0.05 * this.birdScale;
           const flickerY = (Math.random() - 0.5) * 0.05 * this.birdScale;
           
-          const localOffset = new THREE.Vector3(scaledBaseX + flickerX, scaledBaseY + flapOffset + flickerY, 0);
+          let stretchZ = 0;
+          if (this.gameState.isDrilling() && scaledBaseZ < 0.5) {
+              const level = this.gameState.currentStats().unlockedAbilities['drill_attack']?.level || 1;
+              stretchZ = -(2 + level * 0.5) * this.birdScale; // Extend beak forward dynamically based on upgrade
+          }
+          
+          const localOffset = new THREE.Vector3(scaledBaseX + flickerX, scaledBaseY + flapOffset + flickerY, stretchZ);
           localOffset.applyQuaternion(hQuat);
           
           let finalX = hPos.x + localOffset.x;
@@ -496,6 +520,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       } else if (data.type === 'boss') {
         entity.mesh.rotation.y -= 0.08; // Fast terrifying spin
         entity.mesh.rotation.z = Math.sin(Date.now() * 0.005) * 0.2; // Wobble
+      } else if (data.type === 'fire') {
+        entity.mesh.scale.multiplyScalar(0.96); // Shrink over time
+        entity.mesh.rotation.y += 0.1;
       } else {
         entity.mesh.rotation.y += 0.02;
       }
@@ -509,7 +536,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
   private createEntityMesh(data: PhysicsEntity): ParticleEntity {
     const geo = new THREE.BufferGeometry();
-    const count = data.type === 'boss' ? 4000 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (data.type === 'coin' || data.type === 'gem' || data.type === 'heart' ? 200 : 800)));
+    const count = data.type === 'boss' || data.type === 'turret' ? 4000 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (data.type === 'coin' || data.type === 'gem' || data.type === 'heart' ? 200 : 800)));
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
 
@@ -525,6 +552,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     else if (data.type === 'coin') color.setHex(0xfacc15); // Yellow
     else if (data.type === 'gem') color.setHex(0xc084fc); // Purple
     else if (data.type === 'heart') color.setHex(0xec4899); // Pinkish red
+    else if (data.type === 'fire') color.setHex(0xff5500); // Orange/Red
+    else if (data.type === 'egg') color.setHex(0xffaa00); // Golden Egg
+    else if (data.type === 'turret') color.setHex(0xffffff); // Use original bird colors
 
     const r = data.size / 30; // Scale factor
 
@@ -617,6 +647,28 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
          y = Math.sin(angle) * r;
          z = (Math.random() - 0.5) * 0.5;
       } 
+      else if (data.type === 'fire') {
+         // Chaotic cloud
+         x = (Math.random() - 0.5) * r * 2.5;
+         y = (Math.random() - 0.5) * r * 2.5;
+         z = (Math.random() - 0.5) * r * 2.5;
+      }
+      else if (data.type === 'egg') {
+         const u = Math.random() * Math.PI * 2;
+         const v = Math.acos(2 * Math.random() - 1);
+         const rad = Math.cbrt(Math.random()) * r;
+         x = rad * Math.sin(v) * Math.cos(u) * 0.8;
+         y = rad * Math.sin(v) * Math.sin(u) * 1.3;
+         z = rad * Math.cos(v) * 0.8;
+      }
+      else if (data.type === 'turret') {
+         // Copy baby bird from main bird base positions
+         if (this.bird && this.bird.basePositions && this.bird.basePositions.length > idx + 2) {
+             x = this.bird.basePositions[idx] * 2.5 * r;
+             y = this.bird.basePositions[idx+1] * 2.5 * r;
+             z = this.bird.basePositions[idx+2] * 2.5 * r;
+         }
+      }
       else {
          // Default Sphere
          const u = Math.random() * Math.PI * 2;
@@ -632,9 +684,21 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       pos[idx+2] = z;
 
       // Add a bit of jitter to colors
-      col[idx] = color.r * (0.8 + Math.random()*0.4);
-      col[idx+1] = color.g * (0.8 + Math.random()*0.4);
-      col[idx+2] = color.b * (0.8 + Math.random()*0.4);
+      if (data.type === 'fire') {
+          const rand = Math.random();
+          if (rand > 0.6) { col[idx] = 1.0; col[idx+1] = 0.8; col[idx+2] = 0.0; } // Yellow
+          else if (rand > 0.3) { col[idx] = 1.0; col[idx+1] = 0.3; col[idx+2] = 0.0; } // Orange
+          else { col[idx] = 0.8; col[idx+1] = 0.0; col[idx+2] = 0.0; } // Red
+      } else if (data.type === 'turret' && this.bird) {
+          const bColors = this.bird.particles.geometry.attributes['color'].array as Float32Array;
+          col[idx] = bColors[idx];
+          col[idx+1] = bColors[idx+1];
+          col[idx+2] = bColors[idx+2];
+      } else {
+          col[idx] = color.r * (0.8 + Math.random()*0.4);
+          col[idx+1] = color.g * (0.8 + Math.random()*0.4);
+          col[idx+2] = color.b * (0.8 + Math.random()*0.4);
+      }
     }
     
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
