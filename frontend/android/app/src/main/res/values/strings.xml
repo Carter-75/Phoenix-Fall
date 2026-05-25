@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PhoenixFall</string>
+    <string name="title_activity_main">PhoenixFall</string>
+    <string name="package_name">com.carter75.phoenixfall</string>
+    <string name="custom_url_scheme">com.carter75.phoenixfall</string>
+</resources>
