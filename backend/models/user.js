@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema({
   // Compliance
   acceptedLegalPolicies: { type: Boolean, default: false },
   
+  // Notifications
+  pushSubscriptions: { type: Array, default: [] },
+  lastActiveAt: { type: Date, default: Date.now },
+
   createdAt: { type: Date, default: Date.now }
 });
 

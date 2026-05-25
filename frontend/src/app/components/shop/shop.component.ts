@@ -43,6 +43,29 @@ export interface ActiveDeal {
 
       <!-- Dynamic Deals Banners -->
       @if (activeTab() === 'gems') {
+         <!-- CRAZY FLASH DEAL (from notification) -->
+         @if (crazyDealTimer() > 0) {
+            <div class="w-full max-w-4xl bg-gradient-to-r from-red-600 via-pink-600 to-fuchsia-600 rounded-xl p-6 mb-8 flex flex-col md:flex-row justify-between items-center shadow-[0_0_50px_rgba(255,0,100,0.6)] border-2 border-white/50 relative overflow-hidden animate-pulse group">
+               <!-- Warning Tape Background -->
+               <div class="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)]"></div>
+               
+               <div class="relative z-10 flex flex-col md:w-2/3">
+                  <h3 class="font-black text-white text-3xl uppercase tracking-widest drop-shadow-md">⚠️ ONCE IN A LIFETIME DEAL ⚠️</h3>
+                  <p class="text-white font-bold text-xl mt-2 drop-shadow-sm">250 Gems for only $9.99!</p>
+                  <p class="text-white/80 font-mono text-sm mt-1">Exclusive push-notification offer. (10x Value!)</p>
+               </div>
+               
+               <div class="relative z-10 flex flex-col items-center mt-6 md:mt-0">
+                  <div class="bg-black/80 px-6 py-2 rounded-lg font-mono text-4xl font-black text-red-400 border border-red-500 shadow-[0_0_20px_rgba(255,0,0,0.5)] mb-4">
+                     {{ formatCrazyTimer(crazyDealTimer()) }}
+                  </div>
+                  <button (click)="buyCrazyDeal()" class="px-8 py-4 bg-white text-red-600 rounded-xl font-black text-2xl hover:scale-105 active:scale-95 transition shadow-xl">
+                     CLAIM $9.99
+                  </button>
+               </div>
+            </div>
+         }
+
          <!-- Active Deal Banner -->
          @if (activeDeal().type !== 'none') {
             <div class="w-full max-w-4xl bg-gradient-to-r {{ activeDeal().bannerColor }} rounded-xl p-4 mb-4 flex justify-between items-center shadow-lg animate-pulse border border-white/50">
@@ -51,7 +74,7 @@ export interface ActiveDeal {
                   <p class="text-white/80 font-bold">Special pricing event is live!</p>
                </div>
             </div>
-         } @else {
+         } @else if (dealRadarDays() <= 2) {
             <!-- Deal Radar -->
             <div class="w-full max-w-4xl bg-white/5 rounded-xl p-4 mb-4 flex justify-between items-center shadow-lg border border-white/10">
                <div>
@@ -133,9 +156,17 @@ export interface ActiveDeal {
               <p class="text-white/50 text-sm">Increase Max Health</p>
               <p class="text-red-400 font-mono mt-1">Lvl {{ (gameState.currentStats().maxHealth - 100) / 10 }}</p>
             </div>
-            <button (click)="buyHealth()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('maxHealth', 100, 10, 100)">
-              <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('maxHealth', 100, 10, 100) }}
-            </button>
+            <div class="w-full mt-4">
+              @if (gameState.coins() >= getCost('maxHealth', 100, 10, 100)) {
+                 <button (click)="buyHealth()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('maxHealth', 100, 10, 100) }}
+                 </button>
+              } @else {
+                 <button (click)="buyHealth(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('maxHealth', 100, 10, 100))">
+                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('maxHealth', 100, 10, 100)) }}
+                 </button>
+              }
+            </div>
           </div>
 
           <!-- Speed Upgrade -->
@@ -148,9 +179,17 @@ export interface ActiveDeal {
               <p class="text-white/50 text-sm">Increase Flight Speed</p>
               <p class="text-blue-400 font-mono mt-1">Lvl {{ ((gameState.currentStats().speed - 1) * 10).toFixed(0) }}</p>
             </div>
-            <button (click)="buySpeed()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('speed', 150, 0.1, 1)">
-              <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('speed', 150, 0.1, 1) }}
-            </button>
+            <div class="w-full mt-4">
+              @if (gameState.coins() >= getCost('speed', 150, 0.1, 1)) {
+                 <button (click)="buySpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('speed', 150, 0.1, 1) }}
+                 </button>
+              } @else {
+                 <button (click)="buySpeed(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('speed', 150, 0.1, 1))">
+                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('speed', 150, 0.1, 1)) }}
+                 </button>
+              }
+            </div>
           </div>
 
           <!-- Magnetism Upgrade -->
@@ -163,9 +202,17 @@ export interface ActiveDeal {
               <p class="text-white/50 text-sm">Attract more coins</p>
               <p class="text-purple-400 font-mono mt-1">Lvl {{ ((gameState.currentStats().magnetism - 1) * 10).toFixed(0) }}</p>
             </div>
-            <button (click)="buyMagnet()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('magnetism', 200, 0.1, 1)">
-              <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('magnetism', 200, 0.1, 1) }}
-            </button>
+            <div class="w-full mt-4">
+              @if (gameState.coins() >= getCost('magnetism', 200, 0.1, 1)) {
+                 <button (click)="buyMagnet()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('magnetism', 200, 0.1, 1) }}
+                 </button>
+              } @else {
+                 <button (click)="buyMagnet(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('magnetism', 200, 0.1, 1))">
+                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('magnetism', 200, 0.1, 1)) }}
+                 </button>
+              }
+            </div>
           </div>
 
           <!-- Damage Upgrade -->
@@ -178,9 +225,17 @@ export interface ActiveDeal {
               <p class="text-white/50 text-sm">Increase Damage</p>
               <p class="text-orange-400 font-mono mt-1">Lvl {{ gameState.currentStats().damage - 10 }}</p>
             </div>
-            <button (click)="buyDamage()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('damage', 250, 1, 10)">
-              <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('damage', 250, 1, 10) }}
-            </button>
+            <div class="w-full mt-4">
+              @if (gameState.coins() >= getCost('damage', 250, 1, 10)) {
+                 <button (click)="buyDamage()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('damage', 250, 1, 10) }}
+                 </button>
+              } @else {
+                 <button (click)="buyDamage(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('damage', 250, 1, 10))">
+                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('damage', 250, 1, 10)) }}
+                 </button>
+              }
+            </div>
           </div>
 
           <!-- Attack Speed Upgrade -->
@@ -193,9 +248,17 @@ export interface ActiveDeal {
               <p class="text-white/50 text-sm">Increase Attack Speed</p>
               <p class="text-green-400 font-mono mt-1">Lvl {{ ((gameState.currentStats().attackSpeed - 1) * 10).toFixed(0) }}</p>
             </div>
-            <button (click)="buyAttackSpeed()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('attackSpeed', 300, 0.1, 1)">
-              <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackSpeed', 300, 0.1, 1) }}
-            </button>
+            <div class="w-full mt-4">
+              @if (gameState.coins() >= getCost('attackSpeed', 300, 0.1, 1)) {
+                 <button (click)="buyAttackSpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackSpeed', 300, 0.1, 1) }}
+                 </button>
+              } @else {
+                 <button (click)="buyAttackSpeed(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('attackSpeed', 300, 0.1, 1))">
+                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('attackSpeed', 300, 0.1, 1)) }}
+                 </button>
+              }
+            </div>
           </div>
 
           <!-- Attack Range Upgrade -->
@@ -208,9 +271,17 @@ export interface ActiveDeal {
               <p class="text-white/50 text-sm">Increase Attack Range</p>
               <p class="text-teal-400 font-mono mt-1">Lvl {{ (gameState.currentStats().attackRange - 400) / 50 }}</p>
             </div>
-            <button (click)="buyAttackRange()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('attackRange', 250, 50, 400)">
-              <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackRange', 250, 50, 400) }}
-            </button>
+            <div class="w-full mt-4">
+              @if (gameState.coins() >= getCost('attackRange', 250, 50, 400)) {
+                 <button (click)="buyAttackRange()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackRange', 250, 50, 400) }}
+                 </button>
+              } @else {
+                 <button (click)="buyAttackRange(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('attackRange', 250, 50, 400))">
+                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('attackRange', 250, 50, 400)) }}
+                 </button>
+              }
+            </div>
           </div>
 
           <!-- Aura Radius Upgrade -->
@@ -223,9 +294,17 @@ export interface ActiveDeal {
               <p class="text-white/50 text-sm">Increase Aura Radius</p>
               <p class="text-cyan-400 font-mono mt-1">Lvl {{ (gameState.currentStats().auraRadius - 250) / 10 }}</p>
             </div>
-            <button (click)="buyAuraRadius()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('auraRadius', 400, 10, 250)">
-              <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('auraRadius', 400, 10, 250) }}
-            </button>
+            <div class="w-full mt-4">
+              @if (gameState.coins() >= getCost('auraRadius', 400, 10, 250)) {
+                 <button (click)="buyAuraRadius()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('auraRadius', 400, 10, 250) }}
+                 </button>
+              } @else {
+                 <button (click)="buyAuraRadius(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('auraRadius', 400, 10, 250))">
+                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('auraRadius', 400, 10, 250)) }}
+                 </button>
+              }
+            </div>
           </div>
 
           <!-- Homing Bullets Upgrade -->
@@ -238,9 +317,17 @@ export interface ActiveDeal {
               <p class="text-white/50 text-sm">Homing Bullets</p>
               <p class="text-indigo-400 font-mono mt-1">Lvl {{ gameState.currentStats().homingLevel }}</p>
             </div>
-            <button (click)="buyHoming()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('homingLevel', 300, 1, 0)">
-              <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('homingLevel', 300, 1, 0) }}
-            </button>
+            <div class="w-full mt-4">
+              @if (gameState.coins() >= getCost('homingLevel', 300, 1, 0)) {
+                 <button (click)="buyHoming()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('homingLevel', 300, 1, 0) }}
+                 </button>
+              } @else {
+                 <button (click)="buyHoming(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('homingLevel', 300, 1, 0))">
+                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('homingLevel', 300, 1, 0)) }}
+                 </button>
+              }
+            </div>
           </div>
         </div>
       }
@@ -270,22 +357,36 @@ export interface ActiveDeal {
                   <div class="mt-auto pt-4 border-t border-white/10 flex items-center gap-4">
                      @if (!gameState.currentStats().unlockedAbilities[ability.id]) {
                         <!-- Locked -->
-                        <button (click)="unlockAbility(ability.id, ability.unlockCost)" class="flex-1 py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50" [disabled]="gameState.coins() < ability.unlockCost">
-                           Unlock <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ ability.unlockCost }}
-                        </button>
+                        <div class="w-full">
+                           @if (gameState.coins() >= ability.unlockCost) {
+                              <button (click)="unlockAbility(ability.id, ability.unlockCost)" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-sm flex items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition disabled:opacity-50">
+                                 Unlock <img src="assets/coin_icon.png" class="w-4 h-4"/> {{ ability.unlockCost }}
+                              </button>
+                           } @else {
+                              <button (click)="unlockAbility(ability.id, ability.unlockCost, true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-sm flex items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition disabled:opacity-50" [disabled]="gameState.gems() < getGemCost(ability.unlockCost)">
+                                 Unlock <img src="assets/gem_icon.png" class="w-4 h-4"/> {{ getGemCost(ability.unlockCost) }}
+                              </button>
+                           }
+                        </div>
                      } @else {
                         <!-- Unlocked -->
                         <div class="flex flex-col w-full gap-2">
                            <div class="flex items-center justify-between">
                               <span class="text-cyan-400 font-mono text-sm">Level {{ gameState.currentStats().unlockedAbilities[ability.id].level }}</span>
                            </div>
-                           <div class="flex gap-2">
-                              <button (click)="equipAbility(ability.id, ability.type)" class="flex-1 py-2 bg-white/10 border border-white/20 rounded-xl font-bold text-white hover:bg-white/20 transition">
+                           <div class="flex gap-1 w-full mt-2">
+                              <button (click)="equipAbility(ability.id, ability.type)" class="flex-1 py-2 bg-white/10 border border-white/20 rounded-xl font-bold text-white text-sm hover:bg-white/20 transition">
                                  Equip
                               </button>
-                              <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost))" class="flex-1 py-2 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-white flex items-center justify-center gap-2 hover:brightness-110 transition disabled:opacity-50" [disabled]="gameState.coins() < getAbilityCost(ability.id, ability.upgradeCost)">
-                                 Upgrade <img src="assets/coin_icon.png" class="w-4 h-4"/> {{ getAbilityCost(ability.id, ability.upgradeCost) }}
-                              </button>
+                              @if (gameState.coins() >= getAbilityCost(ability.id, ability.upgradeCost)) {
+                                 <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost))" class="flex-1 py-2 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-1 hover:brightness-110 transition disabled:opacity-50">
+                                    <img src="assets/coin_icon.png" class="w-3 h-3"/> {{ getAbilityCost(ability.id, ability.upgradeCost) }}
+                                 </button>
+                              } @else {
+                                 <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost), true)" class="flex-1 py-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-1 hover:brightness-110 transition disabled:opacity-50" [disabled]="gameState.gems() < getGemCost(getAbilityCost(ability.id, ability.upgradeCost))">
+                                    <img src="assets/gem_icon.png" class="w-3 h-3"/> {{ getGemCost(getAbilityCost(ability.id, ability.upgradeCost)) }}
+                                 </button>
+                              }
                            </div>
                         </div>
                      }
@@ -315,22 +416,27 @@ export interface ActiveDeal {
           </div>
 
           <!-- Package 2 (Best Value) -->
-          <div class="relative bg-gradient-to-b from-purple-900/40 to-black/40 border border-purple-500/50 rounded-3xl p-6 flex flex-col items-center gap-4 hover:brightness-110 transition shadow-[0_0_30px_rgba(168,85,247,0.3)] transform md:-translate-y-2 mt-4 md:mt-0 overflow-hidden">
-            <div class="absolute -top-3 bg-purple-500 text-white px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase shadow-lg z-10">Most Popular</div>
-            @if (!gameState.hasPurchasedGems() && flashSaleTimer() > 0) {
-                <div class="absolute top-4 -right-8 bg-red-600 text-white text-xs font-bold py-1 px-10 rotate-45 shadow-lg z-10">2X BONUS</div>
-            }
-            <img src="assets/gem_icon.png" class="w-32 h-32 object-contain drop-shadow-[0_0_25px_rgba(168,85,247,0.8)] mt-2" />
-            <div class="text-center">
-              <h3 class="text-2xl font-bold text-white">Handful of Gems</h3>
-              <p class="text-purple-400 font-bold text-xl mt-1">{{ calculatedGems()[1] }} Gems</p>
+          <div class="relative transform md:-translate-y-2 mt-4 md:mt-0 flex flex-col w-full h-full">
+            <!-- Out-of-bounds Ribbon -->
+            <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-purple-500 text-white px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase shadow-lg z-20 whitespace-nowrap">Most Popular</div>
+            
+            <!-- Clipped Card -->
+            <div class="relative w-full h-full bg-gradient-to-b from-purple-900/40 to-black/40 border border-purple-500/50 rounded-3xl p-6 flex flex-col items-center gap-4 hover:brightness-110 transition shadow-[0_0_30px_rgba(168,85,247,0.3)] overflow-hidden">
+                @if (!gameState.hasPurchasedGems() && flashSaleTimer() > 0) {
+                    <div class="absolute top-4 -right-8 bg-red-600 text-white text-xs font-bold py-1 px-10 rotate-45 shadow-lg z-10 pointer-events-none">2X BONUS</div>
+                }
+                <img src="assets/gem_icon.png" class="w-32 h-32 object-contain drop-shadow-[0_0_25px_rgba(168,85,247,0.8)] mt-2" />
+                <div class="text-center">
+                  <h3 class="text-2xl font-bold text-white">Handful of Gems</h3>
+                  <p class="text-purple-400 font-bold text-xl mt-1">{{ calculatedGems()[1] }} Gems</p>
+                </div>
+                <button (click)="buyGems(calculatedGems()[1], calculatedPrices()[1])" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30 flex justify-center gap-2">
+                  @if (crossedOutPrices().length) {
+                    <span class="line-through text-white/50">&dollar;{{ crossedOutPrices()[1] }}</span>
+                  }
+                  &dollar;{{ calculatedPrices()[1] }}
+                </button>
             </div>
-            <button (click)="buyGems(calculatedGems()[1], calculatedPrices()[1])" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30 flex justify-center gap-2">
-              @if (crossedOutPrices().length) {
-                <span class="line-through text-white/50">&dollar;{{ crossedOutPrices()[1] }}</span>
-              }
-              &dollar;{{ calculatedPrices()[1] }}
-            </button>
           </div>
 
           <!-- Package 3 -->
@@ -378,6 +484,117 @@ export interface ActiveDeal {
                     Exchange
                   </button>
                </div>
+            </div>
+          </div>
+
+          <!-- Boosts Section -->
+          <div class="col-span-1 md:col-span-3 mt-8">
+            <h2 class="text-2xl font-black text-white uppercase tracking-widest border-b border-white/20 pb-2 mb-6">Permanent Boosts</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <!-- Coin Doubler -->
+               <div class="bg-white/5 border border-yellow-500/30 rounded-3xl p-6 flex items-center justify-between shadow-[0_0_20px_rgba(234,179,8,0.1)]">
+                 <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center border border-yellow-500/50">
+                       <span class="text-3xl">💰</span>
+                    </div>
+                    <div>
+                       <h3 class="text-xl font-bold text-white">Coin Doubler</h3>
+                       <p class="text-yellow-400/80 text-sm">Earn 2x Coins forever!</p>
+                       @if (gameState.coinMultiplier() > 1) {
+                         <p class="text-green-400 font-bold text-sm mt-1">✓ Active</p>
+                       }
+                    </div>
+                 </div>
+                 @if (gameState.coinMultiplier() === 1) {
+                    <button (click)="buyCoinMultiplier()" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-lg hover:brightness-110 active:scale-95 transition disabled:opacity-50 flex items-center gap-2" [disabled]="gameState.gems() < 50">
+                       <img src="assets/gem_icon.png" class="w-5 h-5"/> 50
+                    </button>
+                 }
+               </div>
+
+               <!-- XP Doubler -->
+               <div class="bg-white/5 border border-blue-500/30 rounded-3xl p-6 flex items-center justify-between shadow-[0_0_20px_rgba(59,130,246,0.1)]">
+                 <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center border border-blue-500/50">
+                       <span class="text-3xl">⭐</span>
+                    </div>
+                    <div>
+                       <h3 class="text-xl font-bold text-white">XP Doubler</h3>
+                       <p class="text-blue-400/80 text-sm">Earn 2x XP forever!</p>
+                       @if (gameState.xpMultiplier() > 1) {
+                         <p class="text-green-400 font-bold text-sm mt-1">✓ Active</p>
+                       }
+                    </div>
+                 </div>
+                 @if (gameState.xpMultiplier() === 1) {
+                    <button (click)="buyXpMultiplier()" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-lg hover:brightness-110 active:scale-95 transition disabled:opacity-50 flex items-center gap-2" [disabled]="gameState.gems() < 50">
+                       <img src="assets/gem_icon.png" class="w-5 h-5"/> 50
+                    </button>
+                 }               </div>
+
+               <!-- Cosmic Phoenix Trail -->
+               <div class="bg-white/5 border border-pink-500/30 rounded-3xl p-6 flex items-center justify-between shadow-[0_0_20px_rgba(236,72,153,0.1)] col-span-1 md:col-span-2">
+                 <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-pink-500/20 rounded-full flex items-center justify-center border border-pink-500/50">
+                       <span class="text-3xl">✨</span>
+                    </div>
+                    <div>
+                       <h3 class="text-xl font-bold text-white flex items-center gap-2">Cosmic Phoenix Trail <span class="bg-pink-500/20 text-pink-400 text-xs px-2 py-0.5 rounded font-bold uppercase">Cosmetic</span></h3>
+                       <p class="text-pink-400/80 text-sm">Leave a stunning starry trail that generates passive XP!</p>
+                       @if (gameState.hasCosmicTrail()) {
+                         <p class="text-green-400 font-bold text-sm mt-1">✓ Active</p>
+                       }
+                    </div>
+                 </div>
+                 @if (!gameState.hasCosmicTrail()) {
+                    <button (click)="buyCosmicTrail()" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-lg hover:brightness-110 active:scale-95 transition disabled:opacity-50 flex items-center gap-2" [disabled]="gameState.gems() < 200">
+                       <img src="assets/gem_icon.png" class="w-5 h-5"/> 200
+                    </button>
+                 }
+               </div>
+
+               <!-- Golden Aura of Midas -->
+               <div class="bg-white/5 border border-amber-500/30 rounded-3xl p-6 flex items-center justify-between shadow-[0_0_20px_rgba(245,158,11,0.1)] col-span-1 md:col-span-2">
+                 <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center border border-amber-500/50">
+                       <span class="text-3xl">📿</span>
+                    </div>
+                    <div>
+                       <h3 class="text-xl font-bold text-white flex items-center gap-2">Golden Aura of Midas <span class="bg-amber-500/20 text-amber-400 text-xs px-2 py-0.5 rounded font-bold uppercase">Cosmetic</span></h3>
+                       <p class="text-amber-400/80 text-sm">A beautiful golden ring with a 10% chance to multiply coins by 5x!</p>
+                       @if (gameState.hasGoldenAura()) {
+                         <p class="text-green-400 font-bold text-sm mt-1">✓ Active</p>
+                       }
+                    </div>
+                 </div>
+                 @if (!gameState.hasGoldenAura()) {
+                    <button (click)="buyGoldenAura()" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-lg hover:brightness-110 active:scale-95 transition disabled:opacity-50 flex items-center gap-2" [disabled]="gameState.gems() < 300">
+                       <img src="assets/gem_icon.png" class="w-5 h-5"/> 300
+                    </button>
+                 }
+               </div>
+
+               <!-- Celestial Shield -->
+               <div class="bg-white/5 border border-cyan-500/30 rounded-3xl p-6 flex items-center justify-between shadow-[0_0_20px_rgba(6,182,212,0.1)] col-span-1 md:col-span-2">
+                 <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-cyan-500/20 rounded-full flex items-center justify-center border border-cyan-500/50">
+                       <span class="text-3xl">💠</span>
+                    </div>
+                    <div>
+                       <h3 class="text-xl font-bold text-white flex items-center gap-2">Celestial Shield <span class="bg-cyan-500/20 text-cyan-400 text-xs px-2 py-0.5 rounded font-bold uppercase">Cosmetic</span></h3>
+                       <p class="text-cyan-400/80 text-sm">A stunning orbital shield that blocks 1 hit. Recharges slowly.</p>
+                       @if (gameState.hasCelestialShield()) {
+                         <p class="text-green-400 font-bold text-sm mt-1">✓ Active</p>
+                       }
+                    </div>
+                 </div>
+                 @if (!gameState.hasCelestialShield()) {
+                    <button (click)="buyCelestialShield()" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-lg hover:brightness-110 active:scale-95 transition disabled:opacity-50 flex items-center gap-2" [disabled]="gameState.gems() < 400">
+                       <img src="assets/gem_icon.png" class="w-5 h-5"/> 400
+                    </button>
+                 }
+               </div>
+
             </div>
           </div>
 
@@ -437,6 +654,7 @@ export class ShopComponent implements OnInit, OnDestroy {
   isGachaSpinning = signal<boolean>(false);
   flashSaleTimer = signal<number>(0); 
   currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
+  crazyDealTimer = computed(() => this.gameState.crazyDealTimer());
   private timerInterval: any;
   private ghostInterval: any;
 
@@ -604,20 +822,45 @@ export class ShopComponent implements OnInit, OnDestroy {
     this.gameState.activeScreen.set('menu');
   }
 
-  unlockAbility(id: string, cost: number) {
-     if (this.gameState.coins() >= cost) {
-         this.gameState.coins.update(c => c - cost);
-         this.gameState.worldUpgrades.update(upgrades => {
-             const worldId = this.gameState.selectedWorldIndex();
-             const stats = upgrades[worldId];
-             return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1 } } } };
-         });
-         this.gameState.awardTrophy("Ability Unlocked");
-     }
+  unlockAbility(id: string, cost: number, useGems: boolean = false) {
+    if (useGems) {
+        const gemCost = this.getGemCost(cost);
+        if (this.gameState.gems() >= gemCost && !this.gameState.currentStats().unlockedAbilities[id]) {
+            this.gameState.gems.update(c => c - gemCost);
+            this.gameState.worldUpgrades.update(upgrades => {
+                const worldId = this.gameState.selectedWorldIndex();
+                const stats = upgrades[worldId];
+                return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1 } } } };
+            });
+            this.gameState.awardTrophy("Ability Unlocked");
+            this.audio.playUpgrade();
+        }
+    } else if (this.gameState.coins() >= cost && !this.gameState.currentStats().unlockedAbilities[id]) {
+        this.gameState.coins.update(c => c - cost);
+        this.gameState.worldUpgrades.update(upgrades => {
+            const worldId = this.gameState.selectedWorldIndex();
+            const stats = upgrades[worldId];
+            return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1 } } } };
+        });
+        this.gameState.awardTrophy("Ability Unlocked");
+        this.audio.playUpgrade();
+    }
   }
 
-  upgradeAbility(id: string, cost: number) {
-     if (this.gameState.coins() >= cost) {
+  upgradeAbility(id: string, cost: number, useGems: boolean = false) {
+     if (useGems) {
+         const gemCost = this.getGemCost(cost);
+         if (this.gameState.gems() >= gemCost && this.gameState.currentStats().unlockedAbilities[id]) {
+             this.gameState.gems.update(c => c - gemCost);
+             this.gameState.worldUpgrades.update(upgrades => {
+                 const worldId = this.gameState.selectedWorldIndex();
+                 const stats = upgrades[worldId];
+                 const currentLvl = stats.unlockedAbilities[id]?.level || 1;
+                 return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1 } } } };
+             });
+             this.audio.playUpgrade();
+         }
+     } else if (this.gameState.coins() >= cost && this.gameState.currentStats().unlockedAbilities[id]) {
          this.gameState.coins.update(c => c - cost);
          this.gameState.worldUpgrades.update(upgrades => {
              const worldId = this.gameState.selectedWorldIndex();
@@ -625,6 +868,7 @@ export class ShopComponent implements OnInit, OnDestroy {
              const currentLvl = stats.unlockedAbilities[id]?.level || 1;
              return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1 } } } };
          });
+         this.audio.playUpgrade();
      }
   }
 
@@ -649,19 +893,232 @@ export class ShopComponent implements OnInit, OnDestroy {
      return Math.floor(baseCost * Math.pow(1.5, level));
   }
 
+  getGemCost(coinCost: number): number {
+      return Math.max(1, Math.ceil(coinCost / 1000));
+  }
+
   getAbilityCost(id: string, baseCost: number): number {
      const level = this.gameState.currentStats().unlockedAbilities[id]?.level || 1;
      return Math.floor(baseCost * Math.pow(1.5, level - 1));
   }
 
-  buyHealth() { this.gameState.purchaseUpgrade('maxHealth', this.getCost('maxHealth', 100, 10, 100), 10); }
-  buySpeed() { this.gameState.purchaseUpgrade('speed', this.getCost('speed', 150, 0.1, 1), 0.1); }
-  buyMagnet() { this.gameState.purchaseUpgrade('magnetism', this.getCost('magnetism', 200, 0.1, 1), 0.1); }
-  buyDamage() { this.gameState.purchaseUpgrade('damage', this.getCost('damage', 250, 1, 10), 1); }
-  buyAttackSpeed() { this.gameState.purchaseUpgrade('attackSpeed', this.getCost('attackSpeed', 300, 0.1, 1), 0.1); }
-  buyAttackRange() { this.gameState.purchaseUpgrade('attackRange', this.getCost('attackRange', 250, 50, 400), 50); }
-  buyAuraRadius() { this.gameState.purchaseUpgrade('auraRadius', this.getCost('auraRadius', 400, 10, 250), 10); }
-  buyHoming() { this.gameState.purchaseUpgrade('homingLevel', this.getCost('homingLevel', 300, 1, 0), 1); }
+  buyCoinMultiplier() {
+    if (this.gameState.gems() >= 50 && this.gameState.coinMultiplier() === 1) {
+        this.gameState.gems.update(g => g - 50);
+        this.gameState.coinMultiplier.set(2);
+        this.audio.playUpgrade();
+    }
+  }
+
+
+
+  buyCosmicTrail() {
+    if (this.gameState.gems() >= 200 && !this.gameState.hasCosmicTrail()) {
+        this.gameState.gems.update(g => g - 200);
+        this.gameState.hasCosmicTrail.set(true);
+        this.audio.playUpgrade();
+    }
+  }
+
+  buyGoldenAura() {
+    if (this.gameState.gems() >= 300 && !this.gameState.hasGoldenAura()) {
+        this.gameState.gems.update(g => g - 300);
+        this.gameState.hasGoldenAura.set(true);
+        this.audio.playUpgrade();
+    }
+  }
+
+  buyCelestialShield() {
+    if (this.gameState.gems() >= 400 && !this.gameState.hasCelestialShield()) {
+        this.gameState.gems.update(g => g - 400);
+        this.gameState.hasCelestialShield.set(true);
+        this.audio.playUpgrade();
+    }
+  }
+
+  buyXpMultiplier() {
+    if (this.gameState.gems() >= 50 && this.gameState.xpMultiplier() === 1) {
+        this.gameState.gems.update(g => g - 50);
+        this.gameState.xpMultiplier.set(2);
+        this.audio.playUpgrade();
+    }
+  }
+
+  buyHealth(useGems: boolean = false) {
+    const cost = this.getCost('maxHealth', 100, 10, 100);
+    if (useGems) {
+      const gemCost = this.getGemCost(cost);
+      if (this.gameState.gems() >= gemCost) {
+        this.gameState.gems.update(c => c - gemCost);
+        this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].maxHealth += 10;
+          return { ...u };
+        });
+        this.audio.playUpgrade();
+      }
+    } else if (this.gameState.coins() >= cost) {
+      this.gameState.coins.update(c => c - cost);
+      this.gameState.worldUpgrades.update(u => {
+        u[this.gameState.selectedWorldIndex()].maxHealth += 10;
+        return { ...u };
+      });
+      this.audio.playUpgrade();
+    }
+  }
+
+  buySpeed(useGems: boolean = false) {
+    const cost = this.getCost('speed', 150, 0.1, 1);
+    if (useGems) {
+      const gemCost = this.getGemCost(cost);
+      if (this.gameState.gems() >= gemCost) {
+        this.gameState.gems.update(c => c - gemCost);
+        this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].speed = +(u[this.gameState.selectedWorldIndex()].speed + 0.1).toFixed(2);
+          return { ...u };
+        });
+        this.audio.playUpgrade();
+      }
+    } else if (this.gameState.coins() >= cost) {
+      this.gameState.coins.update(c => c - cost);
+      this.gameState.worldUpgrades.update(u => {
+        u[this.gameState.selectedWorldIndex()].speed = +(u[this.gameState.selectedWorldIndex()].speed + 0.1).toFixed(2);
+        return { ...u };
+      });
+      this.audio.playUpgrade();
+    }
+  }
+
+  buyMagnet(useGems: boolean = false) {
+    const cost = this.getCost('magnetism', 200, 0.1, 1);
+    if (useGems) {
+      const gemCost = this.getGemCost(cost);
+      if (this.gameState.gems() >= gemCost) {
+        this.gameState.gems.update(c => c - gemCost);
+        this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].magnetism = +(u[this.gameState.selectedWorldIndex()].magnetism + 0.1).toFixed(2);
+          return { ...u };
+        });
+        this.audio.playUpgrade();
+      }
+    } else if (this.gameState.coins() >= cost) {
+      this.gameState.coins.update(c => c - cost);
+      this.gameState.worldUpgrades.update(u => {
+        u[this.gameState.selectedWorldIndex()].magnetism = +(u[this.gameState.selectedWorldIndex()].magnetism + 0.1).toFixed(2);
+        return { ...u };
+      });
+      this.audio.playUpgrade();
+    }
+  }
+
+  buyDamage(useGems: boolean = false) {
+    const cost = this.getCost('damage', 250, 1, 10);
+    if (useGems) {
+      const gemCost = this.getGemCost(cost);
+      if (this.gameState.gems() >= gemCost) {
+        this.gameState.gems.update(c => c - gemCost);
+        this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].damage += 1;
+          return { ...u };
+        });
+        this.audio.playUpgrade();
+      }
+    } else if (this.gameState.coins() >= cost) {
+      this.gameState.coins.update(c => c - cost);
+      this.gameState.worldUpgrades.update(u => {
+        u[this.gameState.selectedWorldIndex()].damage += 1;
+        return { ...u };
+      });
+      this.audio.playUpgrade();
+    }
+  }
+
+  buyAttackSpeed(useGems: boolean = false) {
+    const cost = this.getCost('attackSpeed', 300, 0.1, 1);
+    if (useGems) {
+      const gemCost = this.getGemCost(cost);
+      if (this.gameState.gems() >= gemCost) {
+        this.gameState.gems.update(c => c - gemCost);
+        this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].attackSpeed = +(u[this.gameState.selectedWorldIndex()].attackSpeed + 0.1).toFixed(2);
+          return { ...u };
+        });
+        this.audio.playUpgrade();
+      }
+    } else if (this.gameState.coins() >= cost) {
+      this.gameState.coins.update(c => c - cost);
+      this.gameState.worldUpgrades.update(u => {
+        u[this.gameState.selectedWorldIndex()].attackSpeed = +(u[this.gameState.selectedWorldIndex()].attackSpeed + 0.1).toFixed(2);
+        return { ...u };
+      });
+      this.audio.playUpgrade();
+    }
+  }
+
+  buyAttackRange(useGems: boolean = false) {
+    const cost = this.getCost('attackRange', 250, 50, 400);
+    if (useGems) {
+      const gemCost = this.getGemCost(cost);
+      if (this.gameState.gems() >= gemCost) {
+        this.gameState.gems.update(c => c - gemCost);
+        this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].attackRange += 50;
+          return { ...u };
+        });
+        this.audio.playUpgrade();
+      }
+    } else if (this.gameState.coins() >= cost) {
+      this.gameState.coins.update(c => c - cost);
+      this.gameState.worldUpgrades.update(u => {
+        u[this.gameState.selectedWorldIndex()].attackRange += 50;
+        return { ...u };
+      });
+      this.audio.playUpgrade();
+    }
+  }
+
+  buyAuraRadius(useGems: boolean = false) {
+    const cost = this.getCost('auraRadius', 400, 10, 250);
+    if (useGems) {
+      const gemCost = this.getGemCost(cost);
+      if (this.gameState.gems() >= gemCost) {
+        this.gameState.gems.update(c => c - gemCost);
+        this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].auraRadius += 10;
+          return { ...u };
+        });
+        this.audio.playUpgrade();
+      }
+    } else if (this.gameState.coins() >= cost) {
+      this.gameState.coins.update(c => c - cost);
+      this.gameState.worldUpgrades.update(u => {
+        u[this.gameState.selectedWorldIndex()].auraRadius += 10;
+        return { ...u };
+      });
+      this.audio.playUpgrade();
+    }
+  }
+
+  buyHoming(useGems: boolean = false) {
+    const cost = this.getCost('homingLevel', 300, 1, 0);
+    if (useGems) {
+      const gemCost = this.getGemCost(cost);
+      if (this.gameState.gems() >= gemCost) {
+        this.gameState.gems.update(c => c - gemCost);
+        this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].homingLevel += 1;
+          return { ...u };
+        });
+        this.audio.playUpgrade();
+      }
+    } else if (this.gameState.coins() >= cost) {
+      this.gameState.coins.update(c => c - cost);
+      this.gameState.worldUpgrades.update(u => {
+        u[this.gameState.selectedWorldIndex()].homingLevel += 1;
+        return { ...u };
+      });
+      this.audio.playUpgrade();
+    }
+  }
 
   exchangeGem() {
     if (this.gameState.gems() >= 1 && !this.isGachaSpinning()) {
@@ -678,6 +1135,19 @@ export class ShopComponent implements OnInit, OnDestroy {
           }
       }, 100);
     }
+  }
+
+  formatCrazyTimer(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  buyCrazyDeal() {
+    this.buyGems(250, 9.99);
+    // Hide the deal after purchase initiates
+    this.gameState.crazyDealExpiresAt.set(null);
+    this.gameState.crazyDealTimer.set(0);
   }
 
   buyGems(amount: number, price: number) {

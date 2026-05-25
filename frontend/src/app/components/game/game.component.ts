@@ -114,7 +114,7 @@ interface EnemyData {
             <button (click)="reviveWithGems()" class="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:brightness-125 border border-fuchsia-400/50 rounded-2xl flex justify-center items-center gap-3 transition shadow-[0_0_20px_rgba(200,0,255,0.3)]">
               <span class="text-white font-bold text-xl">Instant Revive</span>
               <img src="assets/gem_icon.png" class="w-6 h-6"/>
-              <span class="text-white font-bold text-xl">1</span>
+              <span class="text-white font-bold text-xl">{{ getReviveCost() }}</span>
             </button>
             <button (click)="quitGame()" class="w-full mt-4 py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
               Give Up
@@ -158,6 +158,8 @@ export class GameComponent implements OnInit, OnDestroy {
   public maxHealth = computed(() => this.gameState.currentStats().maxHealth);
   public currentHealth = signal<number>(this.maxHealth());
   public damageFlash = signal<boolean>(false);
+  public reviveCount = 0;
+  public celestialShieldActive = signal<boolean>(true);
   
   private totalTime = 300; 
   public timeRemaining = signal<number>(this.totalTime);
@@ -314,7 +316,11 @@ export class GameComponent implements OnInit, OnDestroy {
             this.takeDamage(15);
             Matter.Composite.remove(this.engine.world, otherBody);
           } else if (otherBody.label === 'item') {
-            if (data.type === 'coin') this.gameState.coins.update(c => c + (data.value || 0));
+            if (data.type === 'coin') {
+                let val = data.value || 0;
+                if (this.gameState.hasGoldenAura() && Math.random() < 0.1) val *= 5;
+                this.gameState.coins.update(c => c + (val * this.gameState.coinMultiplier()));
+            }
             if (data.type === 'gem') this.gameState.gems.update(g => g + (data.value || 0));
             if (data.type === 'heart') {
                 this.audioService.playSFX('heal');
@@ -498,6 +504,10 @@ export class GameComponent implements OnInit, OnDestroy {
       this.gameState.sessionPlayTime.update(t => t + 1);
       
       if (this.gameState.sessionPlayTime() >= 60) this.gameState.awardTrophy("Survivor");
+      
+      if (this.gameState.hasCosmicTrail()) {
+          this.gameState.xp.update(x => x + 5 * this.gameState.xpMultiplier());
+      }
       
       if (this.timeRemaining() === 0 && !this.bossSpawned()) {
         this.spawnBoss();
@@ -1020,6 +1030,13 @@ export class GameComponent implements OnInit, OnDestroy {
   private takeDamage(amount: number) {
     if (this.isDead() || this.gameEnded() || this.gameState.isRebirthing()) return;
     
+    if (this.gameState.hasCelestialShield() && this.celestialShieldActive()) {
+        this.celestialShieldActive.set(false);
+        this.audioService.playSFX('hit');
+        setTimeout(() => this.celestialShieldActive.set(true), 30000);
+        return;
+    }
+    
     this.audioService.playSFX('hit');
     this.currentHealth.update(h => Math.max(0, h - amount));
     this.damageFlash.set(true);
@@ -1118,9 +1135,15 @@ export class GameComponent implements OnInit, OnDestroy {
     }, 1000);
   }
 
+  public getReviveCost(): number {
+    return 10 * Math.pow(2, this.reviveCount);
+  }
+
   public reviveWithGems() {
-    if (this.gameState.gems() >= 1) { 
-        this.gameState.gems.update(g => g - 1); 
+    const cost = this.getReviveCost();
+    if (this.gameState.gems() >= cost) { 
+        this.gameState.gems.update(g => g - cost); 
+        this.reviveCount++;
         this.executeRevival(); 
     }
   }

@@ -3,6 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { AudioService } from './audio.service';
 import { AuthService } from './auth.service';
+import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { App } from '@capacitor/app';
 
 export interface WorldStats {
   maxHealth: number;
@@ -108,9 +111,16 @@ export class GameStateService {
   public activeScreen = signal<'menu' | 'game' | 'shop' | 'login' | 'profile' | 'leaderboard'>('menu');
   public unlockedWorlds = signal<number[]>([0]); // IDs of unlocked worlds
   public selectedWorldIndex = signal<number>(0);
-
+  public crazyDealTimer = signal<number>(0);
+  public crazyDealExpiresAt = signal<number | null>(null);
+  public coinMultiplier = signal<number>(1);
+  public xpMultiplier = signal<number>(1);
+  public hasCosmicTrail = signal<boolean>(false);
+  public hasGoldenAura = signal<boolean>(false);
+  public hasCelestialShield = signal<boolean>(false);
+  
   constructor() {
-      // Load initial state from local storage if guest
+      this.setupNotifications();
       const localData = localStorage.getItem('phoenix_guest_data');
       if (localData) {
           try {
@@ -131,18 +141,27 @@ export class GameStateService {
               if (data.upsellChance !== undefined) {
                   this.upsellChance.set(Math.min(1.0, data.upsellChance + 0.1));
               } else {
-                  this.upsellChance.set(0.1);
-              }
-              
-              this.unlockedWorlds.set(data.unlockedWorlds || [0]);
-              if (data.worldUpgrades) {
-                  // Auto-heal NaN values from broken saves
-                  Object.keys(data.worldUpgrades).forEach(key => {
-                      const upgrades = data.worldUpgrades[key as unknown as number];
-                      Object.keys(upgrades).forEach(statKey => {
-                          if (typeof upgrades[statKey as keyof WorldStats] === 'number' && isNaN(upgrades[statKey as keyof WorldStats] as number)) {
-                              (upgrades as any)[statKey] = (DEFAULT_STATS as any)[statKey];
-                          }
+                  if (data.activeScreen) this.activeScreen.set(data.activeScreen);
+                  if (data.unlockedWorlds) this.unlockedWorlds.set(data.unlockedWorlds);
+                  if (data.selectedWorldIndex) this.selectedWorldIndex.set(data.selectedWorldIndex);
+                  if (data.coinMultiplier) this.coinMultiplier.set(data.coinMultiplier);
+                  if (data.xpMultiplier) this.xpMultiplier.set(data.xpMultiplier);
+                  if (data.hasCosmicTrail !== undefined) this.hasCosmicTrail.set(data.hasCosmicTrail);
+                  if (data.hasGoldenAura !== undefined) this.hasGoldenAura.set(data.hasGoldenAura);
+                  if (data.hasCelestialShield !== undefined) this.hasCelestialShield.set(data.hasCelestialShield);
+                                    if (data.crazyDealExpiresAt) {
+                      this.crazyDealExpiresAt.set(data.crazyDealExpiresAt);
+                  }
+                  
+                  // Restore world upgrades
+                  if (data.worldUpgrades) {
+                      Object.keys(data.worldUpgrades).forEach(key => {
+                          const upgrades = data.worldUpgrades[key as unknown as number];
+                          Object.keys(upgrades).forEach(statKey => {
+                              if (typeof upgrades[statKey as keyof WorldStats] === 'number' && isNaN(upgrades[statKey as keyof WorldStats] as number)) {
+                                  (upgrades as any)[statKey] = (DEFAULT_STATS as any)[statKey];
+                              }
+                          });
                       });
                   });
                   this.worldUpgrades.set(data.worldUpgrades);
@@ -171,7 +190,13 @@ export class GameStateService {
               acceptedLegalPolicies: this.acceptedLegalPolicies(),
               upsellChance: this.upsellChance(),
               unlockedWorlds: this.unlockedWorlds(),
-              worldUpgrades: this.worldUpgrades()
+              worldUpgrades: this.worldUpgrades(),
+              coinMultiplier: this.coinMultiplier(),
+              xpMultiplier: this.xpMultiplier(),
+              hasCosmicTrail: this.hasCosmicTrail(),
+              hasGoldenAura: this.hasGoldenAura(),
+              hasCelestialShield: this.hasCelestialShield(),
+                            crazyDealExpiresAt: this.crazyDealExpiresAt()
           };
           if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) {
               localStorage.setItem('phoenix_guest_data', JSON.stringify(stateToSave));
@@ -183,6 +208,130 @@ export class GameStateService {
           if (this.coins() >= 1000) this.awardTrophy("Wealthy");
           if (this.gems() >= 10) this.awardTrophy("Gem Hoarder");
       }, { allowSignalWrites: true });
+
+      // Crazy Deal Timer Interval (Calculates remaining seconds from absolute expiry timestamp)
+      setInterval(() => {
+          const expiresAt = this.crazyDealExpiresAt();
+          if (expiresAt) {
+              const remaining = Math.floor((expiresAt - Date.now()) / 1000);
+              if (remaining > 0) {
+                  this.crazyDealTimer.set(remaining);
+              } else {
+                  this.crazyDealExpiresAt.set(null);
+                  this.crazyDealTimer.set(0);
+              }
+          }
+      }, 1000);
+
+      // Web Push Check
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('crazyDealExpiresAt')) {
+          const expiresAt = parseInt(params.get('crazyDealExpiresAt') || '0', 10);
+          this.triggerCrazyDeal(expiresAt);
+          window.history.replaceState({}, document.title, window.location.pathname);
+      }
+  }
+
+  public triggerCrazyDeal(expiresAt?: number) {
+      if (expiresAt) {
+          this.crazyDealExpiresAt.set(expiresAt);
+      } else {
+          // Fallback if no specific expiry was given: 5 Minutes (300 seconds) from now
+          this.crazyDealExpiresAt.set(Date.now() + 1000 * 60 * 5);
+      }
+      this.activeScreen.set('shop');
+  }
+
+  async setupNotifications() {
+      if (Capacitor.isNativePlatform()) {
+          // Native Android/iOS Local Notifications
+          const permStatus = await LocalNotifications.requestPermissions();
+          if (permStatus.display === 'granted') {
+              // Cancel existing
+              await LocalNotifications.cancel({ notifications: [{ id: 1 }, { id: 2 }, { id: 3 }] });
+              
+              // Handle tap
+              LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+                  if (action.notification.extra && action.notification.extra.crazyDealExpiresAt) {
+                      this.triggerCrazyDeal(action.notification.extra.crazyDealExpiresAt);
+                  }
+              });
+
+              // Schedule new reminders on backgrounding
+              App.addListener('appStateChange', async ({ isActive }) => {
+                  if (!isActive) {
+                      const notificationsToSchedule: any[] = [
+                          {
+                              title: "We miss you!",
+                              body: "Come back and defeat some enemies. Your Phoenix needs you!",
+                              id: 1,
+                              schedule: { at: new Date(Date.now() + 1000 * 60 * 60 * 24) } // 24 hours
+                          },
+                          {
+                              title: "A Deal Awaits! 💎",
+                              body: "A massive Gem deal is waiting for you in the shop.",
+                              id: 2,
+                              schedule: { at: new Date(Date.now() + 1000 * 60 * 60 * 48) } // 48 hours
+                          }
+                      ];
+
+                      // 30% chance for crazy deal
+                      if (Math.random() < 0.3) {
+                          const triggerTime = Date.now() + 1000 * 60 * 60 * 72; // 72 hours from now
+                          const expiryTime = triggerTime + 1000 * 60 * 5; // 5 minutes after trigger
+                          
+                          notificationsToSchedule.push({
+                              title: "Hey! Don't miss this crazy once in a lifetime deal!",
+                              body: "250 Gems for $9.99. Offer expires 5 minutes from this notification!",
+                              id: 3,
+                              schedule: { at: new Date(triggerTime) },
+                              extra: { crazyDealExpiresAt: expiryTime }
+                          });
+                      }
+
+                      await LocalNotifications.schedule({ notifications: notificationsToSchedule });
+                  } else {
+                      // Cancel when active
+                      await LocalNotifications.cancel({ notifications: [{ id: 1 }, { id: 2 }, { id: 3 }] });
+                  }
+              });
+          }
+      } else if ('serviceWorker' in navigator && 'PushManager' in window) {
+          // Web Push API
+          try {
+              const registration = await navigator.serviceWorker.register('/service-worker.js');
+              
+              const res = await firstValueFrom(this.http.get<any>('/api/notifications/vapidPublicKey'));
+              const vapidPublicKey = res.publicKey;
+              
+              if (!vapidPublicKey) return;
+
+              const permission = await Notification.requestPermission();
+              if (permission !== 'granted') return;
+
+              const subscription = await registration.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: this.urlBase64ToUint8Array(vapidPublicKey)
+              });
+
+              if (this.auth.currentUser() && !this.auth.currentUser()?.isTemp) {
+                  await firstValueFrom(this.http.post('/api/notifications/subscribe', subscription));
+              }
+          } catch (e) {
+              console.log('Web Push error', e);
+          }
+      }
+  }
+
+  private urlBase64ToUint8Array(base64String: string) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+          outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
   }
 
   // World State

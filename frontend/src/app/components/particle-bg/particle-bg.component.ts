@@ -55,6 +55,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   private particles!: THREE.Points;
   private walls!: THREE.Points;
   private bgGlow!: THREE.Mesh;
+  private goldenAuraMesh!: THREE.Mesh;
+  private celestialShieldMesh!: THREE.LineSegments;
+  private cosmicTrailMesh!: THREE.Points;
   private animationId!: number;
   
   private bird!: PhoenixState;
@@ -79,6 +82,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     this.initThree();
     this.createParticles();
     this.createWalls();
+    this.createCosmetics();
     
     this.bird = this.createBirdState('orange');
     this.initHistory(this.bird);
@@ -241,6 +245,39 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     const mat = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
     this.walls = new THREE.Points(geo, mat);
     this.scene.add(this.walls);
+  }
+
+  private createCosmetics() {
+    // Golden Aura (Torus)
+    const auraGeo = new THREE.TorusGeometry(2.5, 0.1, 8, 32);
+    const auraMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
+    this.goldenAuraMesh = new THREE.Mesh(auraGeo, auraMat);
+    this.goldenAuraMesh.visible = false;
+    this.scene.add(this.goldenAuraMesh);
+
+    // Celestial Shield (Icosahedron)
+    const shieldGeo = new THREE.IcosahedronGeometry(3, 1);
+    const shieldEdges = new THREE.EdgesGeometry(shieldGeo);
+    const shieldMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending });
+    this.celestialShieldMesh = new THREE.LineSegments(shieldEdges, shieldMat);
+    this.celestialShieldMesh.visible = false;
+    this.scene.add(this.celestialShieldMesh);
+
+    // Cosmic Trail (Particles)
+    const trailGeo = new THREE.BufferGeometry();
+    const trailCount = 500;
+    const trailPos = new Float32Array(trailCount * 3);
+    const trailCol = new Float32Array(trailCount * 3);
+    for (let i = 0; i < trailCount * 3; i++) {
+       trailPos[i] = 10000; // hide initially
+       trailCol[i] = i % 3 === 0 ? 1 : (i % 3 === 1 ? 0.5 : 0.8); // Pink/Purple mix
+    }
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+    trailGeo.setAttribute('color', new THREE.BufferAttribute(trailCol, 3));
+    const trailMat = new THREE.PointsMaterial({ size: 0.2, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+    this.cosmicTrailMesh = new THREE.Points(trailGeo, trailMat);
+    this.cosmicTrailMesh.visible = false;
+    this.scene.add(this.cosmicTrailMesh);
   }
 
   private initHistory(bird: PhoenixState) {
@@ -464,6 +501,45 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         }
         bird.particles.geometry.attributes['position'].needsUpdate = true;
         
+        // --- Render Cosmetics ---
+        if (this.goldenAuraMesh) {
+            this.goldenAuraMesh.visible = this.gameState.hasGoldenAura() && !this.gameState.isRebirthing();
+            if (this.goldenAuraMesh.visible) {
+                this.goldenAuraMesh.position.copy(bird.position);
+                this.goldenAuraMesh.quaternion.copy(dummy.quaternion);
+                this.goldenAuraMesh.rotateX(Math.PI / 2); // Lay flat
+                this.goldenAuraMesh.rotateZ(Date.now() * 0.002); // Spin
+            }
+        }
+
+        if (this.celestialShieldMesh) {
+            // Note: ParticleBgComponent doesn't know celestialShieldActive from game.component.ts directly.
+            // We just render it if they own it. The actual break/recharge could be added to game-state if needed.
+            // For now, let's just make it spin.
+            this.celestialShieldMesh.visible = this.gameState.hasCelestialShield() && !this.gameState.isRebirthing();
+            if (this.celestialShieldMesh.visible) {
+                this.celestialShieldMesh.position.copy(bird.position);
+                this.celestialShieldMesh.rotation.y += 0.01;
+                this.celestialShieldMesh.rotation.x += 0.005;
+            }
+        }
+
+        if (this.cosmicTrailMesh) {
+            this.cosmicTrailMesh.visible = this.gameState.hasCosmicTrail() && !this.gameState.isRebirthing();
+            if (this.cosmicTrailMesh.visible) {
+                const tPos = this.cosmicTrailMesh.geometry.attributes['position'].array as Float32Array;
+                // Shift all particles back
+                for (let i = tPos.length - 1; i >= 3; i--) {
+                    tPos[i] = tPos[i - 3];
+                }
+                // Add new particle at bird position with slight scatter
+                tPos[0] = bird.position.x + (Math.random() - 0.5) * 0.5;
+                tPos[1] = bird.position.y + (Math.random() - 0.5) * 0.5;
+                tPos[2] = bird.position.z + (Math.random() - 0.5) * 0.5;
+                this.cosmicTrailMesh.geometry.attributes['position'].needsUpdate = true;
+            }
+        }
+
         this.syncEntities();
 
         this.renderer.render(this.scene, this.camera);

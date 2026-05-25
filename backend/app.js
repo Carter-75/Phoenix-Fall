@@ -45,6 +45,7 @@ require('./config/passport')(passport);
 const indexRouter = require('./routes/index');
 const authRouter = require('./routes/auth');
 const leaderboardRouter = require('./routes/leaderboard');
+const notificationsRouter = require('./routes/notifications');
 
 // --- Diagnostic Routes ---
 app.get('/api/health', async (req, res) => {
@@ -171,6 +172,9 @@ app.use('/auth', authRouter);
 
 app.use('/api/leaderboard', leaderboardRouter);
 app.use('/leaderboard', leaderboardRouter);
+
+app.use('/api/notifications', notificationsRouter);
+app.use('/notifications', notificationsRouter);
 
 // Error handler
 app.use((err, req, res, next) => {
