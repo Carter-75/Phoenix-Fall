@@ -204,6 +204,7 @@ export class GameComponent implements OnInit, OnDestroy {
   getHoldMaxCooldown() {
       const id = this.gameState.currentStats().activeHoldAbility || 'aura';
       if (id === 'phoenix_turret') return 12;
+      if (id === 'rebirth') return 60; // 60s cooldown for Rebirth
       return 15; // aura
   }
   
@@ -1131,13 +1132,41 @@ export class GameComponent implements OnInit, OnDestroy {
 
     if (this.currentHealth() <= 0) {
       const activeHold = this.gameState.currentStats().activeHoldAbility;
-      if (activeHold === 'rebirth' && !this.hasRebirthed) {
-         this.hasRebirthed = true;
+      if (activeHold === 'rebirth' && this.holdCooldown() === 0) {
+         this.holdCooldown.set(this.getHoldMaxCooldown());
          this.gameState.isRebirthing.set(true);
          this.audioService.playSFX('hit');
          
+         // 3 second Ash visual effect loop
+         const ashInterval = setInterval(() => {
+             if (!this.gameState.isRebirthing()) {
+                 clearInterval(ashInterval);
+                 return;
+             }
+             const ash = document.createElement('div');
+             ash.style.position = 'fixed';
+             ash.style.left = `${this.playerBody.position.x + (Math.random()-0.5)*30}px`;
+             ash.style.top = `${this.playerBody.position.y + (Math.random()-0.5)*30}px`;
+             ash.style.width = '4px';
+             ash.style.height = '4px';
+             ash.style.backgroundColor = '#9ca3af';
+             ash.style.borderRadius = '50%';
+             ash.style.pointerEvents = 'none';
+             ash.style.zIndex = '50';
+             document.body.appendChild(ash);
+             anime({
+                 targets: ash,
+                 translateY: -50,
+                 opacity: [1, 0],
+                 duration: 1000,
+                 easing: 'linear',
+                 complete: () => ash.remove()
+             });
+         }, 100);
+         
          // 3 second Ash state
          setTimeout(() => {
+             clearInterval(ashInterval);
              this.gameState.isRebirthing.set(false);
              this.currentHealth.set(Math.floor(this.maxHealth() / 2)); 
              
