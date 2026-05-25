@@ -340,9 +340,9 @@ export interface ActiveDeal {
             </div>
             <button (click)="buyGems(calculatedGems()[0], calculatedPrices()[0])" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition flex justify-center gap-2">
               @if (crossedOutPrices().length) {
-                <strike class="text-white/50">${{ crossedOutPrices()[0] }}</strike>
+                <strike class="text-white/50">&dollar;{{ crossedOutPrices()[0] }}</strike>
               }
-              ${{ calculatedPrices()[0] }}
+              &dollar;{{ calculatedPrices()[0] }}
             </button>
           </div>
 
@@ -359,9 +359,9 @@ export interface ActiveDeal {
             </div>
             <button (click)="buyGems(calculatedGems()[1], calculatedPrices()[1])" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30 flex justify-center gap-2">
               @if (crossedOutPrices().length) {
-                <strike class="text-white/50">${{ crossedOutPrices()[1] }}</strike>
+                <strike class="text-white/50">&dollar;{{ crossedOutPrices()[1] }}</strike>
               }
-              ${{ calculatedPrices()[1] }}
+              &dollar;{{ calculatedPrices()[1] }}
             </button>
           </div>
 
@@ -377,9 +377,9 @@ export interface ActiveDeal {
             </div>
             <button (click)="buyGems(calculatedGems()[2], calculatedPrices()[2])" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition flex justify-center gap-2">
               @if (crossedOutPrices().length) {
-                <strike class="text-white/50">${{ crossedOutPrices()[2] }}</strike>
+                <strike class="text-white/50">&dollar;{{ crossedOutPrices()[2] }}</strike>
               }
-              ${{ calculatedPrices()[2] }}
+              &dollar;{{ calculatedPrices()[2] }}
             </button>
           </div>
 
