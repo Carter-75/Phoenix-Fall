@@ -173,6 +173,13 @@ export class GameComponent implements OnInit, OnDestroy {
   public bossMaxHealth = signal<number>(1000);
   public bossHealthPercent = computed(() => (this.bossHealth() / this.bossMaxHealth()) * 100);
 
+  // Cinematic Boss Defeat Sequence State
+  public bossGemsDropped = 0;
+  public bossGemsCollected = 0;
+  public inBossDefeatSequence = signal<boolean>(false);
+  public bossDefeatTimestamp = 0;
+  public animatingAscension = signal<boolean>(false);
+
   // Revive UI
   public reviveCountdown = signal<number>(10);
   private reviveInterval: any;
@@ -321,7 +328,15 @@ export class GameComponent implements OnInit, OnDestroy {
                 if (this.gameState.hasGoldenAura() && Math.random() < 0.1) val *= 5;
                 this.gameState.coins.update(c => c + (val * this.gameState.coinMultiplier()));
             }
-            if (data.type === 'gem') this.gameState.gems.update(g => g + (data.value || 0));
+            if (data.type === 'gem') {
+                this.gameState.gems.update(g => g + (data.value || 0));
+                if (this.inBossDefeatSequence()) {
+                    this.bossGemsCollected++;
+                    if (this.bossGemsCollected >= this.bossGemsDropped && !this.animatingAscension()) {
+                        this.triggerAscension();
+                    }
+                }
+            }
             if (data.type === 'heart') {
                 this.audioService.playSFX('heal');
                 this.currentHealth.update(h => Math.min(this.maxHealth(), h + (data.value || 0)));
@@ -439,12 +454,25 @@ export class GameComponent implements OnInit, OnDestroy {
       // 4. Magnetism for items
       const magnetRadius = 150 * this.gameState.currentStats().magnetism;
       this.items.forEach(item => {
-         const force = Matter.Vector.sub(this.playerBody.position, item.position);
-         const dist = Matter.Vector.magnitude(force);
-         if (dist < magnetRadius) {
+         const data = item.plugin['data'];
+         const isBossGem = this.inBossDefeatSequence() && data && data.type === 'gem';
+         
+         if (isBossGem && now - this.bossDefeatTimestamp > 1500) {
+            // Boss Defeat Homing Phase: Boss gems forcefully float to phoenix after 1.5s
+            const force = Matter.Vector.sub(this.playerBody.position, item.position);
             const normalized = Matter.Vector.normalise(force);
-            const pullStrength = 0.002 * (1 - dist / magnetRadius);
-            Matter.Body.applyForce(item, item.position, Matter.Vector.mult(normalized, pullStrength));
+            // Cancel existing gravity/velocity and pull strongly
+            Matter.Body.setVelocity(item, { x: 0, y: 0 });
+            Matter.Body.applyForce(item, item.position, Matter.Vector.mult(normalized, 0.05));
+         } else {
+             // Normal Magnetism
+             const force = Matter.Vector.sub(this.playerBody.position, item.position);
+             const dist = Matter.Vector.magnitude(force);
+             if (dist < magnetRadius) {
+                const normalized = Matter.Vector.normalise(force);
+                const pullStrength = 0.002 * (1 - dist / magnetRadius);
+                Matter.Body.applyForce(item, item.position, Matter.Vector.mult(normalized, pullStrength));
+             }
          }
       });
 
@@ -989,12 +1017,35 @@ export class GameComponent implements OnInit, OnDestroy {
       
       if (data.type === 'boss') {
         this.gameState.awardTrophy("Realm Conqueror");
-        this.dropItem(enemy.position.x, enemy.position.y, 'gem', 1);
+        
+        // Setup Cinematic Defeat Sequence
+        this.inBossDefeatSequence.set(true);
+        this.bossDefeatTimestamp = Date.now();
+        this.bossGemsCollected = 0;
+        
+        // Base gems based on realm index
+        const currentWorldIndex = this.gameState.selectedWorldIndex();
+        this.bossGemsDropped = currentWorldIndex === 0 ? 3 : (currentWorldIndex === 1 ? 5 : 10);
+        
+        for(let i=0; i<this.bossGemsDropped; i++) {
+            this.dropItem(enemy.position.x + (Math.random()-0.5)*50, enemy.position.y + (Math.random()-0.5)*50, 'gem', 1);
+        }
         for(let i=0; i<20; i++) {
            this.dropItem(enemy.position.x + (Math.random()-0.5)*100, enemy.position.y + (Math.random()-0.5)*100, 'coin', 25);
         }
+        
         this.triggerMassiveExplosion(enemy.position.x, enemy.position.y);
-        this.winGame();
+        
+        // Remove the boss completely so it doesn't trigger damage or blocks anymore
+        Matter.Composite.remove(this.engine.world, enemy);
+        this.enemies = this.enemies.filter(e => e !== enemy);
+        
+        // Stop the normal timers so enemies stop spawning
+        clearInterval(this.timerInterval);
+        clearInterval(this.spawnInterval);
+        clearInterval(this.attackInterval);
+        
+        // We do NOT call winGame() instantly here anymore!
       } else {
         // Massive Coin Nerf to encourage P2W Gem Exchange
         if (data.type === 'golem') {
@@ -1176,6 +1227,82 @@ export class GameComponent implements OnInit, OnDestroy {
     }
     
     this.gameState.syncProgressToServer();
+  }
+  
+  private triggerAscension() {
+      this.animatingAscension.set(true);
+      
+      // Animate Phoenix flying upwards
+      const startY = this.gameState.phoenixScreenPos().y;
+      const endY = -200; // Off screen top
+      const duration = 2000;
+      const startTime = Date.now();
+      
+      const animateFrame = () => {
+          const now = Date.now();
+          const progress = Math.min((now - startTime) / duration, 1);
+          
+          // Easing: easeInQuad (accelerates upwards)
+          const currentY = startY + (endY - startY) * (progress * progress);
+          
+          this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentY });
+          
+          if (progress < 1) {
+              requestAnimationFrame(animateFrame);
+          } else {
+              this.executeRealmTransition();
+          }
+      };
+      
+      requestAnimationFrame(animateFrame);
+  }
+  
+  private executeRealmTransition() {
+      // 1. Advance to next realm seamlessly
+      const currentIdx = this.gameState.selectedWorldIndex();
+      const nextIdx = currentIdx + 1;
+      
+      if (nextIdx < this.gameState.worlds.length) {
+          if (!this.gameState.unlockedWorlds().includes(nextIdx)) {
+              this.gameState.unlockedWorlds.update(worlds => [...worlds, nextIdx]);
+          }
+          this.gameState.selectedWorldIndex.set(nextIdx);
+      }
+      
+      this.gameState.syncProgressToServer();
+      
+      // 2. Reset Sequence States
+      this.inBossDefeatSequence.set(false);
+      this.animatingAscension.set(false);
+      this.bossSpawned.set(false);
+      this.clearEnemies();
+      
+      // 3. Animate Phoenix entering from bottom
+      const startY = window.innerHeight + 200; // Off screen bottom
+      const endY = window.innerHeight / 2; // Default starting position
+      const duration = 1500;
+      const startTime = Date.now();
+      
+      const animateEntrance = () => {
+          const now = Date.now();
+          const progress = Math.min((now - startTime) / duration, 1);
+          
+          // Easing: easeOutQuad (decelerates upwards)
+          const currentY = startY + (endY - startY) * (progress * (2 - progress));
+          this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentY });
+          
+          if (progress < 1) {
+              requestAnimationFrame(animateEntrance);
+          } else {
+              this.gameState.phoenixOverridePosition.set(null); // Return to mouse control
+              
+              // 4. Restart Level fully
+              this.timeRemaining.set(this.totalTime);
+              this.startGameLoop();
+          }
+      };
+      
+      requestAnimationFrame(animateEntrance);
   }
 
   public togglePause() {

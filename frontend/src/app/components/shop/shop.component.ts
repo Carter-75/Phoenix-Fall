@@ -894,7 +894,8 @@ export class ShopComponent implements OnInit, OnDestroy {
   }
 
   getGemCost(coinCost: number): number {
-      return Math.max(1, Math.ceil(coinCost / 1000));
+      // Exponential dark pattern cost: starts small but grows fast
+      return Math.max(1, Math.ceil(Math.pow(coinCost / 80, 1.35)));
   }
 
   canAffordWithGemsButNotCoins(cost: number): boolean {
