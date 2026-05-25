@@ -56,9 +56,9 @@ import { FormsModule } from '@angular/forms';
             <div class="mt-4 flex items-start gap-3 bg-white/5 p-4 rounded-xl border border-white/10">
                 <input type="checkbox" [(ngModel)]="acceptedTerms" id="terms" class="mt-1 w-4 h-4 accent-orange-500">
                 <label for="terms" class="text-white/70 text-sm leading-tight">
-                    I agree to the <button (click)="showLegal('tos')" class="text-orange-400 hover:underline">Terms of Service</button>, 
-                    <button (click)="showLegal('privacy')" class="text-orange-400 hover:underline">Privacy Policy</button>, and 
-                    acknowledge the <button (click)="showLegal('refunds')" class="text-orange-400 hover:underline">Refund Policy</button>.
+                    I agree to the <button (click)="showLegal('tos')" class="text-cyan-400 font-bold underline hover:text-cyan-300 underline-offset-2">Terms of Service</button>, 
+                    <button (click)="showLegal('privacy')" class="text-cyan-400 font-bold underline hover:text-cyan-300 underline-offset-2">Privacy Policy</button>, and 
+                    acknowledge the <button (click)="showLegal('refunds')" class="text-cyan-400 font-bold underline hover:text-cyan-300 underline-offset-2">Refund Policy</button>.
                 </label>
             </div>
           }

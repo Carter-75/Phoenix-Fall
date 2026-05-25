@@ -60,18 +60,31 @@ import { CommonModule } from '@angular/common';
         <!-- Settings Section (Always Visible) -->
         <div class="mt-8">
           <h3 class="text-2xl font-bold text-white mb-6 flex items-center gap-2"><span class="text-3xl">⚙️</span> Settings</h3>
-          <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
-            <div class="flex flex-col">
-               <span class="text-white font-bold text-lg">Game Audio</span>
-               <span class="text-white/50 text-sm">Toggle all sound effects and music</span>
-            </div>
-            <button (click)="toggleAudio()" class="w-16 h-8 rounded-full transition-colors relative"
-                    [ngClass]="audio.isMuted() ? 'bg-gray-600' : 'bg-orange-500'">
-               <div class="absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md"
-                    [ngClass]="audio.isMuted() ? 'left-1' : 'left-9'"></div>
-            </button>
+          <div class="flex flex-col gap-4">
+              <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                <div class="flex flex-col">
+                   <span class="text-white font-bold text-lg">Game Audio</span>
+                   <span class="text-white/50 text-sm">Toggle all sound effects and music</span>
+                </div>
+                <button (click)="toggleAudio()" class="w-16 h-8 rounded-full transition-colors relative"
+                        [ngClass]="audio.isMuted() ? 'bg-gray-600' : 'bg-orange-500'">
+                   <div class="absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md"
+                        [ngClass]="audio.isMuted() ? 'left-1' : 'left-9'"></div>
+                </button>
+              </div>
+              
+              <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                <div class="flex flex-col">
+                   <span class="text-white font-bold text-lg">Legal & Policies</span>
+                   <span class="text-white/50 text-sm">Review our TOS, Privacy, and Refund policies</span>
+                </div>
+                <button (click)="openPolicies()" class="px-6 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/40 rounded-lg transition font-bold">
+                   View
+                </button>
+              </div>
           </div>
         </div>
+
       </div>
     </div>
   `
@@ -99,5 +112,10 @@ export class ProfileComponent {
   toggleAudio() {
       this.audio.toggleMute();
       this.audio.playSFX('click');
+  }
+
+  openPolicies() {
+      this.audio.playSFX('click');
+      window.open('/policies/tos', '_blank');
   }
 }
