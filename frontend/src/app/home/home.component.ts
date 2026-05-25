@@ -2,7 +2,6 @@ import { Component, signal, inject, OnInit, viewChild, ElementRef, afterNextRend
 import { ApiService } from '../services/api.service';
 import * as Matter from 'matter-js';
 import anime from 'animejs';
-import confetti from 'canvas-confetti';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import * as THREE from 'three';

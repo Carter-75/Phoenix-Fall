@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { GameStateService, PhysicsEntity, ABILITIES } from '../../services/game-state.service';
 import { AudioService } from '../../services/audio.service';
 import * as Matter from 'matter-js';
-import confetti from 'canvas-confetti';
+import anime from 'animejs';
 
 interface EnemyData {
   id: string;
@@ -1178,31 +1178,67 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private triggerImpactEffect(x: number, y: number, isBoss: boolean) {
-    confetti({
-      particleCount: isBoss ? 30 : 10,
-      spread: 60,
-      origin: { x: x / window.innerWidth, y: y / window.innerHeight },
-      colors: ['#fbbf24', '#f97316', '#ffffff'],
-      ticks: 50,
-      gravity: 0.5,
-      scalar: isBoss ? 1.5 : 0.8,
-      zIndex: 100
-    });
+    const numParticles = isBoss ? 30 : 10;
+    const colors = ['#fbbf24', '#f97316', '#ffffff'];
+    
+    for (let i = 0; i < numParticles; i++) {
+        const particle = document.createElement('div');
+        particle.style.position = 'fixed';
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        particle.style.width = isBoss ? '12px' : '6px';
+        particle.style.height = isBoss ? '12px' : '6px';
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        particle.style.borderRadius = '50%';
+        particle.style.pointerEvents = 'none';
+        particle.style.zIndex = '100';
+        document.body.appendChild(particle);
+
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = isBoss ? 50 + Math.random() * 150 : 20 + Math.random() * 80;
+
+        anime({
+            targets: particle,
+            translateX: Math.cos(angle) * velocity,
+            translateY: Math.sin(angle) * velocity + (isBoss ? 50 : 20), // slight gravity
+            opacity: [1, 0],
+            scale: [1, 0],
+            duration: isBoss ? 1500 : 800,
+            easing: 'easeOutExpo',
+            complete: () => particle.remove()
+        });
+    }
   }
 
   private triggerMassiveExplosion(x: number, y: number) {
-    const px = x / window.innerWidth;
-    const py = y / window.innerHeight;
-    
-    const duration = 3000;
-    const end = Date.now() + duration;
+    const colors = ['#a855f7', '#fbbf24', '#f97316'];
+    for (let i = 0; i < 100; i++) {
+        const particle = document.createElement('div');
+        particle.style.position = 'fixed';
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        particle.style.width = '10px';
+        particle.style.height = '10px';
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        particle.style.borderRadius = '2px'; // Square fragments
+        particle.style.pointerEvents = 'none';
+        particle.style.zIndex = '100';
+        document.body.appendChild(particle);
 
-    const frame = () => {
-      confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: px, y: py }, colors: ['#a855f7', '#fbbf24', '#f97316'] });
-      confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: px, y: py }, colors: ['#a855f7', '#fbbf24', '#f97316'] });
-      if (Date.now() < end) requestAnimationFrame(frame);
-    };
-    frame();
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 100 + Math.random() * 300;
+
+        anime({
+            targets: particle,
+            translateX: Math.cos(angle) * velocity,
+            translateY: Math.sin(angle) * velocity + 150, // gravity effect
+            rotate: Math.random() * 360,
+            opacity: [1, 0],
+            duration: 2000 + Math.random() * 1000,
+            easing: 'easeOutCirc',
+            complete: () => particle.remove()
+        });
+    }
   }
 
   private triggerDeathSequence() {
