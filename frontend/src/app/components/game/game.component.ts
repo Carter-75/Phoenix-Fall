@@ -158,6 +158,8 @@ export class GameComponent implements OnInit, OnDestroy {
   public maxHealth = computed(() => this.gameState.currentStats().maxHealth);
   public currentHealth = signal<number>(this.maxHealth());
   public damageFlash = signal<boolean>(false);
+  public burstCooldown = signal<number>(0);
+  public auraCooldown = signal<number>(0);
   
   private totalTime = 300; 
   public timeRemaining = signal<number>(this.totalTime);

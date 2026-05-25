@@ -340,7 +340,7 @@ export interface ActiveDeal {
             </div>
             <button (click)="buyGems(calculatedGems()[0], calculatedPrices()[0])" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition flex justify-center gap-2">
               @if (crossedOutPrices().length) {
-                <strike class="text-white/50">&dollar;{{ crossedOutPrices()[0] }}</strike>
+                <span class="line-through text-white/50">&dollar;{{ crossedOutPrices()[0] }}</span>
               }
               &dollar;{{ calculatedPrices()[0] }}
             </button>
@@ -359,7 +359,7 @@ export interface ActiveDeal {
             </div>
             <button (click)="buyGems(calculatedGems()[1], calculatedPrices()[1])" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30 flex justify-center gap-2">
               @if (crossedOutPrices().length) {
-                <strike class="text-white/50">&dollar;{{ crossedOutPrices()[1] }}</strike>
+                <span class="line-through text-white/50">&dollar;{{ crossedOutPrices()[1] }}</span>
               }
               &dollar;{{ calculatedPrices()[1] }}
             </button>
@@ -377,7 +377,7 @@ export interface ActiveDeal {
             </div>
             <button (click)="buyGems(calculatedGems()[2], calculatedPrices()[2])" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition flex justify-center gap-2">
               @if (crossedOutPrices().length) {
-                <strike class="text-white/50">&dollar;{{ crossedOutPrices()[2] }}</strike>
+                <span class="line-through text-white/50">&dollar;{{ crossedOutPrices()[2] }}</span>
               }
               &dollar;{{ calculatedPrices()[2] }}
             </button>
