@@ -326,10 +326,12 @@ export class GameComponent implements OnInit, OnDestroy {
             if (data.type === 'coin') {
                 let val = data.value || 0;
                 if (this.gameState.hasGoldenAura() && Math.random() < 0.1) val *= 5;
-                this.gameState.coins.update(c => c + (val * this.gameState.coinMultiplier()));
+                const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
+                this.gameState.coins.update(c => c + (val * scale * this.gameState.coinMultiplier()));
             }
             if (data.type === 'gem') {
-                this.gameState.gems.update(g => g + (data.value || 0));
+                const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
+                this.gameState.gems.update(g => g + ((data.value || 0) * scale));
                 if (this.inBossDefeatSequence()) {
                     this.bossGemsCollected++;
                     if (this.bossGemsCollected >= this.bossGemsDropped && !this.animatingAscension()) {
@@ -339,7 +341,9 @@ export class GameComponent implements OnInit, OnDestroy {
             }
             if (data.type === 'heart') {
                 this.audioService.playSFX('heal');
-                this.currentHealth.update(h => Math.min(this.maxHealth(), h + (data.value || 0)));
+                const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
+                const healAmt = Math.floor((data.value || 0) * scale);
+                this.currentHealth.update(h => Math.floor(Math.min(this.maxHealth(), h + healAmt)));
                 this.gameState.heartsCollected.update(v => v + 1);
                 if (this.gameState.heartsCollected() >= 5) this.gameState.awardTrophy("Healer");
                 // Small green flash for healing
@@ -1039,12 +1043,17 @@ export class GameComponent implements OnInit, OnDestroy {
         // Base gems based on realm index (Only drop on first defeat!)
         const currentWorldIndex = this.gameState.selectedWorldIndex();
         const isFirstDefeat = !this.gameState.unlockedWorlds().includes(currentWorldIndex + 1);
-        this.bossGemsDropped = isFirstDefeat ? this.calculateBossGemDrop(currentWorldIndex) : 0;
+        const intendedGems = isFirstDefeat ? this.calculateBossGemDrop(currentWorldIndex) : 0;
+        
+        const scaleAtEnd = Math.max(0.2, 1 - (this.progressPercent() / 100));
+        
+        // Cap physical gem bodies at 100 to prevent physics lag on mobile
+        this.bossGemsDropped = isFirstDefeat ? Math.min(100, Math.floor(intendedGems / scaleAtEnd)) : 0;
         
         if (this.bossGemsDropped > 0) {
+            const valPerGem = intendedGems / (this.bossGemsDropped * scaleAtEnd);
             for(let i=0; i<this.bossGemsDropped; i++) {
-                // Drop many 1-value gems for an awesome visual explosion
-                this.dropItem(enemy.position.x + (Math.random()-0.5)*150, enemy.position.y + (Math.random()-0.5)*150, 'gem', 1);
+                this.dropItem(enemy.position.x + (Math.random()-0.5)*150, enemy.position.y + (Math.random()-0.5)*150, 'gem', valPerGem);
             }
         } else {
             // If no gems dropped, automatically ascend after a delay to let the coins bounce
@@ -1052,8 +1061,13 @@ export class GameComponent implements OnInit, OnDestroy {
                 if (!this.animatingAscension()) this.triggerAscension();
             }, 1500);
         }
-        for(let i=0; i<20; i++) {
-           this.dropItem(enemy.position.x + (Math.random()-0.5)*100, enemy.position.y + (Math.random()-0.5)*100, 'coin', 25);
+        
+        // Coins explosion (Huge visual blast, value scales to intended)
+        const intendedCoins = 1000;
+        const physicalCoins = Math.min(150, Math.floor(intendedCoins / scaleAtEnd));
+        const valPerCoin = intendedCoins / (physicalCoins * scaleAtEnd);
+        for(let i=0; i<physicalCoins; i++) {
+           this.dropItem(enemy.position.x + (Math.random()-0.5)*200, enemy.position.y + (Math.random()-0.5)*200, 'coin', valPerCoin);
         }
         
         this.triggerMassiveExplosion(enemy.position.x, enemy.position.y);
@@ -1196,8 +1210,10 @@ export class GameComponent implements OnInit, OnDestroy {
     this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 });
     this.gameState.syncProgressToServer();
 
-    if (this.runner) Matter.Runner.stop(this.runner); // Freeze physics
+    if (this.runner) Matter.Runner.stop(this.runner);    this.gameState.coins.update(c => Math.floor(c));
+    this.gameState.gems.update(g => Math.floor(g));
     
+    // Revive mechanic logic
     this.reviveCountdown.set(10);
     this.reviveInterval = setInterval(() => {
         this.reviveCountdown.update(c => c - 1);
@@ -1240,6 +1256,10 @@ export class GameComponent implements OnInit, OnDestroy {
   private winGame() {
     this.gameEnded.set(true);
     this.gameWon.set(true);
+    
+    this.gameState.coins.update(c => Math.floor(c));
+    this.gameState.gems.update(g => Math.floor(g));
+    
     this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight / 2 }); 
 
     const currentIdx = this.gameState.selectedWorldIndex();
@@ -1291,6 +1311,8 @@ export class GameComponent implements OnInit, OnDestroy {
           this.gameState.selectedWorldIndex.set(nextIdx);
       }
       
+      this.gameState.coins.update(c => Math.floor(c));
+      this.gameState.gems.update(g => Math.floor(g));
       this.gameState.syncProgressToServer();
       
       // 2. Reset Sequence States
