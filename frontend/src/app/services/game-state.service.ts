@@ -72,6 +72,8 @@ export class GameStateService {
   private auth = inject(AuthService);
   private http = inject(HttpClient);
 
+  public isGuest = computed(() => !this.auth.currentUser() || this.auth.currentUser()?.isTemp);
+
   // Currency & Progress
   public level = signal<number>(0);
   public xp = signal<number>(0);
@@ -80,6 +82,7 @@ export class GameStateService {
   public gems = signal<number>(0);
   public hasPurchasedGems = signal<boolean>(false);
   public upsellChance = signal<number>(1.0);
+  public acceptedLegalPolicies = signal<boolean>(false);
 
   // Stats Tracking (Session only, for trophies)
   public sessionKills = signal<Record<string, number>>({});
@@ -124,6 +127,7 @@ export class GameStateService {
               // Boot-up creep: Increase chance of popup by 10% each session
               if (data.gems !== undefined) this.gems.set(data.gems);
               if (data.hasPurchasedGems !== undefined) this.hasPurchasedGems.set(data.hasPurchasedGems);
+              if (data.acceptedLegalPolicies !== undefined) this.acceptedLegalPolicies.set(data.acceptedLegalPolicies);
               if (data.upsellChance !== undefined) {
                   this.upsellChance.set(Math.min(1.0, data.upsellChance + 0.1));
               } else {
@@ -164,6 +168,7 @@ export class GameStateService {
               coins: this.coins(),
               gems: this.gems(),
               hasPurchasedGems: this.hasPurchasedGems(),
+              acceptedLegalPolicies: this.acceptedLegalPolicies(),
               upsellChance: this.upsellChance(),
               unlockedWorlds: this.unlockedWorlds(),
               worldUpgrades: this.worldUpgrades()
@@ -209,6 +214,7 @@ export class GameStateService {
           this.trophies.set(user.trophies || []);
           this.coins.set(user.coins !== undefined ? user.coins : 100);
           this.gems.set(user.gems || 0);
+          if (user.acceptedLegalPolicies) this.acceptedLegalPolicies.set(true);
           this.unlockedWorlds.set(user.unlockedWorlds && user.unlockedWorlds.length > 0 ? user.unlockedWorlds : [0]);
           if (user.worldUpgrades && Object.keys(user.worldUpgrades).length > 0) {
               const upgrades = user.worldUpgrades;

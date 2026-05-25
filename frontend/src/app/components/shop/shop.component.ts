@@ -78,18 +78,20 @@ export interface ActiveDeal {
          }
 
         <!-- Original Flash Sale Banner -->
-        <div class="w-full max-w-4xl bg-gradient-to-r from-red-600 to-orange-600 rounded-xl p-4 mb-6 flex justify-between items-center shadow-lg shadow-red-500/50 border border-yellow-400">
-          <div class="flex items-center gap-3">
-             <span class="text-3xl">🔥</span>
-             <div>
-                <h3 class="font-black text-white text-xl uppercase tracking-wider">Flash Sale</h3>
-                <p class="text-white/80 text-sm font-bold">First Time Purchase 2x Bonus Active!</p>
-             </div>
+        @if (!gameState.hasPurchasedGems() && flashSaleTimer() > 0) {
+          <div class="w-full max-w-4xl bg-gradient-to-r from-red-600 to-orange-600 rounded-xl p-4 mb-6 flex justify-between items-center shadow-lg shadow-red-500/50 border border-yellow-400">
+            <div class="flex items-center gap-3">
+               <span class="text-3xl">🔥</span>
+               <div>
+                  <h3 class="font-black text-white text-xl uppercase tracking-wider">Flash Sale</h3>
+                  <p class="text-white/80 text-sm font-bold">First Time Purchase 2x Bonus Active!</p>
+               </div>
+            </div>
+            <div class="bg-black/50 px-4 py-2 rounded-lg font-mono text-xl font-bold text-yellow-300">
+               {{ formatTime(flashSaleTimer()) }}
+            </div>
           </div>
-          <div class="bg-black/50 px-4 py-2 rounded-lg font-mono text-xl font-bold text-yellow-300">
-             {{ formatTime(flashSaleTimer()) }}
-          </div>
-        </div>
+        }
       }
 
       <!-- Tabs -->
@@ -299,9 +301,6 @@ export interface ActiveDeal {
           
           <!-- Package 1 -->
           <div class="bg-white/5 border border-purple-500/20 rounded-3xl p-6 flex flex-col items-center gap-4 hover:bg-white/10 transition shadow-[0_0_20px_rgba(168,85,247,0.1)] hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] relative overflow-hidden">
-            @if (!gameState.hasPurchasedGems()) {
-                <div class="absolute top-4 -right-8 bg-red-600 text-white text-xs font-bold py-1 px-10 rotate-45 shadow-lg">2X BONUS</div>
-            }
             <img src="assets/gem_icon.png" class="w-24 h-24 object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]" />
             <div class="text-center">
               <h3 class="text-2xl font-bold text-white">Single Gem</h3>
@@ -318,7 +317,7 @@ export interface ActiveDeal {
           <!-- Package 2 (Best Value) -->
           <div class="relative bg-gradient-to-b from-purple-900/40 to-black/40 border border-purple-500/50 rounded-3xl p-6 flex flex-col items-center gap-4 hover:brightness-110 transition shadow-[0_0_30px_rgba(168,85,247,0.3)] transform md:-translate-y-2 mt-4 md:mt-0 overflow-hidden">
             <div class="absolute -top-3 bg-purple-500 text-white px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase shadow-lg z-10">Most Popular</div>
-            @if (!gameState.hasPurchasedGems()) {
+            @if (!gameState.hasPurchasedGems() && flashSaleTimer() > 0) {
                 <div class="absolute top-4 -right-8 bg-red-600 text-white text-xs font-bold py-1 px-10 rotate-45 shadow-lg z-10">2X BONUS</div>
             }
             <img src="assets/gem_icon.png" class="w-32 h-32 object-contain drop-shadow-[0_0_25px_rgba(168,85,247,0.8)] mt-2" />
@@ -336,7 +335,7 @@ export interface ActiveDeal {
 
           <!-- Package 3 -->
           <div class="bg-white/5 border border-purple-500/20 rounded-3xl p-6 flex flex-col items-center gap-4 hover:bg-white/10 transition shadow-[0_0_20px_rgba(168,85,247,0.1)] hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] relative overflow-hidden">
-            @if (!gameState.hasPurchasedGems()) {
+            @if (!gameState.hasPurchasedGems() && flashSaleTimer() > 0) {
                 <div class="absolute top-4 -right-8 bg-red-600 text-white text-xs font-bold py-1 px-10 rotate-45 shadow-lg z-10">2X BONUS</div>
             }
             <img src="assets/gem_icon.png" class="w-24 h-24 object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]" />
@@ -436,7 +435,7 @@ export class ShopComponent implements OnInit, OnDestroy {
   activeTab = signal<'passives' | 'abilities' | 'gems'>('passives');
   isProcessingPayment = signal<boolean>(false);
   isGachaSpinning = signal<boolean>(false);
-  flashSaleTimer = signal<number>(14 * 60 + 59); 
+  flashSaleTimer = signal<number>(0); 
   currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
   private timerInterval: any;
   private ghostInterval: any;
@@ -458,11 +457,11 @@ export class ShopComponent implements OnInit, OnDestroy {
   calculatedPrices = computed(() => this.basePrices.map(p => +(p * this.activeDeal().priceMultiplier).toFixed(2)));
   
   calculatedGems = computed(() => {
-     return this.baseGems.map(g => {
+     return this.baseGems.map((g, index) => {
          let mult = this.activeDeal().gemMultiplier;
          if (this.ghostDealActive()) mult *= 3; // Ghost deal is 3x gems
          let amt = Math.floor(g * mult);
-         if (!this.gameState.hasPurchasedGems()) amt *= 2;
+         if (!this.gameState.hasPurchasedGems() && index > 0 && this.flashSaleTimer() > 0) amt *= 2;
          return amt;
      });
   });
@@ -500,8 +499,22 @@ export class ShopComponent implements OnInit, OnDestroy {
       
       this.evaluatePricing();
       
+      let flashEndTime = 0;
+      if (typeof window !== 'undefined' && window.localStorage) {
+          const savedEnd = localStorage.getItem('phoenix_flash_sale_end');
+          if (savedEnd) {
+              flashEndTime = parseInt(savedEnd, 10);
+          } else {
+              flashEndTime = Date.now() + (15 * 60 * 1000); // 15 minutes from now
+              localStorage.setItem('phoenix_flash_sale_end', flashEndTime.toString());
+          }
+      }
+
       this.timerInterval = setInterval(() => {
-          this.flashSaleTimer.update(t => t > 0 ? t - 1 : 14 * 60 + 59);
+          if (flashEndTime > 0) {
+              const remaining = Math.max(0, Math.floor((flashEndTime - Date.now()) / 1000));
+              this.flashSaleTimer.set(remaining);
+          }
           
           if (this.ghostDealActive()) {
               this.ghostDealTimer.update(t => t - 1);

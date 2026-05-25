@@ -52,42 +52,16 @@ import { FormsModule } from '@angular/forms';
           @if (mode === 'set-username') {
             <p class="text-white/60 text-center mb-4">You successfully authenticated! Now pick a unique username for the leaderboard.</p>
             <input [(ngModel)]="username" type="text" placeholder="Username" class="w-full p-4 bg-black/40 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 transition">
-            
-            <div class="mt-4 flex items-start gap-3 bg-white/5 p-4 rounded-xl border border-white/10">
-                <input type="checkbox" [(ngModel)]="acceptedTerms" id="terms" class="mt-1 w-4 h-4 accent-orange-500">
-                <label for="terms" class="text-white/70 text-sm leading-tight">
-                    I agree to the <button (click)="showLegal('tos')" class="text-cyan-400 font-bold underline hover:text-cyan-300 underline-offset-2">Terms of Service</button>, 
-                    <button (click)="showLegal('privacy')" class="text-cyan-400 font-bold underline hover:text-cyan-300 underline-offset-2">Privacy Policy</button>, and 
-                    acknowledge the <button (click)="showLegal('refunds')" class="text-cyan-400 font-bold underline hover:text-cyan-300 underline-offset-2">Refund Policy</button>.
-                </label>
-            </div>
           }
           
           <button (click)="submit()" 
-                  class="w-full mt-4 p-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:grayscale"
-                  [disabled]="mode === 'set-username' && !acceptedTerms">
+                  class="w-full mt-4 p-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:grayscale">
             {{ mode === 'email' ? 'Continue' : 'Complete Signup' }}
           </button>
           
 
         </div>
       </div>
-
-      <!-- Legal Modal -->
-      @if (activeLegalDoc) {
-          <div class="fixed inset-0 bg-black/90 flex flex-col items-center justify-center z-[100] px-4 backdrop-blur-md">
-             <div class="w-full max-w-2xl bg-zinc-900 border border-white/20 rounded-3xl p-8 flex flex-col max-h-[80vh] shadow-2xl">
-                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-white">{{ getLegalTitle() }}</h2>
-                    <button (click)="activeLegalDoc = null" class="text-white/50 hover:text-white text-2xl">&times;</button>
-                 </div>
-                 <div class="overflow-y-auto text-white/70 text-sm space-y-4 pr-4 custom-scrollbar">
-                    {{ getLegalContent() }}
-                 </div>
-                 <button (click)="activeLegalDoc = null" class="mt-6 w-full py-4 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-white transition">Close</button>
-             </div>
-          </div>
-      }
     </div>
   `
 })
@@ -102,8 +76,6 @@ export class LoginComponent implements OnInit {
   password = '';
   username = '';
   error = '';
-  acceptedTerms = false;
-  activeLegalDoc: 'tos' | 'privacy' | 'refunds' | null = null;
 
   ngOnInit() {
       const urlParams = new URLSearchParams(window.location.search);
@@ -112,26 +84,6 @@ export class LoginComponent implements OnInit {
       } else if (urlParams.get('error')) {
           this.error = 'Google Authentication Failed.';
       }
-  }
-
-  showLegal(doc: 'tos' | 'privacy' | 'refunds') {
-      this.activeLegalDoc = doc;
-  }
-
-  getLegalTitle(): string {
-      if (this.activeLegalDoc === 'tos') return 'Terms of Service';
-      if (this.activeLegalDoc === 'privacy') return 'Privacy Policy';
-      return 'Refund Policy';
-  }
-
-  getLegalContent(): string {
-      if (this.activeLegalDoc === 'tos') {
-          return "By accessing or using Phoenix Fall, you agree to be bound by these Terms of Service. You may not cheat, hack, or exploit bugs. We reserve the right to ban accounts without notice for any violation. All virtual items remain the property of the developer. We are not responsible for any emotional distress caused by our highly addictive gameplay loop.";
-      }
-      if (this.activeLegalDoc === 'privacy') {
-          return "We collect your email, username, and gameplay analytics. We use this data to optimize monetization, track your engagement, and serve targeted offers. By agreeing, you consent to our use of third-party analytics trackers to monitor your session times and in-game currency balances. If you are under 13, you must have parental consent to play.";
-      }
-      return "ALL SALES ARE FINAL. Virtual currency (Gems) and in-game upgrades hold no real-world value and cannot be exchanged for fiat currency. We do not offer refunds for accidental purchases, account bans, or buyer's remorse, except where expressly mandated by statutory consumer rights in your jurisdiction. Please contact Google Play or Apple App Store for billing inquiries.";
   }
 
   goBack() {
