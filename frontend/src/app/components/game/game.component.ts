@@ -926,10 +926,23 @@ export class GameComponent implements OnInit, OnDestroy {
     setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 2000);
   }
 
-  private fireEnemyProjectile(pos: Matter.Vector) {
-    const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, pos));
+  private calculateBossGemDrop(realmIndex: number): number {
+      // Boss drop should be roughly the equivalent of $5 worth of gems (approx 50 gems)
+      // but with a random range, and scaling slightly per realm.
+      let min = 40;
+      let max = 60;
+      
+      if (realmIndex > 0) {
+          min += realmIndex * 20;
+          max += realmIndex * 30;
+      }
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  private fireEnemyProjectile(source: Matter.Vector) {
+    const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, source));
     
-    const projectile = Matter.Bodies.circle(pos.x, pos.y, 10, {
+    const projectile = Matter.Bodies.circle(source.x, source.y, 10, {
       label: 'projectile',
       isSensor: true,
       plugin: {
@@ -1026,11 +1039,12 @@ export class GameComponent implements OnInit, OnDestroy {
         // Base gems based on realm index (Only drop on first defeat!)
         const currentWorldIndex = this.gameState.selectedWorldIndex();
         const isFirstDefeat = !this.gameState.unlockedWorlds().includes(currentWorldIndex + 1);
-        this.bossGemsDropped = isFirstDefeat ? (currentWorldIndex === 0 ? 3 : (currentWorldIndex === 1 ? 5 : 10)) : 0;
+        this.bossGemsDropped = isFirstDefeat ? this.calculateBossGemDrop(currentWorldIndex) : 0;
         
         if (this.bossGemsDropped > 0) {
             for(let i=0; i<this.bossGemsDropped; i++) {
-                this.dropItem(enemy.position.x + (Math.random()-0.5)*50, enemy.position.y + (Math.random()-0.5)*50, 'gem', 1);
+                // Drop many 1-value gems for an awesome visual explosion
+                this.dropItem(enemy.position.x + (Math.random()-0.5)*150, enemy.position.y + (Math.random()-0.5)*150, 'gem', 1);
             }
         } else {
             // If no gems dropped, automatically ascend after a delay to let the coins bounce

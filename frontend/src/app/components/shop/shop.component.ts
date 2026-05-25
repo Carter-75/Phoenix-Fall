@@ -621,8 +621,11 @@ export interface ActiveDeal {
                
                <p class="text-white text-lg font-bold">Since you just purchased Gems, you've unlocked this exclusive package!</p>
                <div class="my-6 bg-black/50 border border-fuchsia-500/50 p-4 rounded-xl w-full">
-                  <p class="text-4xl font-black text-fuchsia-400">50 GEMS</p>
-                  <p class="text-white/50 line-through mt-1">Usually $49.99</p>
+                  <div class="flex justify-center items-baseline gap-2">
+                     <p class="text-4xl font-black text-fuchsia-400">75 GEMS</p>
+                     <span class="bg-red-600 text-white text-xs px-2 py-1 rounded font-bold ml-2">≈ 50% OFF</span>
+                  </div>
+                  <p class="text-white/50 line-through mt-1">Usually $9.99</p>
                </div>
                
                <button (click)="buyWhaleTrap()" class="w-full py-4 bg-gradient-to-r from-fuchsia-600 to-purple-600 rounded-xl font-black text-2xl text-white hover:brightness-125 active:scale-95 transition shadow-lg shadow-fuchsia-500/50">
@@ -1176,10 +1179,10 @@ export class ShopComponent implements OnInit, OnDestroy {
   }
 
   buyWhaleTrap() {
-    console.log(`Initiating payment intent for $4.99 to buy 50 Gems...`);
+    console.log(`Initiating payment intent for $4.99 to buy 75 Gems...`);
     this.isProcessingPayment.set(true);
     setTimeout(() => {
-        this.gameState.gems.update(g => g + 50);
+        this.gameState.gems.update(g => g + 75);
         this.isProcessingPayment.set(false);
         this.showWhaleTrap.set(false);
         this.gameState.upsellChance.set(0);
