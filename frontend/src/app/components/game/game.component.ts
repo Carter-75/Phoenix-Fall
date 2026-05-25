@@ -1304,11 +1304,26 @@ export class GameComponent implements OnInit, OnDestroy {
       const currentIdx = this.gameState.selectedWorldIndex();
       const nextIdx = currentIdx + 1;
       
-      if (nextIdx < this.gameState.worlds.length) {
+      if (nextIdx < this.gameState.worlds.length && !this.gameState.worlds[nextIdx].isComingSoon) {
           if (!this.gameState.unlockedWorlds().includes(nextIdx)) {
               this.gameState.unlockedWorlds.update(worlds => [...worlds, nextIdx]);
           }
           this.gameState.selectedWorldIndex.set(nextIdx);
+          
+          // Flash animation for cool realm switch
+          const flash = document.createElement('div');
+          flash.className = 'fixed inset-0 bg-white z-[100] pointer-events-none transition-opacity duration-1000';
+          document.body.appendChild(flash);
+          
+          // Force reflow
+          void flash.offsetWidth;
+          
+          setTimeout(() => flash.style.opacity = '0', 50);
+          setTimeout(() => flash.remove(), 1050);
+      } else {
+          // If the next realm is coming soon, just go to the main screen by quitting
+          this.quitGame();
+          return;
       }
       
       this.gameState.coins.update(c => Math.floor(c));
