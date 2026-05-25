@@ -539,16 +539,33 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private triggerFireBreath() {
       if (this.gameState.isRebirthing()) return;
-      this.tapCooldown.set(4);
+      this.tapCooldown.set(8);
       const damage = this.gameState.currentStats().damage * 0.5;
       this.audioService.playSFX('shoot');
       
-      const dir = Matter.Vector.normalise(Matter.Vector.sub({ x: this.mouseX, y: this.mouseY }, this.playerBody.position));
+      // Auto-target nearest enemy instead of mouse
+      let fireAngle = 0;
+      if (this.enemies.length > 0) {
+          let nearest = this.enemies[0];
+          let minDist = Infinity;
+          this.enemies.forEach(e => {
+              const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
+              if (dist < minDist) { minDist = dist; nearest = e; }
+          });
+          const dirVec = Matter.Vector.sub(nearest.position, this.playerBody.position);
+          fireAngle = Math.atan2(dirVec.y, dirVec.x);
+      } else {
+          // Fallback to pointing right if no enemies
+          fireAngle = 0;
+      }
       
-      for(let i=0; i<10; i++) {
+      // Longer duration fire breath (20 projectiles over 1000ms)
+      for(let i=0; i<20; i++) {
           setTimeout(() => {
+              if (this.isDead() || this.gameState.isRebirthing()) return; // stop if player dies during breath
+              
               const spreadAngle = (Math.random() - 0.5) * 0.5;
-              const angle = Math.atan2(dir.y, dir.x) + spreadAngle;
+              const angle = fireAngle + spreadAngle;
               const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
               const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 15, {
                   isSensor: true, label: 'projectile',
@@ -625,14 +642,22 @@ export class GameComponent implements OnInit, OnDestroy {
               constraint.stiffness = 0.2;
               
               setTimeout(() => {
-                  // Explode!
+                  // Volcanic explosion for turret
+                  this.audioService.playSFX('explosion');
                   const radius = 250;
-                  const explosion = Matter.Bodies.circle(egg.position.x, egg.position.y, radius, {
-                      isSensor: true, label: 'projectile',
-                      plugin: { data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: radius } as EnemyData }
-                  });
-                  Matter.Composite.add(this.engine.world, explosion);
-                  setTimeout(() => { if (explosion.parent) Matter.Composite.remove(this.engine.world, explosion) }, 300);
+                  
+                  for (let i = 0; i < 20; i++) {
+                      const angle = (i / 20) * Math.PI * 2;
+                      const speed = 5 + Math.random() * 5;
+                      const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+                      const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 15, {
+                          isSensor: true, label: 'projectile',
+                          plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: this.gameState.currentStats().damage * 5 } as EnemyData }
+                      });
+                      Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, speed));
+                      Matter.Composite.add(this.engine.world, proj);
+                      setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 500 + Math.random() * 300);
+                  }
                   
                   this.enemies.forEach(e => {
                       const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, egg.position));

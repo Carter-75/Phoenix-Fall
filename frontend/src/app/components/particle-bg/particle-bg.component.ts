@@ -407,50 +407,60 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         }
         const pPositions = bird.particles.geometry.attributes['position'].array as Float32Array;
         
-        for (let k = 0; k < bird.phoenixCount; k++) {
-          const idx = k * 3;
-          const baseX = bird.basePositions[idx];
-          const baseY = bird.basePositions[idx+1];
-          const baseZ = bird.basePositions[idx+2];
-          
-          const scaledBaseX = baseX * this.birdScale;
-          const scaledBaseY = baseY * this.birdScale;
-          const scaledBaseZ = baseZ * this.birdScale;
-          
-          let histIdx = Math.floor(scaledBaseZ / speed);
-          histIdx = Math.max(0, Math.min(bird.historyPos.length - 1, histIdx));
-          
-          const hPos = bird.historyPos[histIdx];
-          const hQuat = bird.historyQuat[histIdx];
-          
-          const flapAmount = Math.abs(scaledBaseX) * 0.5; 
-          const flapPhase = bird.flapTime - scaledBaseZ * 2.0; 
-          const flapOffset = Math.sin(flapPhase) * flapAmount;
-          
-          const flickerX = (Math.random() - 0.5) * 0.05 * this.birdScale;
-          const flickerY = (Math.random() - 0.5) * 0.05 * this.birdScale;
-          
-          let stretchZ = 0;
-          if (this.gameState.isDrilling() && scaledBaseZ < 0.5) {
-              const level = this.gameState.currentStats().unlockedAbilities['drill_attack']?.level || 1;
-              stretchZ = -(2 + level * 0.5) * this.birdScale; // Extend beak forward dynamically based on upgrade
-          }
-          
-          const localOffset = new THREE.Vector3(scaledBaseX + flickerX, scaledBaseY + flapOffset + flickerY, stretchZ);
-          localOffset.applyQuaternion(hQuat);
-          
-          let finalX = hPos.x + localOffset.x;
-          const wrapWidth = this.boundX * 2 + 10;
-          
-          if (finalX > wrapWidth / 2) {
-            finalX -= wrapWidth;
-          } else if (finalX < -wrapWidth / 2) {
-            finalX += wrapWidth;
-          }
+        if (this.gameState.isRebirthing()) {
+            // Crumble into falling ash
+            for (let k = 0; k < bird.phoenixCount; k++) {
+                const idx = k * 3;
+                pPositions[idx] += (Math.random() - 0.5) * 0.05;
+                pPositions[idx+1] -= Math.random() * 0.1; // fall down
+                pPositions[idx+2] += (Math.random() - 0.5) * 0.05;
+            }
+        } else {
+            for (let k = 0; k < bird.phoenixCount; k++) {
+              const idx = k * 3;
+              const baseX = bird.basePositions[idx];
+              const baseY = bird.basePositions[idx+1];
+              const baseZ = bird.basePositions[idx+2];
+              
+              const scaledBaseX = baseX * this.birdScale;
+              const scaledBaseY = baseY * this.birdScale;
+              const scaledBaseZ = baseZ * this.birdScale;
+              
+              let histIdx = Math.floor(scaledBaseZ / speed);
+              histIdx = Math.max(0, Math.min(bird.historyPos.length - 1, histIdx));
+              
+              const hPos = bird.historyPos[histIdx];
+              const hQuat = bird.historyQuat[histIdx];
+              
+              const flapAmount = Math.abs(scaledBaseX) * 0.5; 
+              const flapPhase = bird.flapTime - scaledBaseZ * 2.0; 
+              const flapOffset = Math.sin(flapPhase) * flapAmount;
+              
+              const flickerX = (Math.random() - 0.5) * 0.05 * this.birdScale;
+              const flickerY = (Math.random() - 0.5) * 0.05 * this.birdScale;
+              
+              let stretchZ = 0;
+              if (this.gameState.isDrilling() && scaledBaseZ < 0.5) {
+                  const level = this.gameState.currentStats().unlockedAbilities['drill_attack']?.level || 1;
+                  stretchZ = -(2 + level * 0.5) * this.birdScale; // Extend beak forward dynamically based on upgrade
+              }
+              
+              const localOffset = new THREE.Vector3(scaledBaseX + flickerX, scaledBaseY + flapOffset + flickerY, stretchZ);
+              localOffset.applyQuaternion(hQuat);
+              
+              let finalX = hPos.x + localOffset.x;
+              const wrapWidth = this.boundX * 2 + 10;
+              
+              if (finalX > wrapWidth / 2) {
+                finalX -= wrapWidth;
+              } else if (finalX < -wrapWidth / 2) {
+                finalX += wrapWidth;
+              }
 
-          pPositions[idx] = finalX;
-          pPositions[idx+1] = hPos.y + localOffset.y;
-          pPositions[idx+2] = hPos.z + localOffset.z;
+              pPositions[idx] = finalX;
+              pPositions[idx+1] = hPos.y + localOffset.y;
+              pPositions[idx+2] = hPos.z + localOffset.z;
+            }
         }
         bird.particles.geometry.attributes['position'].needsUpdate = true;
         
@@ -524,7 +534,10 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       } else if (data.type === 'fire') {
         entity.mesh.scale.multiplyScalar(0.96); // Shrink over time
         entity.mesh.rotation.y += 0.1;
-      } else {
+      } else if (data.type === 'turret') {
+        const flap = 1 + Math.sin(Date.now() * 0.03) * 0.5;
+        entity.mesh.scale.y = flap; // Just flap, don't spin around beak!
+      } else if (data.type !== 'egg') {
         entity.mesh.rotation.y += 0.02;
       }
 
@@ -655,19 +668,20 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
          z = (Math.random() - 0.5) * r * 2.5;
       }
       else if (data.type === 'egg') {
+         // Hollow speckled egg
          const u = Math.random() * Math.PI * 2;
          const v = Math.acos(2 * Math.random() - 1);
-         const rad = Math.cbrt(Math.random()) * r;
-         x = rad * Math.sin(v) * Math.cos(u) * 0.8;
-         y = rad * Math.sin(v) * Math.sin(u) * 1.3;
-         z = rad * Math.cos(v) * 0.8;
+         const rad = r; // use surface
+         x = rad * Math.sin(v) * Math.cos(u) * 0.7;
+         y = rad * Math.sin(v) * Math.sin(u) * 1.1;
+         z = rad * Math.cos(v) * 0.7;
       }
       else if (data.type === 'turret') {
-         // Copy baby bird from main bird base positions
+         // Copy baby bird from main bird base positions (scaled down)
          if (this.bird && this.bird.basePositions && this.bird.basePositions.length > idx + 2) {
-             x = this.bird.basePositions[idx] * 2.5 * r;
-             y = this.bird.basePositions[idx+1] * 2.5 * r;
-             z = this.bird.basePositions[idx+2] * 2.5 * r;
+             x = this.bird.basePositions[idx] * 0.4 * r;
+             y = this.bird.basePositions[idx+1] * 0.4 * r;
+             z = this.bird.basePositions[idx+2] * 0.4 * r;
          }
       }
       else {
@@ -695,6 +709,11 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           col[idx] = bColors[idx];
           col[idx+1] = bColors[idx+1];
           col[idx+2] = bColors[idx+2];
+      } else if (data.type === 'egg') {
+          const isSpeckle = Math.random() > 0.8;
+          col[idx] = isSpeckle ? 1.0 : 0.9;
+          col[idx+1] = isSpeckle ? 0.4 : 0.8;
+          col[idx+2] = isSpeckle ? 0.0 : 0.7;
       } else {
           col[idx] = color.r * (0.8 + Math.random()*0.4);
           col[idx+1] = color.g * (0.8 + Math.random()*0.4);
