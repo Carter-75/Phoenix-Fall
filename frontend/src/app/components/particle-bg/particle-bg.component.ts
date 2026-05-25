@@ -324,13 +324,14 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
             this.updateMouseTarget(overridePos.x, overridePos.y);
           }
 
+          // State transition check for Rebirth snap-back
+          const isRebirthingNow = this.gameState.isRebirthing();
+
           const mat = bird.particles.material as THREE.PointsMaterial;
-          if (this.gameState.isRebirthing()) {
+          if (isRebirthingNow) {
               mat.color.setRGB(0.2, 0.2, 0.2); // Ash color
-              bird.velocity.y -= 0.01;
-              bird.velocity.x *= 0.95;
-              bird.velocity.z *= 0.95;
-              bird.position.add(bird.velocity);
+              // Freeze in place completely
+              bird.velocity.set(0, 0, 0);
           } else {
               mat.color.setRGB(1, 1, 1);
               bird.flapTime += 0.04;

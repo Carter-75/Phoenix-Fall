@@ -934,7 +934,20 @@ export class GameComponent implements OnInit, OnDestroy {
              });
              
              this.audioService.playSFX('explosion');
-             confetti({ particleCount: 150, spread: 100, origin: { y: 0.5 }, colors: ['#ffaa00', '#ff0000', '#ffffff'] });
+             
+             // Volcanic fire rebirth particles
+             for (let i = 0; i < 30; i++) {
+                 const angle = (i / 30) * Math.PI * 2;
+                 const speed = 8 + Math.random() * 8;
+                 const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+                 const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 15, {
+                     isSensor: true, label: 'projectile',
+                     plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: this.gameState.currentStats().damage * 3 } as EnemyData }
+                 });
+                 Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, speed));
+                 Matter.Composite.add(this.engine.world, proj);
+                 setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 800 + Math.random() * 600);
+             }
          }, 3000);
          return;
       }
