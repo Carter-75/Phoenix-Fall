@@ -16,7 +16,7 @@ import { FormsModule } from '@angular/forms';
 
       <div class="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-[0_0_50px_rgba(255,100,0,0.1)]">
         <h2 class="text-3xl font-black text-center mb-8 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
-          {{ mode === 'login' ? 'ACCOUNT LOGIN' : (mode === 'register' ? 'CREATE ACCOUNT' : 'CHOOSE USERNAME') }}
+           {{ mode === 'email' ? 'ACCOUNT ACCESS' : 'CHOOSE USERNAME' }}
         </h2>
         
         @if (error) {
@@ -26,7 +26,7 @@ import { FormsModule } from '@angular/forms';
         }
 
         <div class="space-y-4">
-          @if (mode === 'login' || mode === 'register') {
+          @if (mode === 'email') {
               <button (click)="loginWithGoogle()" 
                       class="w-full p-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors text-white font-semibold gap-3">
                 <svg class="w-5 h-5" viewBox="0 0 24 24">
@@ -44,7 +44,7 @@ import { FormsModule } from '@angular/forms';
               </div>
           }
 
-          @if (mode === 'login' || mode === 'register') {
+          @if (mode === 'email') {
             <input [(ngModel)]="email" type="email" placeholder="Email Address" class="w-full p-4 bg-black/40 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 transition">
             <input [(ngModel)]="password" type="password" placeholder="Password" class="w-full p-4 bg-black/40 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 transition">
           }
@@ -56,14 +56,10 @@ import { FormsModule } from '@angular/forms';
           
           <button (click)="submit()" 
                   class="w-full mt-4 p-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-orange-500/20">
-            {{ mode === 'login' ? 'Sign In' : (mode === 'register' ? 'Register' : 'Complete Signup') }}
+            {{ mode === 'email' ? 'Continue' : 'Complete Signup' }}
           </button>
           
-          @if (mode === 'login') {
-            <p class="text-white/40 text-center text-sm mt-4 cursor-pointer hover:text-white" (click)="mode='register'; error=''">Don't have an account? Register</p>
-          } @else if (mode === 'register') {
-            <p class="text-white/40 text-center text-sm mt-4 cursor-pointer hover:text-white" (click)="mode='login'; error=''">Already have an account? Sign In</p>
-          }
+
         </div>
       </div>
     </div>
@@ -74,7 +70,7 @@ export class LoginComponent implements OnInit {
   private authService = inject(AuthService);
   private audioService = inject(AudioService);
   
-  mode: 'login' | 'register' | 'set-username' = 'login';
+  mode: 'email' | 'set-username' = 'email';
   
   email = '';
   password = '';
@@ -100,7 +96,12 @@ export class LoginComponent implements OnInit {
     this.audioService.playSFX('buy');
     this.error = '';
     
-    if (this.mode === 'login') {
+    if (this.mode === 'email') {
+        if (!this.email || !this.password) {
+            this.error = "Please fill in all fields";
+            return;
+        }
+        
         this.authService.login({ email: this.email, password: this.password }).subscribe({
             next: (user: any) => {
                 if (user.isTemp) {
@@ -110,19 +111,26 @@ export class LoginComponent implements OnInit {
                     this.goBack();
                 }
             },
-            error: (err) => this.error = err.error?.message || 'Login failed'
-        });
-    } else if (this.mode === 'register') {
-        this.authService.register({ email: this.email, password: this.password }).subscribe({
-            next: (user: any) => {
-                if (user.isTemp) {
-                    this.mode = 'set-username';
+            error: (err) => {
+                if (err.error?.message === 'USER_NOT_FOUND') {
+                    // Auto-register
+                    this.authService.register({ email: this.email, password: this.password }).subscribe({
+                        next: (newUser: any) => {
+                            if (newUser.isTemp) {
+                                this.mode = 'set-username';
+                            } else {
+                                this.gameState.syncWithUser(newUser);
+                                this.goBack();
+                            }
+                        },
+                        error: (registerErr) => {
+                            this.error = registerErr.error?.message || 'Registration failed';
+                        }
+                    });
                 } else {
-                    this.gameState.syncWithUser(user);
-                    this.goBack();
+                    this.error = err.error?.message || 'Login failed';
                 }
-            },
-            error: (err) => this.error = err.error?.message || 'Registration failed'
+            }
         });
     } else if (this.mode === 'set-username') {
         this.authService.completeSignup(this.username).subscribe({

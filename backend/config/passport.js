@@ -25,7 +25,7 @@ module.exports = function(passport) {
     new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
       try {
         const user = await User.findOne({ email: email.toLowerCase() });
-        if (!user) return done(null, false, { message: 'Incorrect email or password.' });
+        if (!user) return done(null, false, { message: 'USER_NOT_FOUND' });
         if (!user.password) return done(null, false, { message: 'Please login with Google.' });
 
         const isMatch = await user.comparePassword(password);
