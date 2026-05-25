@@ -157,15 +157,15 @@ export interface ActiveDeal {
               <p class="text-red-400 font-mono mt-1">Lvl {{ (gameState.currentStats().maxHealth - 100) / 10 }}</p>
             </div>
             <div class="w-full mt-4">
-              @if (gameState.coins() >= getCost('maxHealth', 100, 10, 100)) {
-                 <button (click)="buyHealth()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('maxHealth', 100, 10, 100) }}
-                 </button>
-              } @else {
-                 <button (click)="buyHealth(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('maxHealth', 100, 10, 100))">
+              @if (canAffordWithGemsButNotCoins(getCost('maxHealth', 100, 10, 100))) {
+                 <button (click)="buyHealth(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
                    <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('maxHealth', 100, 10, 100)) }}
                  </button>
-              }
+} @else {
+                 <button (click)="buyHealth()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('maxHealth', 100, 10, 100)">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('maxHealth', 100, 10, 100) }}
+                 </button>
+                            }
             </div>
           </div>
 
@@ -180,15 +180,15 @@ export interface ActiveDeal {
               <p class="text-blue-400 font-mono mt-1">Lvl {{ ((gameState.currentStats().speed - 1) * 10).toFixed(0) }}</p>
             </div>
             <div class="w-full mt-4">
-              @if (gameState.coins() >= getCost('speed', 150, 0.1, 1)) {
-                 <button (click)="buySpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('speed', 150, 0.1, 1) }}
-                 </button>
-              } @else {
-                 <button (click)="buySpeed(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('speed', 150, 0.1, 1))">
+              @if (canAffordWithGemsButNotCoins(getCost('speed', 150, 0.1, 1))) {
+                 <button (click)="buySpeed(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
                    <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('speed', 150, 0.1, 1)) }}
                  </button>
-              }
+} @else {
+                 <button (click)="buySpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('speed', 150, 0.1, 1)">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('speed', 150, 0.1, 1) }}
+                 </button>
+                            }
             </div>
           </div>
 
@@ -203,15 +203,15 @@ export interface ActiveDeal {
               <p class="text-purple-400 font-mono mt-1">Lvl {{ ((gameState.currentStats().magnetism - 1) * 10).toFixed(0) }}</p>
             </div>
             <div class="w-full mt-4">
-              @if (gameState.coins() >= getCost('magnetism', 200, 0.1, 1)) {
-                 <button (click)="buyMagnet()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('magnetism', 200, 0.1, 1) }}
-                 </button>
-              } @else {
-                 <button (click)="buyMagnet(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('magnetism', 200, 0.1, 1))">
+              @if (canAffordWithGemsButNotCoins(getCost('magnetism', 200, 0.1, 1))) {
+                 <button (click)="buyMagnet(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
                    <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('magnetism', 200, 0.1, 1)) }}
                  </button>
-              }
+} @else {
+                 <button (click)="buyMagnet()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('magnetism', 200, 0.1, 1)">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('magnetism', 200, 0.1, 1) }}
+                 </button>
+                            }
             </div>
           </div>
 
@@ -226,15 +226,15 @@ export interface ActiveDeal {
               <p class="text-orange-400 font-mono mt-1">Lvl {{ gameState.currentStats().damage - 10 }}</p>
             </div>
             <div class="w-full mt-4">
-              @if (gameState.coins() >= getCost('damage', 250, 1, 10)) {
-                 <button (click)="buyDamage()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('damage', 250, 1, 10) }}
-                 </button>
-              } @else {
-                 <button (click)="buyDamage(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('damage', 250, 1, 10))">
+              @if (canAffordWithGemsButNotCoins(getCost('damage', 250, 1, 10))) {
+                 <button (click)="buyDamage(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
                    <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('damage', 250, 1, 10)) }}
                  </button>
-              }
+} @else {
+                 <button (click)="buyDamage()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('damage', 250, 1, 10)">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('damage', 250, 1, 10) }}
+                 </button>
+                            }
             </div>
           </div>
 
@@ -249,15 +249,15 @@ export interface ActiveDeal {
               <p class="text-green-400 font-mono mt-1">Lvl {{ ((gameState.currentStats().attackSpeed - 1) * 10).toFixed(0) }}</p>
             </div>
             <div class="w-full mt-4">
-              @if (gameState.coins() >= getCost('attackSpeed', 300, 0.1, 1)) {
-                 <button (click)="buyAttackSpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackSpeed', 300, 0.1, 1) }}
-                 </button>
-              } @else {
-                 <button (click)="buyAttackSpeed(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('attackSpeed', 300, 0.1, 1))">
+              @if (canAffordWithGemsButNotCoins(getCost('attackSpeed', 300, 0.1, 1))) {
+                 <button (click)="buyAttackSpeed(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
                    <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('attackSpeed', 300, 0.1, 1)) }}
                  </button>
-              }
+} @else {
+                 <button (click)="buyAttackSpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('attackSpeed', 300, 0.1, 1)">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackSpeed', 300, 0.1, 1) }}
+                 </button>
+                            }
             </div>
           </div>
 
@@ -272,15 +272,15 @@ export interface ActiveDeal {
               <p class="text-teal-400 font-mono mt-1">Lvl {{ (gameState.currentStats().attackRange - 400) / 50 }}</p>
             </div>
             <div class="w-full mt-4">
-              @if (gameState.coins() >= getCost('attackRange', 250, 50, 400)) {
-                 <button (click)="buyAttackRange()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackRange', 250, 50, 400) }}
-                 </button>
-              } @else {
-                 <button (click)="buyAttackRange(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('attackRange', 250, 50, 400))">
+              @if (canAffordWithGemsButNotCoins(getCost('attackRange', 250, 50, 400))) {
+                 <button (click)="buyAttackRange(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
                    <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('attackRange', 250, 50, 400)) }}
                  </button>
-              }
+} @else {
+                 <button (click)="buyAttackRange()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('attackRange', 250, 50, 400)">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackRange', 250, 50, 400) }}
+                 </button>
+                            }
             </div>
           </div>
 
@@ -295,15 +295,15 @@ export interface ActiveDeal {
               <p class="text-cyan-400 font-mono mt-1">Lvl {{ (gameState.currentStats().auraRadius - 250) / 10 }}</p>
             </div>
             <div class="w-full mt-4">
-              @if (gameState.coins() >= getCost('auraRadius', 400, 10, 250)) {
-                 <button (click)="buyAuraRadius()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('auraRadius', 400, 10, 250) }}
-                 </button>
-              } @else {
-                 <button (click)="buyAuraRadius(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('auraRadius', 400, 10, 250))">
+              @if (canAffordWithGemsButNotCoins(getCost('auraRadius', 400, 10, 250))) {
+                 <button (click)="buyAuraRadius(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
                    <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('auraRadius', 400, 10, 250)) }}
                  </button>
-              }
+} @else {
+                 <button (click)="buyAuraRadius()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('auraRadius', 400, 10, 250)">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('auraRadius', 400, 10, 250) }}
+                 </button>
+                            }
             </div>
           </div>
 
@@ -318,15 +318,15 @@ export interface ActiveDeal {
               <p class="text-indigo-400 font-mono mt-1">Lvl {{ gameState.currentStats().homingLevel }}</p>
             </div>
             <div class="w-full mt-4">
-              @if (gameState.coins() >= getCost('homingLevel', 300, 1, 0)) {
-                 <button (click)="buyHoming()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('homingLevel', 300, 1, 0) }}
-                 </button>
-              } @else {
-                 <button (click)="buyHoming(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.gems() < getGemCost(getCost('homingLevel', 300, 1, 0))">
+              @if (canAffordWithGemsButNotCoins(getCost('homingLevel', 300, 1, 0))) {
+                 <button (click)="buyHoming(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
                    <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('homingLevel', 300, 1, 0)) }}
                  </button>
-              }
+} @else {
+                 <button (click)="buyHoming()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('homingLevel', 300, 1, 0)">
+                   <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('homingLevel', 300, 1, 0) }}
+                 </button>
+                            }
             </div>
           </div>
         </div>
@@ -358,15 +358,15 @@ export interface ActiveDeal {
                      @if (!gameState.currentStats().unlockedAbilities[ability.id]) {
                         <!-- Locked -->
                         <div class="w-full">
-                           @if (gameState.coins() >= ability.unlockCost) {
-                              <button (click)="unlockAbility(ability.id, ability.unlockCost)" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-sm flex items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition disabled:opacity-50">
-                                 Unlock <img src="assets/coin_icon.png" class="w-4 h-4"/> {{ ability.unlockCost }}
-                              </button>
-                           } @else {
-                              <button (click)="unlockAbility(ability.id, ability.unlockCost, true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-sm flex items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition disabled:opacity-50" [disabled]="gameState.gems() < getGemCost(ability.unlockCost)">
+                           @if (canAffordWithGemsButNotCoins(ability.unlockCost)) {
+                              <button (click)="unlockAbility(ability.id, ability.unlockCost, true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-sm flex items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition disabled:opacity-50">
                                  Unlock <img src="assets/gem_icon.png" class="w-4 h-4"/> {{ getGemCost(ability.unlockCost) }}
                               </button>
-                           }
+             } @else {
+                              <button (click)="unlockAbility(ability.id, ability.unlockCost)" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-sm flex items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition disabled:opacity-50" [disabled]="gameState.coins() < ability.unlockCost">
+                                 Unlock <img src="assets/coin_icon.png" class="w-4 h-4"/> {{ ability.unlockCost }}
+                              </button>
+                                         }
                         </div>
                      } @else {
                         <!-- Unlocked -->
@@ -378,15 +378,15 @@ export interface ActiveDeal {
                               <button (click)="equipAbility(ability.id, ability.type)" class="flex-1 py-2 bg-white/10 border border-white/20 rounded-xl font-bold text-white text-sm hover:bg-white/20 transition">
                                  Equip
                               </button>
-                              @if (gameState.coins() >= getAbilityCost(ability.id, ability.upgradeCost)) {
-                                 <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost))" class="flex-1 py-2 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-1 hover:brightness-110 transition disabled:opacity-50">
-                                    <img src="assets/coin_icon.png" class="w-3 h-3"/> {{ getAbilityCost(ability.id, ability.upgradeCost) }}
-                                 </button>
-                              } @else {
-                                 <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost), true)" class="flex-1 py-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-1 hover:brightness-110 transition disabled:opacity-50" [disabled]="gameState.gems() < getGemCost(getAbilityCost(ability.id, ability.upgradeCost))">
+                              @if (canAffordWithGemsButNotCoins(getAbilityCost(ability.id, ability.upgradeCost))) {
+                                 <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost), true)" class="flex-1 py-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-1 hover:brightness-110 transition disabled:opacity-50">
                                     <img src="assets/gem_icon.png" class="w-3 h-3"/> {{ getGemCost(getAbilityCost(ability.id, ability.upgradeCost)) }}
                                  </button>
-                              }
+                } @else {
+                                 <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost))" class="flex-1 py-2 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-1 hover:brightness-110 transition disabled:opacity-50" [disabled]="gameState.coins() < getAbilityCost(ability.id, ability.upgradeCost)">
+                                    <img src="assets/coin_icon.png" class="w-3 h-3"/> {{ getAbilityCost(ability.id, ability.upgradeCost) }}
+                                 </button>
+                                            }
                            </div>
                         </div>
                      }
