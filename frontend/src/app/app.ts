@@ -46,7 +46,18 @@ import { AuthService } from './services/auth.service';
 export class App {
   constructor(public gameState: GameStateService, private auth: AuthService) {
       this.auth.checkStatus().subscribe(user => {
-          if (user) this.gameState.syncWithUser(user);
+          if (user) {
+              if (user.isTemp) {
+                  this.gameState.activeScreen.set('login');
+              } else {
+                  this.gameState.syncWithUser(user);
+              }
+          }
       });
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('mode') === 'set-username') {
+          this.gameState.activeScreen.set('login');
+      }
   }
 }

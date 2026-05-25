@@ -208,15 +208,14 @@ import { CommonModule } from '@angular/common';
           </div>
 
           <!-- Package 2 (Best Value) -->
-          <div class="relative bg-gradient-to-b from-purple-900/40 to-black/40 border border-purple-500/50 rounded-3xl p-6 flex flex-col items-center gap-4 hover:brightness-110 transition shadow-[0_0_30px_rgba(168,85,247,0.3)] transform md:-translate-y-4">
-            <div class="absolute -top-4 bg-purple-500 text-white px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase shadow-lg">Most Popular</div>
-            <img src="assets/gem_icon.png" class="w-32 h-32 object-contain drop-shadow-[0_0_25px_rgba(168,85,247,0.8)]" />
+          <div class="relative bg-gradient-to-b from-purple-900/40 to-black/40 border border-purple-500/50 rounded-3xl p-6 flex flex-col items-center gap-4 hover:brightness-110 transition shadow-[0_0_30px_rgba(168,85,247,0.3)] transform md:-translate-y-2 mt-4 md:mt-0">
+            <div class="absolute -top-3 bg-purple-500 text-white px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase shadow-lg">Most Popular</div>
+            <img src="assets/gem_icon.png" class="w-32 h-32 object-contain drop-shadow-[0_0_25px_rgba(168,85,247,0.8)] mt-2" />
             <div class="text-center">
               <h3 class="text-2xl font-bold text-white">Pouch of Gems</h3>
               <p class="text-purple-400 font-bold text-xl mt-1">550 Gems</p>
             </div>
-            <button (click)="buyGems(550, 4.99)" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2">
-              <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M3.733 1.956c-.534.308-1.2.983-1.2 2.324v15.44c0 1.341.666 2.016 1.2 2.324l10.87-10.044zm11.83 9.083l-8.082-7.468c-.687-.635-1.74-.753-2.613-.25L14.73 8.73c1.2.693 1.2 1.848 0 2.54l-9.862 5.41c.873.504 1.926.385 2.613-.25l8.082-7.468zM21.2 11.2l-5.416-3.13 5.416-3.13c.692-.4 1.54-.4 2.233 0 .69.4.69 1.455 0 1.855l-2.233 1.275zm0 1.6l2.233 1.275c.69.4.69 1.455 0 1.855-.693.4-1.54.4-2.233 0l-5.416-3.13z"/></svg>
+            <button (click)="buyGems(550, 4.99)" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30">
               $4.99
             </button>
           </div>

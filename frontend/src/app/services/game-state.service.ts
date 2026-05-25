@@ -1,5 +1,8 @@
 import { Injectable, signal, computed, effect, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { AudioService } from './audio.service';
+import { AuthService } from './auth.service';
 
 export interface WorldStats {
   maxHealth: number;
@@ -49,10 +52,12 @@ const DEFAULT_STATS: WorldStats = {
 })
 export class GameStateService {
   private audio = inject(AudioService);
+  private auth = inject(AuthService);
+  private http = inject(HttpClient);
 
   // Currency
-  public coins = signal<number>(1000); 
-  public gems = signal<number>(50);
+  public coins = signal<number>(100); 
+  public gems = signal<number>(0);
 
   // Per-World Stats
   public worldUpgrades = signal<Record<number, WorldStats>>({
@@ -75,12 +80,39 @@ export class GameStateService {
   public selectedWorldIndex = signal<number>(0);
 
   constructor() {
+      // Load initial state from local storage if guest
+      const localData = localStorage.getItem('phoenix_guest_data');
+      if (localData) {
+          try {
+              const parsed = JSON.parse(localData);
+              this.coins.set(parsed.coins !== undefined ? parsed.coins : 100);
+              this.gems.set(parsed.gems || 0);
+              this.unlockedWorlds.set(parsed.unlockedWorlds || [0]);
+              if (parsed.worldUpgrades) this.worldUpgrades.set(parsed.worldUpgrades);
+          } catch (e) {}
+      }
+
       effect(() => {
           const screen = this.activeScreen();
           if (screen === 'menu' || screen === 'shop' || screen === 'login' || screen === 'profile' || screen === 'leaderboard') {
               setTimeout(() => this.audio.playMenuBgm(), 0);
           } else if (screen === 'game') {
               setTimeout(() => this.audio.playWorldBgm(this.selectedWorldIndex()), 0);
+          }
+      });
+
+      // Save guest state
+      effect(() => {
+          const stateToSave = {
+              coins: this.coins(),
+              gems: this.gems(),
+              unlockedWorlds: this.unlockedWorlds(),
+              worldUpgrades: this.worldUpgrades()
+          };
+          if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) {
+              localStorage.setItem('phoenix_guest_data', JSON.stringify(stateToSave));
+          } else {
+              // Could debounce sync to backend here if needed
           }
       });
   }
@@ -100,9 +132,25 @@ export class GameStateService {
   // Sync with DB User
   syncWithUser(user: any) {
       if (user) {
-          this.coins.set(user.coins || 0);
+          this.coins.set(user.coins !== undefined ? user.coins : 100);
           this.gems.set(user.gems || 0);
-          this.unlockedWorlds.set(user.unlockedWorlds && user.unlockedWorlds.length > 0 ? user.unlockedWorlds : [1]);
+          this.unlockedWorlds.set(user.unlockedWorlds && user.unlockedWorlds.length > 0 ? user.unlockedWorlds : [0]);
+          if (user.worldUpgrades && Object.keys(user.worldUpgrades).length > 0) {
+              this.worldUpgrades.set(user.worldUpgrades);
+          }
+      }
+  }
+
+  async migrateGuestData() {
+      const localData = localStorage.getItem('phoenix_guest_data');
+      if (!localData) return;
+      
+      try {
+          const parsed = JSON.parse(localData);
+          await firstValueFrom(this.http.post('/api/auth/sync', parsed));
+          localStorage.removeItem('phoenix_guest_data');
+      } catch (e) {
+          console.error("Failed to migrate guest data", e);
       }
   }
 

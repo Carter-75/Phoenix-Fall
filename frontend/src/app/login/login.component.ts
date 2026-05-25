@@ -79,7 +79,7 @@ export class LoginComponent implements OnInit {
 
   ngOnInit() {
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('mode') === 'set-username') {
+      if (urlParams.get('mode') === 'set-username' || this.authService.currentUser()?.isTemp) {
           this.mode = 'set-username';
       } else if (urlParams.get('error')) {
           this.error = 'Google Authentication Failed.';
@@ -115,10 +115,11 @@ export class LoginComponent implements OnInit {
                 if (err.error?.message === 'USER_NOT_FOUND') {
                     // Auto-register
                     this.authService.register({ email: this.email, password: this.password }).subscribe({
-                        next: (newUser: any) => {
+                        next: async (newUser: any) => {
                             if (newUser.isTemp) {
                                 this.mode = 'set-username';
                             } else {
+                                await this.gameState.migrateGuestData();
                                 this.gameState.syncWithUser(newUser);
                                 this.goBack();
                             }
@@ -134,7 +135,8 @@ export class LoginComponent implements OnInit {
         });
     } else if (this.mode === 'set-username') {
         this.authService.completeSignup(this.username).subscribe({
-            next: (user) => {
+            next: async (user) => {
+                await this.gameState.migrateGuestData();
                 this.gameState.syncWithUser(user);
                 this.goBack();
             },

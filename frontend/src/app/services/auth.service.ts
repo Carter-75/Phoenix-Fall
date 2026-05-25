@@ -12,6 +12,7 @@ export interface User {
   gems: number;
   unlockedWorlds: number[];
   trophies: string[];
+  isTemp?: boolean;
 }
 
 @Injectable({

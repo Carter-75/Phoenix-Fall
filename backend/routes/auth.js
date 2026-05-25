@@ -104,6 +104,24 @@ router.get('/user', (req, res) => {
   else res.status(401).json({ message: 'Not authenticated' });
 });
 
+router.post('/sync', async (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const user = req.user;
+    if (req.body.coins !== undefined) user.coins = req.body.coins;
+    if (req.body.gems !== undefined) user.gems = req.body.gems;
+    if (req.body.unlockedWorlds) user.unlockedWorlds = req.body.unlockedWorlds;
+    if (req.body.worldUpgrades) {
+        user.worldUpgrades = req.body.worldUpgrades;
+        user.markModified('worldUpgrades');
+    }
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/logout', (req, res, next) => {
   req.logout((err) => {
     if (err) return next(err);

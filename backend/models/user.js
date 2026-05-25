@@ -10,9 +10,10 @@ const userSchema = new mongoose.Schema({
   // Game Stats
   level: { type: Number, default: 1 },
   xp: { type: Number, default: 0 },
-  coins: { type: Number, default: 0 },
+  coins: { type: Number, default: 100 },
   gems: { type: Number, default: 0 },
   unlockedWorlds: { type: [Number], default: [0] },
+  worldUpgrades: { type: mongoose.Schema.Types.Mixed, default: {} },
   trophies: { type: [String], default: [] },
   
   createdAt: { type: Date, default: Date.now }
