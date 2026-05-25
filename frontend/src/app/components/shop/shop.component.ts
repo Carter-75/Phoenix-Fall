@@ -240,8 +240,6 @@ export interface ActiveDeal {
               <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('homingLevel', 300, 1, 0) }}
             </button>
           </div>
-
-          </div>
         </div>
       }
 
@@ -354,8 +352,6 @@ export interface ActiveDeal {
             </button>
           </div>
 
-          </div>
-          
           <!-- Currency Exchange -->
           <div class="col-span-full md:col-span-3 bg-white/5 border border-purple-500/30 rounded-3xl p-6 mt-4 flex flex-col items-center gap-4 hover:bg-white/10 transition shadow-[0_0_20px_rgba(168,85,247,0.15)] relative overflow-hidden">
             <div class="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-transparent"></div>

@@ -723,7 +723,7 @@ export class GameComponent implements OnInit, OnDestroy {
                   Matter.Events.off(this.engine, 'beforeUpdate', boidLogic);
                   
                   // Volcanic explosion for turret
-                  this.audioService.playSFX('explode');
+                  this.audioService.playSFX('explosion');
                   const radius = 200;
                   
                   for (let i = 0; i < 40; i++) {
