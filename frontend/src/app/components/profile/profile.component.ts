@@ -37,10 +37,10 @@ import { CommonModule } from '@angular/common';
           
           <h3 class="text-2xl font-bold text-white mb-6">Trophies</h3>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-             @if (auth.currentUser()!.trophies.length === 0) {
+             @if (gameState.trophies().length === 0) {
                  <div class="col-span-full text-white/40 text-center py-8">No trophies yet. Keep playing!</div>
              }
-             @for (trophy of auth.currentUser()!.trophies; track trophy) {
+             @for (trophy of gameState.trophies(); track trophy) {
                  <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center text-center">
                     <span class="text-4xl mb-2">🏆</span>
                     <span class="text-white font-bold">{{ trophy }}</span>

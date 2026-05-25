@@ -403,6 +403,30 @@ export class GameComponent implements OnInit, OnDestroy {
          }
       });
 
+      // 4.5 Homing Missiles
+      const homingLvl = this.gameState.currentStats().homingLevel;
+      if (homingLvl > 0 && this.enemies.length > 0) {
+          Matter.Composite.allBodies(this.engine.world).forEach(body => {
+              if (body.label === 'projectile') {
+                  const data = body.plugin['data'] as EnemyData;
+                  if (data && data.type === 'projectile_player') {
+                      let nearest = this.enemies[0];
+                      let minDist = Infinity;
+                      this.enemies.forEach(e => {
+                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, body.position));
+                          if (dist < minDist) { minDist = dist; nearest = e; }
+                      });
+                      if (minDist < 600) {
+                          const force = Matter.Vector.sub(nearest.position, body.position);
+                          const normalized = Matter.Vector.normalise(force);
+                          const pullStrength = 0.0005 * homingLvl;
+                          Matter.Body.applyForce(body, body.position, Matter.Vector.mult(normalized, pullStrength));
+                      }
+                  }
+              }
+          });
+      }
+
       // 5. Publish bodies to ParticleBg rendering service
       const entities: PhysicsEntity[] = [];
       Matter.Composite.allBodies(this.engine.world).forEach(body => {

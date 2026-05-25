@@ -12,6 +12,7 @@ export interface WorldStats {
   attackSpeed: number; // Auto-attack fire rate
   burstDamage: number; // Double tap damage
   auraRadius: number; // Hold still radius
+  homingLevel: number; // Seeker upgrade
 }
 
 export interface PhysicsEntity {
@@ -44,7 +45,7 @@ export const WORLDS: World[] = [
 
 const DEFAULT_STATS: WorldStats = { 
   maxHealth: 100, speed: 1.0, magnetism: 1.0, damage: 10, attackSpeed: 1.0, 
-  burstDamage: 20, auraRadius: 150 
+  burstDamage: 20, auraRadius: 250, homingLevel: 0
 };
 
 @Injectable({
@@ -196,10 +197,10 @@ export class GameStateService {
           this.trophies.set([...current, name]);
           // Simple visual notification
           const el = document.createElement('div');
-          el.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-6 py-3 rounded-full font-bold text-xl shadow-[0_0_20px_rgba(255,200,0,0.8)] z-50 animate-bounce';
-          el.innerHTML = `🏆 TROPHY UNLOCKED: ${name} 🏆`;
+          el.className = 'fixed bottom-4 right-4 bg-black/90 text-yellow-400 border border-yellow-500/30 px-5 py-2 rounded-xl font-bold shadow-[0_0_15px_rgba(255,200,0,0.15)] z-50 flex items-center gap-2 animate-fade-in transition-opacity duration-500';
+          el.innerHTML = `<span class="text-2xl">🏆</span> <span>${name} Unlocked</span>`;
           document.body.appendChild(el);
-          setTimeout(() => el.remove(), 4000);
+          setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 500); }, 3000);
       }
   }
 

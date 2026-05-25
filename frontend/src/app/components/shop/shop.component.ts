@@ -152,10 +152,25 @@ import { CommonModule } from '@angular/common';
             <div class="text-center">
               <h3 class="text-2xl font-bold text-white">Aura (Hold)</h3>
               <p class="text-white/50 text-sm">Increase Aura Radius</p>
-              <p class="text-cyan-400 font-mono mt-1">Lvl {{ (gameState.currentStats().auraRadius - 150) / 10 }}</p>
+              <p class="text-cyan-400 font-mono mt-1">Lvl {{ (gameState.currentStats().auraRadius - 250) / 10 }}</p>
             </div>
             <button (click)="buyAuraRadius()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < 400">
               <img src="assets/coin_icon.png" class="w-5 h-5"/> 400
+            </button>
+          </div>
+
+          <!-- Homing Bullets Upgrade -->
+          <div class="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col items-center gap-4 hover:bg-white/10 transition shadow-lg shadow-black/50">
+            <div class="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center border border-indigo-500/30">
+              <span class="text-4xl">🎯</span>
+            </div>
+            <div class="text-center">
+              <h3 class="text-2xl font-bold text-white">Seeker</h3>
+              <p class="text-white/50 text-sm">Homing Bullets</p>
+              <p class="text-indigo-400 font-mono mt-1">Lvl {{ gameState.currentStats().homingLevel }}</p>
+            </div>
+            <button (click)="buyHoming()" class="mt-4 w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < 300">
+              <img src="assets/coin_icon.png" class="w-5 h-5"/> 300
             </button>
           </div>
 
@@ -272,6 +287,7 @@ export class ShopComponent {
   buyAttackSpeed() { this.gameState.purchaseUpgrade('attackSpeed', 300, 0.1); }
   buyBurstDamage() { this.gameState.purchaseUpgrade('burstDamage', 350, 10); }
   buyAuraRadius() { this.gameState.purchaseUpgrade('auraRadius', 400, 10); }
+  buyHoming() { this.gameState.purchaseUpgrade('homingLevel', 300, 1); }
 
   exchangeGem() {
     if (this.gameState.gems() >= 1) {
