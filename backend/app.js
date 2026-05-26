@@ -70,10 +70,11 @@ const connectDB = async () => {
   }
 
   try {
-    console.log('INFO: Connecting to MongoDB...');
     await mongoose.connect(mongoURI, {
       serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000
+      connectTimeoutMS: 10000,
+      maxPoolSize: 50, // Optimize database connection pooling
+      minPoolSize: 10
     });
     console.log('OK: Connected to MongoDB');
   } catch (err) {
