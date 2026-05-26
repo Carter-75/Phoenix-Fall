@@ -283,8 +283,13 @@ export class GameComponent implements OnInit, OnDestroy {
 
     this.engine = Engine.create({ gravity: { x: 0, y: 0 } });
 
-    // Invisible player hitbox
-    this.playerBody = Bodies.circle(window.innerWidth / 2, window.innerHeight / 2, 20, {
+    // Invisible player hitbox (Compound Body for Bird Shape)
+    const birdCore = Bodies.rectangle(window.innerWidth / 2, window.innerHeight / 2, 10, 20, { label: 'player' });
+    const birdLeftWing = Bodies.rectangle(window.innerWidth / 2 - 15, window.innerHeight / 2 - 5, 20, 8, { label: 'player' });
+    const birdRightWing = Bodies.rectangle(window.innerWidth / 2 + 15, window.innerHeight / 2 - 5, 20, 8, { label: 'player' });
+    
+    this.playerBody = Matter.Body.create({
+      parts: [birdCore, birdLeftWing, birdRightWing],
       isSensor: false,
       label: 'player'
     });
@@ -854,18 +859,42 @@ export class GameComponent implements OnInit, OnDestroy {
       setTimeout(() => Matter.Composite.remove(this.engine.world, aura), 500); 
   }
 
+  private createEnemyBody(x: number, y: number, size: number, type: string, data: any): Matter.Body {
+      const options = {
+          label: type === 'boss' ? 'boss' : 'enemy',
+          frictionAir: type === 'boss' ? 0.1 : 0.05,
+          density: type === 'boss' ? 10 : 1,
+          plugin: { data }
+      };
+
+      if (type === 'bat') {
+          // Compound: small circular body + two rectangular wings
+          const bodyPart = Matter.Bodies.circle(x, y, size * 0.4);
+          const leftWing = Matter.Bodies.rectangle(x - size, y, size * 1.5, size * 0.4);
+          const rightWing = Matter.Bodies.rectangle(x + size, y, size * 1.5, size * 0.4);
+          return Matter.Body.create({ parts: [bodyPart, leftWing, rightWing], ...options });
+      } else if (type === 'slime') {
+          // Bounding box for hemisphere
+          return Matter.Bodies.rectangle(x, y, size * 2, size * 1.5, { ...options, chamfer: { radius: [size*0.7, size*0.7, 0, 0] } as any });
+      } else if (type === 'golem') {
+          // Core + Orbiting rocks means bounds are larger
+          return Matter.Bodies.circle(x, y, size * 1.5, options);
+      } else if (type === 'boss') {
+          // Demonic Skull compound
+          const skull = Matter.Bodies.circle(x, y, size * 1.2);
+          const jaw = Matter.Bodies.rectangle(x, y + size, size * 1.5, size * 0.8);
+          return Matter.Body.create({ parts: [skull, jaw], ...options });
+      }
+
+      return Matter.Bodies.circle(x, y, size, options);
+  }
+
   private spawnBoss() {
     this.bossSpawned.set(true);
     this.clearEnemies();
 
-    const boss = Matter.Bodies.circle(window.innerWidth / 2, -100, 100, {
-      label: 'boss',
-      frictionAir: 0.1,
-      density: 10, // Higher density to resist knockback
-      plugin: {
-        data: { id: Math.random().toString(), type: 'boss', health: 1000, maxHealth: 1000 } as EnemyData
-      }
-    });
+    const data = { id: Math.random().toString(), type: 'boss', health: 1000, maxHealth: 1000 } as EnemyData;
+    const boss = this.createEnemyBody(window.innerWidth / 2, -100, 100, 'boss', data);
 
     this.enemies.push(boss);
     Matter.Composite.add(this.engine.world, boss);
@@ -889,13 +918,8 @@ export class GameComponent implements OnInit, OnDestroy {
       type = 'bat'; size = 15; health = 10;
     }
 
-    const enemy = Matter.Bodies.circle(x, y, size, {
-      label: 'enemy',
-      frictionAir: 0.05,
-      plugin: {
-        data: { id: Math.random().toString(), type, health, maxHealth: health, lastAttackTime: Date.now() } as EnemyData
-      }
-    });
+    const data = { id: Math.random().toString(), type, health, maxHealth: health, lastAttackTime: Date.now() } as EnemyData;
+    const enemy = this.createEnemyBody(x, y, size, type, data);
 
     this.enemies.push(enemy);
     Matter.Composite.add(this.engine.world, enemy);
@@ -961,10 +985,8 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private spawnMinion(x: number, y: number) {
-      const minion = Matter.Bodies.circle(x, y, 10, {
-          label: 'enemy', frictionAir: 0.05,
-          plugin: { data: { id: Math.random().toString(), type: 'bat', health: 5, maxHealth: 5 } as EnemyData }
-      });
+      const data = { id: Math.random().toString(), type: 'bat', health: 5, maxHealth: 5 } as EnemyData;
+      const minion = this.createEnemyBody(x, y, 10, 'bat', data);
       Matter.Body.setVelocity(minion, { x: (Math.random()-0.5)*10, y: (Math.random()-0.5)*10 });
       this.enemies.push(minion);
       Matter.Composite.add(this.engine.world, minion);
@@ -1022,6 +1044,11 @@ export class GameComponent implements OnInit, OnDestroy {
       if (data.type === 'golem') xp = 20;
       if (data.type === 'boss') xp = 500;
       this.gameState.addXp(xp);
+      
+      // Bestiary Unlock
+      if (!this.gameState.unlockedEnemies().includes(data.type) && ['slime', 'bat', 'golem', 'boss'].includes(data.type)) {
+          this.gameState.unlockedEnemies.update(arr => [...arr, data.type]);
+      }
       
       // Track Kills & Trophies
       this.gameState.awardTrophy("First Blood");

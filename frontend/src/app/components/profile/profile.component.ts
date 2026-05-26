@@ -57,6 +57,57 @@ import { CommonModule } from '@angular/common';
           </div>
         }
 
+        <!-- Cosmetics Settings Section -->
+        @if (gameState.hasPurchasedGems() || gameState.hasCosmicTrail() || gameState.hasGoldenAura() || gameState.hasCelestialShield()) {
+          <div class="mt-8 mb-8 border-t border-white/10 pt-8">
+            <h3 class="text-2xl font-bold text-white mb-6 flex items-center gap-2"><span class="text-3xl">✨</span> Cosmetics</h3>
+            <div class="flex flex-col gap-4">
+                
+                @if (gameState.hasCosmicTrail()) {
+                <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                  <div class="flex flex-col">
+                     <span class="text-pink-400 font-bold text-lg">Cosmic Trail</span>
+                     <span class="text-white/50 text-sm">Toggle the cosmic energy trail effect</span>
+                  </div>
+                  <button (click)="toggleCosmetic('trail')" class="w-16 h-8 rounded-full transition-colors relative"
+                          [ngClass]="!gameState.toggleCosmicTrail() ? 'bg-gray-600' : 'bg-pink-500'">
+                     <div class="absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md"
+                          [ngClass]="!gameState.toggleCosmicTrail() ? 'left-1' : 'left-9'"></div>
+                  </button>
+                </div>
+                }
+
+                @if (gameState.hasGoldenAura()) {
+                <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                  <div class="flex flex-col">
+                     <span class="text-yellow-400 font-bold text-lg">Golden Aura</span>
+                     <span class="text-white/50 text-sm">Toggle the swirling golden particle vortex</span>
+                  </div>
+                  <button (click)="toggleCosmetic('aura')" class="w-16 h-8 rounded-full transition-colors relative"
+                          [ngClass]="!gameState.toggleGoldenAura() ? 'bg-gray-600' : 'bg-yellow-500'">
+                     <div class="absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md"
+                          [ngClass]="!gameState.toggleGoldenAura() ? 'left-1' : 'left-9'"></div>
+                  </button>
+                </div>
+                }
+
+                @if (gameState.hasCelestialShield()) {
+                <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                  <div class="flex flex-col">
+                     <span class="text-cyan-400 font-bold text-lg">Celestial Shield</span>
+                     <span class="text-white/50 text-sm">Toggle the orbital energy shield visual</span>
+                  </div>
+                  <button (click)="toggleCosmetic('shield')" class="w-16 h-8 rounded-full transition-colors relative"
+                          [ngClass]="!gameState.toggleCelestialShield() ? 'bg-gray-600' : 'bg-cyan-500'">
+                     <div class="absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md"
+                          [ngClass]="!gameState.toggleCelestialShield() ? 'left-1' : 'left-9'"></div>
+                  </button>
+                </div>
+                }
+            </div>
+          </div>
+        }
+
         <!-- Settings Section (Always Visible) -->
         <div class="mt-8">
           <h3 class="text-2xl font-bold text-white mb-6 flex items-center gap-2"><span class="text-3xl">⚙️</span> Settings</h3>
@@ -133,8 +184,28 @@ export class ProfileComponent {
   }
 
   toggleAudio() {
-      this.audio.toggleMute();
-      this.audio.playSFX('click');
+    this.audio.toggleMute();
+    this.audio.playSFX('click');
+  }
+
+  toggleCosmetic(type: string) {
+    this.audio.playSFX('click');
+    if (type === 'trail') {
+        this.gameState.toggleCosmicTrail.set(!this.gameState.toggleCosmicTrail());
+    } else if (type === 'aura') {
+        this.gameState.toggleGoldenAura.set(!this.gameState.toggleGoldenAura());
+    } else if (type === 'shield') {
+        this.gameState.toggleCelestialShield.set(!this.gameState.toggleCelestialShield());
+    }
+    
+    // Sync immediately if logged in
+    if (this.auth.currentUser() && !this.auth.currentUser()?.isTemp) {
+        this.auth.sync({
+            toggleCosmicTrail: this.gameState.toggleCosmicTrail(),
+            toggleGoldenAura: this.gameState.toggleGoldenAura(),
+            toggleCelestialShield: this.gameState.toggleCelestialShield()
+        } as any).subscribe();
+    }
   }
 
   activeLegalDoc: 'tos' | 'privacy' | 'refunds' | null = null;

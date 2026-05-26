@@ -115,6 +115,25 @@ router.post('/sync', async (req, res) => {
     if (req.body.xp !== undefined) user.xp = req.body.xp;
     if (req.body.unlockedWorlds) user.unlockedWorlds = req.body.unlockedWorlds;
     if (req.body.trophies) user.trophies = req.body.trophies;
+    if (req.body.unlockedEnemies) user.unlockedEnemies = req.body.unlockedEnemies;
+    
+    // Cosmetics & Premium
+    if (req.body.hasCosmicTrail !== undefined) user.hasCosmicTrail = req.body.hasCosmicTrail;
+    if (req.body.hasGoldenAura !== undefined) user.hasGoldenAura = req.body.hasGoldenAura;
+    if (req.body.hasCelestialShield !== undefined) user.hasCelestialShield = req.body.hasCelestialShield;
+    if (req.body.hasPurchasedGems !== undefined) user.hasPurchasedGems = req.body.hasPurchasedGems;
+    if (req.body.toggleCosmicTrail !== undefined) user.toggleCosmicTrail = req.body.toggleCosmicTrail;
+    if (req.body.toggleGoldenAura !== undefined) user.toggleGoldenAura = req.body.toggleGoldenAura;
+    if (req.body.toggleCelestialShield !== undefined) user.toggleCelestialShield = req.body.toggleCelestialShield;
+
+    // Progression & Deals
+    if (req.body.upsellChance !== undefined) user.upsellChance = req.body.upsellChance;
+    if (req.body.coinMultiplier !== undefined) user.coinMultiplier = req.body.coinMultiplier;
+    if (req.body.xpMultiplier !== undefined) user.xpMultiplier = req.body.xpMultiplier;
+    if (req.body.crazyDealExpiresAt !== undefined) user.crazyDealExpiresAt = req.body.crazyDealExpiresAt;
+    
+    if (req.body.acceptedLegalPolicies !== undefined) user.acceptedLegalPolicies = req.body.acceptedLegalPolicies;
+
     if (req.body.worldUpgrades) {
         user.worldUpgrades = req.body.worldUpgrades;
         user.markModified('worldUpgrades');

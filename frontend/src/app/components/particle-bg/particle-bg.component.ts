@@ -57,8 +57,8 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   private particles!: THREE.Points;
   private walls!: THREE.Points;
   private bgGlow!: THREE.Mesh;
-  private goldenAuraMesh!: THREE.Mesh;
-  private celestialShieldMesh!: THREE.LineSegments;
+  private goldenAuraMesh!: THREE.Points;
+  private celestialShieldMesh!: THREE.Points;
   private cosmicTrailMesh!: THREE.Points;
   private animationId!: number;
   
@@ -250,33 +250,98 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   }
 
   private createCosmetics() {
-    // Golden Aura (Torus)
-    const auraGeo = new THREE.TorusGeometry(2.5, 0.1, 8, 32);
-    const auraMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
-    this.goldenAuraMesh = new THREE.Mesh(auraGeo, auraMat);
+    // Golden Aura (Detailed Particles)
+    const auraCount = 1000;
+    const auraGeo = new THREE.BufferGeometry();
+    const auraPos = new Float32Array(auraCount * 3);
+    const auraBase = new Float32Array(auraCount * 3); // Store original relative positions
+    const auraCol = new Float32Array(auraCount * 3);
+    for (let i = 0; i < auraCount; i++) {
+        // Swirling vortex shape
+        const radius = 2.5 + Math.random() * 1.5;
+        const theta = Math.random() * Math.PI * 2;
+        const y = (Math.random() - 0.5) * 6; // Spread vertically
+        
+        auraBase[i*3] = radius * Math.cos(theta);
+        auraBase[i*3+1] = y;
+        auraBase[i*3+2] = radius * Math.sin(theta);
+        
+        auraPos[i*3] = auraBase[i*3];
+        auraPos[i*3+1] = auraBase[i*3+1];
+        auraPos[i*3+2] = auraBase[i*3+2];
+        
+        // Golden/Orange hues
+        auraCol[i*3] = 1.0;
+        auraCol[i*3+1] = 0.5 + Math.random() * 0.4;
+        auraCol[i*3+2] = Math.random() * 0.2;
+    }
+    auraGeo.setAttribute('position', new THREE.BufferAttribute(auraPos, 3));
+    auraGeo.setAttribute('basePosition', new THREE.BufferAttribute(auraBase, 3));
+    auraGeo.setAttribute('color', new THREE.BufferAttribute(auraCol, 3));
+    const auraMat = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+    this.goldenAuraMesh = new THREE.Points(auraGeo, auraMat);
     this.goldenAuraMesh.visible = false;
     this.scene.add(this.goldenAuraMesh);
 
-    // Celestial Shield (Icosahedron)
-    const shieldGeo = new THREE.IcosahedronGeometry(3, 1);
-    const shieldEdges = new THREE.EdgesGeometry(shieldGeo);
-    const shieldMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending });
-    this.celestialShieldMesh = new THREE.LineSegments(shieldEdges, shieldMat);
+    // Celestial Shield (Large Detailed Wireframe/Particle Sphere)
+    const shieldCount = 600;
+    const shieldGeo = new THREE.BufferGeometry();
+    const shieldPos = new Float32Array(shieldCount * 3);
+    const shieldBase = new Float32Array(shieldCount * 3);
+    for (let i = 0; i < shieldCount; i++) {
+        const phi = Math.acos(-1 + (2 * i) / shieldCount);
+        const theta = Math.sqrt(shieldCount * Math.PI) * phi;
+        const radius = 5.5; // Larger to cover whole body
+        
+        shieldBase[i*3] = radius * Math.cos(theta) * Math.sin(phi);
+        shieldBase[i*3+1] = radius * Math.sin(theta) * Math.sin(phi);
+        shieldBase[i*3+2] = radius * Math.cos(phi);
+    }
+    shieldGeo.setAttribute('position', new THREE.BufferAttribute(shieldPos, 3));
+    shieldGeo.setAttribute('basePosition', new THREE.BufferAttribute(shieldBase, 3));
+    const shieldMat = new THREE.PointsMaterial({ color: 0x00ffff, size: 0.2, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
+    this.celestialShieldMesh = new THREE.Points(shieldGeo, shieldMat);
     this.celestialShieldMesh.visible = false;
+    
+    // Smooth follow target for shield
+    (this.celestialShieldMesh as any).targetPos = new THREE.Vector3();
     this.scene.add(this.celestialShieldMesh);
 
-    // Cosmic Trail (Particles)
+    // Cosmic Trail (Shorter, fading Particles)
     const trailGeo = new THREE.BufferGeometry();
-    const trailCount = 500;
+    const trailCount = 150; // Shorter
     const trailPos = new Float32Array(trailCount * 3);
     const trailCol = new Float32Array(trailCount * 3);
-    for (let i = 0; i < trailCount * 3; i++) {
-       trailPos[i] = 10000; // hide initially
-       trailCol[i] = i % 3 === 0 ? 1 : (i % 3 === 1 ? 0.5 : 0.8); // Pink/Purple mix
+    const trailSizes = new Float32Array(trailCount);
+    const trailOpacities = new Float32Array(trailCount);
+
+    for (let i = 0; i < trailCount; i++) {
+       trailPos[i*3] = 10000; // hide initially
+       trailPos[i*3+1] = 10000;
+       trailPos[i*3+2] = 10000;
+       
+       trailCol[i*3] = i % 2 === 0 ? 1 : 0.6; 
+       trailCol[i*3+1] = i % 2 === 0 ? 0.4 : 0.2;
+       trailCol[i*3+2] = 0.8;
+       
+       trailSizes[i] = Math.max(0.05, 0.3 * (1 - i / trailCount)); // Shrink towards end
+       trailOpacities[i] = Math.max(0, 0.8 * (1 - i / trailCount)); // Fade out
     }
     trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
     trailGeo.setAttribute('color', new THREE.BufferAttribute(trailCol, 3));
-    const trailMat = new THREE.PointsMaterial({ size: 0.2, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+    
+    // We need custom shader for varying size/opacity on Points, or just basic Points with global fade.
+    // To keep it simple, we'll use global fade but update vertex colors for opacity effect.
+    // Add alpha to vertex color: r, g, b, a? THREE.PointsMaterial doesn't natively support vertex alphas without custom shader.
+    // Alternatively, we just use color darkening as "fade".
+    for (let i = 0; i < trailCount; i++) {
+       const fade = Math.max(0.1, 1 - (i / trailCount));
+       trailCol[i*3] *= fade;
+       trailCol[i*3+1] *= fade;
+       trailCol[i*3+2] *= fade;
+    }
+    
+    const trailMat = new THREE.PointsMaterial({ size: 0.25, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending });
     this.cosmicTrailMesh = new THREE.Points(trailGeo, trailMat);
     this.cosmicTrailMesh.visible = false;
     this.scene.add(this.cosmicTrailMesh);
@@ -505,39 +570,72 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         
         // --- Render Cosmetics ---
         if (this.goldenAuraMesh) {
-            this.goldenAuraMesh.visible = this.gameState.hasGoldenAura() && !this.gameState.isRebirthing();
+            this.goldenAuraMesh.visible = this.gameState.hasGoldenAura() && this.gameState.toggleGoldenAura() && !this.gameState.isRebirthing();
             if (this.goldenAuraMesh.visible) {
                 this.goldenAuraMesh.position.copy(bird.position);
                 this.goldenAuraMesh.quaternion.copy(dummy.quaternion);
-                this.goldenAuraMesh.rotateX(Math.PI / 2); // Lay flat
-                this.goldenAuraMesh.rotateZ(Date.now() * 0.002); // Spin
+                
+                // Animate aura particles
+                const auraPos = this.goldenAuraMesh.geometry.attributes['position'].array as Float32Array;
+                const auraBase = this.goldenAuraMesh.geometry.attributes['basePosition'].array as Float32Array;
+                const time = Date.now() * 0.002;
+                
+                for (let i = 0; i < auraPos.length / 3; i++) {
+                    const bx = auraBase[i*3];
+                    const by = auraBase[i*3+1];
+                    const bz = auraBase[i*3+2];
+                    
+                    // Swirling effect
+                    const angle = time + by * 0.5;
+                    const cosA = Math.cos(angle);
+                    const sinA = Math.sin(angle);
+                    
+                    auraPos[i*3] = bx * cosA - bz * sinA;
+                    auraPos[i*3+1] = by + Math.sin(time * 2 + i) * 0.5; // Bob up and down
+                    auraPos[i*3+2] = bx * sinA + bz * cosA;
+                }
+                this.goldenAuraMesh.geometry.attributes['position'].needsUpdate = true;
             }
         }
 
         if (this.celestialShieldMesh) {
-            // Note: ParticleBgComponent doesn't know celestialShieldActive from game.component.ts directly.
-            // We just render it if they own it. The actual break/recharge could be added to game-state if needed.
-            // For now, let's just make it spin.
-            this.celestialShieldMesh.visible = this.gameState.hasCelestialShield() && !this.gameState.isRebirthing();
+            this.celestialShieldMesh.visible = this.gameState.hasCelestialShield() && this.gameState.toggleCelestialShield() && !this.gameState.isRebirthing();
             if (this.celestialShieldMesh.visible) {
-                this.celestialShieldMesh.position.copy(bird.position);
+                // Smooth follow (lerp)
+                const targetPos = (this.celestialShieldMesh as any).targetPos;
+                targetPos.lerp(bird.position, 0.1);
+                this.celestialShieldMesh.position.copy(targetPos);
+                
                 this.celestialShieldMesh.rotation.y += 0.01;
                 this.celestialShieldMesh.rotation.x += 0.005;
+                
+                // Pulse shield particles slightly
+                const shieldPos = this.celestialShieldMesh.geometry.attributes['position'].array as Float32Array;
+                const shieldBase = this.celestialShieldMesh.geometry.attributes['basePosition'].array as Float32Array;
+                const pulse = 1 + Math.sin(Date.now() * 0.003) * 0.05;
+                
+                for (let i = 0; i < shieldPos.length; i++) {
+                    shieldPos[i] = shieldBase[i] * pulse;
+                }
+                this.celestialShieldMesh.geometry.attributes['position'].needsUpdate = true;
             }
         }
 
         if (this.cosmicTrailMesh) {
-            this.cosmicTrailMesh.visible = this.gameState.hasCosmicTrail() && !this.gameState.isRebirthing();
+            this.cosmicTrailMesh.visible = this.gameState.hasCosmicTrail() && this.gameState.toggleCosmicTrail() && !this.gameState.isRebirthing();
             if (this.cosmicTrailMesh.visible) {
                 const tPos = this.cosmicTrailMesh.geometry.attributes['position'].array as Float32Array;
                 // Shift all particles back
                 for (let i = tPos.length - 1; i >= 3; i--) {
                     tPos[i] = tPos[i - 3];
                 }
-                // Add new particle at bird position with slight scatter
-                tPos[0] = bird.position.x + (Math.random() - 0.5) * 0.5;
-                tPos[1] = bird.position.y + (Math.random() - 0.5) * 0.5;
-                tPos[2] = bird.position.z + (Math.random() - 0.5) * 0.5;
+                // Add new particle at bird position with slight scatter behind bird
+                // Push it back slightly using bird's backward vector
+                const backward = new THREE.Vector3(0, 0, 1).applyQuaternion(dummy.quaternion).multiplyScalar(2);
+                
+                tPos[0] = bird.position.x + backward.x + (Math.random() - 0.5) * 1.5;
+                tPos[1] = bird.position.y + backward.y + (Math.random() - 0.5) * 1.5;
+                tPos[2] = bird.position.z + backward.z + (Math.random() - 0.5) * 1.5;
                 this.cosmicTrailMesh.geometry.attributes['position'].needsUpdate = true;
             }
         }

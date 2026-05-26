@@ -28,6 +28,10 @@ import { CommonModule } from '@angular/common';
         
         <!-- Top Right Header (Navigation) -->
         <div class="flex items-center gap-4">
+          <button (click)="openCodex()" class="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md text-amber-400">
+            Codex
+          </button>
+          
           <button (click)="openLeaderboard()" class="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
             Leaderboard
           </button>
@@ -113,8 +117,18 @@ export class MainMenuComponent {
   }
   
   openProfile() {
+    if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) {
+      this.audio.playSFX('click');
+      this.gameState.activeScreen.set('login');
+    } else {
+      this.audio.playSFX('click');
+      this.gameState.activeScreen.set('profile');
+    }
+  }
+
+  openCodex() {
     this.audio.playSFX('click');
-    this.gameState.activeScreen.set('profile');
+    this.gameState.activeScreen.set('codex');
   }
 
   openLeaderboard() {

@@ -15,6 +15,23 @@ const userSchema = new mongoose.Schema({
   unlockedWorlds: { type: [Number], default: [0] },
   worldUpgrades: { type: mongoose.Schema.Types.Mixed, default: {} },
   trophies: { type: [String], default: [] },
+  unlockedEnemies: { type: [String], default: [] },
+  
+  // Premium Items
+  hasCosmicTrail: { type: Boolean, default: false },
+  hasGoldenAura: { type: Boolean, default: false },
+  hasCelestialShield: { type: Boolean, default: false },
+  hasPurchasedGems: { type: Boolean, default: false },
+  toggleCosmicTrail: { type: Boolean, default: true },
+  toggleGoldenAura: { type: Boolean, default: true },
+  toggleCelestialShield: { type: Boolean, default: true },
+
+  // Progression & Deals
+  upsellChance: { type: Number, default: 0 },
+  coinMultiplier: { type: Number, default: 1 },
+  xpMultiplier: { type: Number, default: 1 },
+  crazyDealExpiresAt: { type: Number, default: null },
+
   
   // Compliance
   acceptedLegalPolicies: { type: Boolean, default: false },

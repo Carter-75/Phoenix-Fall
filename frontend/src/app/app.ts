@@ -6,13 +6,14 @@ import { LoginComponent } from './login/login.component';
 import { GameComponent } from './components/game/game.component';
 import { ProfileComponent } from './components/profile/profile.component';
 import { LeaderboardComponent } from './components/leaderboard/leaderboard.component';
+import { CodexComponent } from './codex/codex.component';
 import { GameStateService } from './services/game-state.service';
 import { AuthService } from './services/auth.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [ParticleBgComponent, MainMenuComponent, ShopComponent, LoginComponent, GameComponent, ProfileComponent, LeaderboardComponent],
+  imports: [ParticleBgComponent, MainMenuComponent, ShopComponent, LoginComponent, GameComponent, ProfileComponent, LeaderboardComponent, CodexComponent],
   template: `
     <app-particle-bg></app-particle-bg>
     
@@ -39,6 +40,10 @@ import { AuthService } from './services/auth.service';
 
       @if (gameState.activeScreen() === 'leaderboard') {
         <app-leaderboard></app-leaderboard>
+      }
+
+      @if (gameState.activeScreen() === 'codex') {
+        <app-codex></app-codex>
       }
 
       <!-- Global Policy Modal -->

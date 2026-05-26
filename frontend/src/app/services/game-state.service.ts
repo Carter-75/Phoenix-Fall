@@ -87,6 +87,7 @@ export class GameStateService {
   public hasPurchasedGems = signal<boolean>(false);
   public upsellChance = signal<number>(1.0);
   public acceptedLegalPolicies = signal<boolean>(false);
+  public unlockedEnemies = signal<string[]>([]);
 
   // Stats Tracking (Session only, for trophies)
   public sessionKills = signal<Record<string, number>>({});
@@ -109,7 +110,7 @@ export class GameStateService {
 
   // UI State
   // Screens: 'menu' | 'game' | 'shop' | 'login' | 'profile' | 'leaderboard'
-  public activeScreen = signal<'menu' | 'game' | 'shop' | 'login' | 'profile' | 'leaderboard'>('menu');
+  public activeScreen = signal<'menu' | 'game' | 'shop' | 'login' | 'profile' | 'leaderboard' | 'codex'>('menu');
   public unlockedWorlds = signal<number[]>([0]); // IDs of unlocked worlds
   public selectedWorldIndex = signal<number>(0);
   public crazyDealTimer = signal<number>(0);
@@ -120,6 +121,10 @@ export class GameStateService {
   public hasGoldenAura = signal<boolean>(false);
   public hasCelestialShield = signal<boolean>(false);
   
+  public toggleCosmicTrail = signal<boolean>(true);
+  public toggleGoldenAura = signal<boolean>(true);
+  public toggleCelestialShield = signal<boolean>(true);
+
   constructor() {
       this.setupNotifications();
       const localData = localStorage.getItem('phoenix_guest_data');
@@ -150,7 +155,13 @@ export class GameStateService {
                   if (data.hasCosmicTrail !== undefined) this.hasCosmicTrail.set(data.hasCosmicTrail);
                   if (data.hasGoldenAura !== undefined) this.hasGoldenAura.set(data.hasGoldenAura);
                   if (data.hasCelestialShield !== undefined) this.hasCelestialShield.set(data.hasCelestialShield);
-                                    if (data.crazyDealExpiresAt) {
+                  
+                  if (data.toggleCosmicTrail !== undefined) this.toggleCosmicTrail.set(data.toggleCosmicTrail);
+                  if (data.toggleGoldenAura !== undefined) this.toggleGoldenAura.set(data.toggleGoldenAura);
+                  if (data.toggleCelestialShield !== undefined) this.toggleCelestialShield.set(data.toggleCelestialShield);
+
+                  if (data.unlockedEnemies !== undefined) this.unlockedEnemies.set(data.unlockedEnemies);
+                  if (data.crazyDealExpiresAt) {
                       this.crazyDealExpiresAt.set(data.crazyDealExpiresAt);
                   }
                   
@@ -172,7 +183,7 @@ export class GameStateService {
 
       effect(() => {
           const screen = this.activeScreen();
-          if (screen === 'menu' || screen === 'shop' || screen === 'login' || screen === 'profile' || screen === 'leaderboard') {
+          if (screen === 'menu' || screen === 'shop' || screen === 'login' || screen === 'profile' || screen === 'leaderboard' || screen === 'codex') {
               setTimeout(() => this.audio.playMenuBgm(), 0);
           } else if (screen === 'game') {
               setTimeout(() => this.audio.playWorldBgm(this.selectedWorldIndex()), 0);
@@ -197,7 +208,11 @@ export class GameStateService {
               hasCosmicTrail: this.hasCosmicTrail(),
               hasGoldenAura: this.hasGoldenAura(),
               hasCelestialShield: this.hasCelestialShield(),
-                            crazyDealExpiresAt: this.crazyDealExpiresAt()
+              toggleCosmicTrail: this.toggleCosmicTrail(),
+              toggleGoldenAura: this.toggleGoldenAura(),
+              toggleCelestialShield: this.toggleCelestialShield(),
+              unlockedEnemies: this.unlockedEnemies(),
+              crazyDealExpiresAt: this.crazyDealExpiresAt()
           };
           if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) {
               localStorage.setItem('phoenix_guest_data', JSON.stringify(stateToSave));
@@ -439,7 +454,20 @@ export class GameStateService {
           coins: this.coins(),
           gems: this.gems(),
           unlockedWorlds: this.unlockedWorlds(),
-          worldUpgrades: this.worldUpgrades()
+          worldUpgrades: this.worldUpgrades(),
+          hasPurchasedGems: this.hasPurchasedGems(),
+          acceptedLegalPolicies: this.acceptedLegalPolicies(),
+          upsellChance: this.upsellChance(),
+          coinMultiplier: this.coinMultiplier(),
+          xpMultiplier: this.xpMultiplier(),
+          hasCosmicTrail: this.hasCosmicTrail(),
+          hasGoldenAura: this.hasGoldenAura(),
+          hasCelestialShield: this.hasCelestialShield(),
+          toggleCosmicTrail: this.toggleCosmicTrail(),
+          toggleGoldenAura: this.toggleGoldenAura(),
+          toggleCelestialShield: this.toggleCelestialShield(),
+          unlockedEnemies: this.unlockedEnemies(),
+          crazyDealExpiresAt: this.crazyDealExpiresAt()
       };
       
       try {
