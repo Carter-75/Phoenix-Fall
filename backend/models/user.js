@@ -43,6 +43,9 @@ const userSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// Indexes for optimization
+userSchema.index({ level: -1, xp: -1 }); // Optimizes leaderboard queries
+
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password') || !this.password) return next();
   try {
