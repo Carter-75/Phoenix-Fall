@@ -1002,7 +1002,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           rx += Math.sin(ry * 0.5) * (r * 0.3);
           rz += Math.cos(ry * 0.3) * (r * 0.3);
           
-          x = rx; y = ry; z = rz;
+          x = rx; y = ry; z = -15 + rz;
           
           // Magma gradient based on heat/depth
           if (isVent && Math.abs(x) < r * 0.8 && Math.abs(y) < r * 0.5) {

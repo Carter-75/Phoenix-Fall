@@ -291,10 +291,17 @@ export class GameComponent implements OnInit, OnDestroy {
     const birdLeftWing = Bodies.rectangle(window.innerWidth / 2 - 15, window.innerHeight / 2 - 5, 20, 8, { label: 'player' });
     const birdRightWing = Bodies.rectangle(window.innerWidth / 2 + 15, window.innerHeight / 2 - 5, 20, 8, { label: 'player' });
     
+    const playerCategory = 0x0002;
+    const playerCollisionFilter = { category: playerCategory, mask: 0xFFFF };
+    birdCore.collisionFilter = playerCollisionFilter;
+    birdLeftWing.collisionFilter = playerCollisionFilter;
+    birdRightWing.collisionFilter = playerCollisionFilter;
+
     this.playerBody = Matter.Body.create({
       parts: [birdCore, birdLeftWing, birdRightWing],
       isSensor: false,
-      label: 'player'
+      label: 'player',
+      collisionFilter: playerCollisionFilter
     });
 
     Composite.add(this.engine.world, [this.playerBody]);
@@ -616,9 +623,11 @@ export class GameComponent implements OnInit, OnDestroy {
         const vent = vents[Math.floor(Math.random() * vents.length)];
         const data = vent.plugin['data'];
         
-        const count = 1 + Math.floor(Math.random() * 2);
+        // Mostly streams, sometimes single blob
+        const isStream = Math.random() < 0.8;
+        const count = isStream ? 5 + Math.floor(Math.random() * 5) : 1 + Math.floor(Math.random() * 2);
         for (let i = 0; i < count; i++) {
-            setTimeout(() => this.spawnLavaBlob(data.isLeft, vent.position.x, vent.position.y), i * 200);
+            setTimeout(() => this.spawnLavaBlob(data.isLeft, vent.position.x, vent.position.y), i * 100);
         }
     }, 3000);
     
@@ -650,6 +659,10 @@ export class GameComponent implements OnInit, OnDestroy {
               label: 'wall',
               friction: 0.1,
               restitution: 0.8, // Bouncy rock
+              collisionFilter: {
+                  category: 0x0004,
+                  mask: 0xFFFF ^ 0x0002 // Collide with everything EXCEPT player
+              },
               plugin: {
                   data: {
                       id: Math.random().toString(36).substr(2, 9),
