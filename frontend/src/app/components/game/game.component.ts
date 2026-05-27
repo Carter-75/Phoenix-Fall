@@ -311,8 +311,8 @@ export class GameComponent implements OnInit, OnDestroy {
 
       const pairs = event.pairs;
       for (let i = 0; i < pairs.length; i++) {
-        const bodyA = pairs[i].bodyA;
-        const bodyB = pairs[i].bodyB;
+        const bodyA = pairs[i].bodyA.parent;
+        const bodyB = pairs[i].bodyB.parent;
         
         // Player taking damage
         if (bodyA.label === 'player' || bodyB.label === 'player') {
