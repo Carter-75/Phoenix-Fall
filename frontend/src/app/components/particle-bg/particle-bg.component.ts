@@ -236,21 +236,32 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     const count = 4000;
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
+    const vel = new Float32Array(count * 3);
     for(let i=0; i<count; i++) {
         const idx = i*3;
         const isLeft = Math.random() > 0.5;
-        pos[idx] = (isLeft ? -1 : 1) * (this.boundX + 2) + (Math.random()-0.5)*8;
+        
+        pos[idx] = (isLeft ? -1 : 1) * (this.boundX + 2);
         pos[idx+1] = (Math.random() - 0.5) * 80; // y from -40 to 40
         pos[idx+2] = (Math.random() - 0.5) * 30 - 10; // z depth
         
-        // Wall color - give it a fiery/nebula mix based on depth
-        col[idx] = 0.8 + Math.random()*0.2; 
-        col[idx+1] = 0.3 + Math.random()*0.3; 
-        col[idx+2] = 0.1 + Math.random()*0.2;
+        // Volcano exploding velocities (towards center, up, slightly forward/back)
+        vel[idx] = (isLeft ? 1 : -1) * (Math.random() * 0.4 + 0.1); // X velocity
+        vel[idx+1] = Math.random() * 0.5 - 0.1; // Y velocity
+        vel[idx+2] = (Math.random() - 0.5) * 0.3; // Z velocity
+        
+        // Bunch of different lava colors
+        const randColor = Math.random();
+        if (randColor < 0.2) { col[idx] = 1.0; col[idx+1] = 0.8; col[idx+2] = 0.0; } // Yellow
+        else if (randColor < 0.5) { col[idx] = 1.0; col[idx+1] = 0.4; col[idx+2] = 0.0; } // Orange
+        else if (randColor < 0.8) { col[idx] = 0.8; col[idx+1] = 0.1; col[idx+2] = 0.0; } // Red
+        else { col[idx] = 0.4; col[idx+1] = 0.0; col[idx+2] = 0.0; } // Dark Red
     }
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const mat = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
+    geo.setAttribute('velocity', new THREE.BufferAttribute(vel, 3));
+    
+    const mat = new THREE.PointsMaterial({ size: 0.25, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
     this.walls = new THREE.Points(geo, mat);
     this.scene.add(this.walls);
   }
@@ -483,12 +494,34 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         this.particles.geometry.attributes['position'].needsUpdate = true;
         this.particles.rotation.y += 0.0001;
 
-        // Walls moving down
+        // Walls moving down (volcano explosions)
         if (this.walls) {
             const wPos = this.walls.geometry.attributes['position'].array as Float32Array;
+            const wVel = this.walls.geometry.attributes['velocity'].array as Float32Array;
+            const gravity = -0.015;
+            const speedScale = this.gameState.currentStats().speed;
+            
             for (let i = 0; i < wPos.length; i += 3) {
-              wPos[i+1] -= 0.2 * this.gameState.currentStats().speed; // Scale wall speed
-              if (wPos[i+1] < -30) { wPos[i+1] = 30; }
+              // Apply velocity
+              wPos[i] += wVel[i] * speedScale;
+              wPos[i+1] += wVel[i+1] * speedScale;
+              wPos[i+2] += wVel[i+2] * speedScale;
+              
+              // Apply gravity and global downward camera scroll
+              wVel[i+1] += gravity * speedScale;
+              wPos[i+1] -= 0.2 * speedScale; // Global scroll
+              
+              // If it falls too far, reset it as a new explosion from the walls
+              if (wPos[i+1] < -40) {
+                 const isLeft = Math.random() > 0.5;
+                 wPos[i] = (isLeft ? -1 : 1) * (this.boundX + 2);
+                 wPos[i+1] = 40 + Math.random() * 20; // Spawn near top/middle
+                 wPos[i+2] = (Math.random() - 0.5) * 30 - 10;
+                 
+                 wVel[i] = (isLeft ? 1 : -1) * (Math.random() * 0.4 + 0.1);
+                 wVel[i+1] = Math.random() * 0.5 - 0.1;
+                 wVel[i+2] = (Math.random() - 0.5) * 0.3;
+              }
             }
             this.walls.geometry.attributes['position'].needsUpdate = true;
         }
