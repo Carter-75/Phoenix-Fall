@@ -57,6 +57,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   private particles!: THREE.Points;
   private walls!: THREE.Points;
   private bgGlow!: THREE.Mesh;
+  private sideArtGroup!: THREE.Group;
   private goldenAuraMesh!: THREE.Points;
   private celestialShieldMesh!: THREE.Points;
   private cosmicTrailMesh!: THREE.Points;
@@ -75,8 +76,10 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   
   constructor(private ngZone: NgZone) {
     effect(() => {
-      const theme = this.gameState.worlds[this.gameState.selectedWorldIndex()].theme;
+      const worldIndex = this.gameState.selectedWorldIndex();
+      const theme = this.gameState.worlds[worldIndex].theme;
       this.updateColors(theme);
+      this.buildRealmSideArt(worldIndex);
     });
   }
   
@@ -196,6 +199,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     this.bgGlow.position.set(0, 0, -50);
     this.scene.add(this.bgGlow);
 
+    this.sideArtGroup = new THREE.Group();
+    this.scene.add(this.sideArtGroup);
+
     this.updateBounds();
   }
 
@@ -247,6 +253,66 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     const mat = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
     this.walls = new THREE.Points(geo, mat);
     this.scene.add(this.walls);
+  }
+
+  private buildRealmSideArt(worldIndex: number) {
+      if (!this.sideArtGroup) return; // Wait for init
+      
+      // Clear existing art
+      while(this.sideArtGroup.children.length > 0){ 
+          const child = this.sideArtGroup.children[0] as THREE.Mesh;
+          this.sideArtGroup.remove(child);
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+              if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+              else child.material.dispose();
+          }
+      }
+
+      switch (worldIndex) {
+          case 0:
+              // Realm 1: Ember Wastes
+              this.buildRealm1Art();
+              break;
+          case 1:
+              // Realm 2: Crimson Void (placeholder)
+              break;
+      }
+  }
+
+  private buildRealm1Art() {
+      // Jagged glowing crystals
+      const geometry = new THREE.DodecahedronGeometry(1.5, 0);
+      
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0xaa2200, transparent: true, opacity: 0.4 });
+      const wireMat = new THREE.MeshBasicMaterial({ color: 0xff5500, wireframe: true, transparent: true, opacity: 0.8 });
+      
+      for (let i = 0; i < 30; i++) {
+          const isLeft = Math.random() > 0.5;
+          const x = (isLeft ? -1 : 1) * (this.boundX + 1 + Math.random() * 3);
+          const y = (Math.random() - 0.5) * 80;
+          const z = -5 - Math.random() * 10;
+          
+          const core = new THREE.Mesh(geometry, coreMat);
+          const wire = new THREE.Mesh(geometry, wireMat);
+          
+          const scaleY = 1 + Math.random() * 3;
+          core.scale.set(1, scaleY, 1);
+          wire.scale.set(1.05, scaleY * 1.05, 1.05);
+          
+          core.position.set(x, y, z);
+          wire.position.set(x, y, z);
+          
+          core.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+          wire.rotation.copy(core.rotation);
+          
+          // Store original rotations for animation
+          (core as any).baseRotation = core.rotation.clone();
+          (wire as any).baseRotation = wire.rotation.clone();
+          
+          this.sideArtGroup.add(core);
+          this.sideArtGroup.add(wire);
+      }
   }
 
   private createCosmetics() {
@@ -415,6 +481,23 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
               if (wPos[i+1] < -30) { wPos[i+1] = 30; }
             }
             this.walls.geometry.attributes['position'].needsUpdate = true;
+        }
+
+        // Side Art moving down
+        if (this.sideArtGroup) {
+            this.sideArtGroup.children.forEach(child => {
+                const mesh = child as THREE.Mesh;
+                mesh.position.y -= 0.2 * this.gameState.currentStats().speed;
+                if (mesh.position.y < -40) {
+                    mesh.position.y = 40 + Math.random() * 10;
+                }
+                
+                // Add a subtle rotation based on the mesh's baseRotation if it exists
+                if ((mesh as any).baseRotation) {
+                    mesh.rotation.x += 0.01;
+                    mesh.rotation.y += 0.01;
+                }
+            });
         }
 
         const speed = 0.08 * this.gameState.currentStats().speed; 
