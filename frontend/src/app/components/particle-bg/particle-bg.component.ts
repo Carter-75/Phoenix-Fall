@@ -797,7 +797,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
   private createEntityMesh(data: PhysicsEntity): ParticleEntity {
     const geo = new THREE.BufferGeometry();
-    const count = data.type === 'boss' || data.type === 'turret' ? 4000 : (data.type === 'wall_chunk' || data.type === 'volcano_vent' ? 2500 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (data.type === 'coin' || data.type === 'gem' || data.type === 'heart' ? 200 : 800))));
+    const count = data.type === 'boss' || data.type === 'turret' ? 4000 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (data.type === 'coin' || data.type === 'gem' || data.type === 'heart' ? 200 : 800)));
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
 
@@ -816,9 +816,6 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     else if (data.type === 'fire') color.setHex(0xff5500); // Orange/Red
     else if (data.type === 'egg') color.setHex(0xffaa00); // Golden Egg
     else if (data.type === 'turret') color.setHex(0xffffff); // Use original bird colors
-    else if (data.type === 'wall_chunk') color.setHex(0x551100); // Dark Magma Crust
-    else if (data.type === 'volcano_vent') color.setHex(0xff5500); // Glowing Magma Vent
-    else if (data.type === 'lava') color.setHex(0xff3300); // Lava projectile
 
     const r = data.size / 30; // Scale factor
 

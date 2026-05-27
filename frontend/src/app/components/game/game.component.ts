@@ -7,7 +7,7 @@ import anime from 'animejs';
 
 interface EnemyData {
   id: string;
-  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret' | 'egg' | 'lava' | 'wall_chunk' | 'volcano_vent';
+  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret' | 'egg';
   health: number;
   maxHealth: number;
   lastAttackTime?: number;
@@ -232,10 +232,7 @@ export class GameComponent implements OnInit, OnDestroy {
   private timerInterval: any;
   private spawnInterval: any;
   private attackInterval: any;
-  private wallInterval: any;
-  private enemies: Matter.Body[] = [];
-  private items: Matter.Body[] = [];
-  private walls: Matter.Body[] = []; // Physical scrolling walls
+  private attackInterval: any;
 
   // Listeners bound
   private boundKeyDown = this.onKeyDown.bind(this);
@@ -273,7 +270,7 @@ export class GameComponent implements OnInit, OnDestroy {
     if (this.timerInterval) clearInterval(this.timerInterval);
     if (this.spawnInterval) clearTimeout(this.spawnInterval);
     if (this.attackInterval) clearInterval(this.attackInterval);
-    if (this.wallInterval) clearInterval(this.wallInterval);
+    if (this.attackInterval) clearInterval(this.attackInterval);
     if (this.reviveInterval) clearInterval(this.reviveInterval);
     
     window.removeEventListener('mousemove', this.boundMouseMove);
@@ -355,7 +352,7 @@ export class GameComponent implements OnInit, OnDestroy {
             if (data.type !== 'boss') {
                 Matter.Body.applyForce(otherBody, otherBody.position, Matter.Vector.mult(normalized, -0.05));
             }
-          } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy' || data.type === 'lava')) {
+          } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy')) {
             this.takeDamage(15);
             Matter.Composite.remove(this.engine.world, otherBody);
           } else if (otherBody.label === 'item') {
@@ -501,7 +498,7 @@ export class GameComponent implements OnInit, OnDestroy {
         Matter.Body.applyForce(enemy, enemy.position, Matter.Vector.mult(normalized, moveSpeed));
       });
 
-      // 4. Magnetism and Lava Gravity for items
+      // 4. Magnetism for items
       const magnetRadius = 150 * this.gameState.currentStats().magnetism;
       this.items.forEach(item => {
          const data = item.plugin['data'];
@@ -551,15 +548,6 @@ export class GameComponent implements OnInit, OnDestroy {
           });
       }
 
-      // 4.6 Cleanup off-screen walls
-      this.walls = this.walls.filter(wall => {
-          if (wall.position.y > window.innerHeight + 200) {
-              if (wall.parent) Matter.Composite.remove(this.engine.world, wall);
-              return false;
-          }
-          return true;
-      });
-
       // 5. Publish bodies to ParticleBg rendering service
       const entities: PhysicsEntity[] = [];
       const renderBodies = [...Matter.Composite.allBodies(this.engine.world)];
@@ -590,60 +578,6 @@ export class GameComponent implements OnInit, OnDestroy {
     if (this.timerInterval) clearInterval(this.timerInterval);
     if (this.spawnInterval) clearTimeout(this.spawnInterval);
     if (this.attackInterval) clearInterval(this.attackInterval);
-    if (this.wallInterval) clearInterval(this.wallInterval);
-    
-    this.wallInterval = setInterval(() => {
-        if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
-        
-        const speed = 4 + (this.gameState.currentStats().speed * 0.1);
-        
-        // Spawn walls on left and right sides
-        const leftWall = Matter.Bodies.rectangle(50, -100, 100, 200, {
-            isSensor: true,
-            plugin: { data: { id: Math.random().toString(), type: 'wall_chunk', health: 1, maxHealth: 1, size: 50 } as EnemyData }
-        });
-        Matter.Body.setVelocity(leftWall, { x: 0, y: speed });
-        
-        const rightWall = Matter.Bodies.rectangle(window.innerWidth - 50, -100, 100, 200, {
-            isSensor: true,
-            plugin: { data: { id: Math.random().toString(), type: 'wall_chunk', health: 1, maxHealth: 1, size: 50 } as EnemyData }
-        });
-        Matter.Body.setVelocity(rightWall, { x: 0, y: speed });
-        
-        Matter.Composite.add(this.engine.world, [leftWall, rightWall]);
-        this.walls.push(leftWall, rightWall);
-        
-        // Sometimes spawn a vent that shoots lava
-        if (Math.random() < 0.2) {
-            const side = Math.random() < 0.5 ? 'left' : 'right';
-            const x = side === 'left' ? 100 : window.innerWidth - 100;
-            const vent = Matter.Bodies.circle(x, -100, 30, {
-                isSensor: true,
-                plugin: { data: { id: Math.random().toString(), type: 'volcano_vent', health: 1, maxHealth: 1, size: 30 } as EnemyData }
-            });
-            Matter.Body.setVelocity(vent, { x: 0, y: speed });
-            Matter.Composite.add(this.engine.world, vent);
-            this.walls.push(vent);
-            
-            // Lava shooting logic attached to the vent
-            const shootInterval = setInterval(() => {
-                if (!vent.parent || this.gameEnded() || this.gameState.isPaused() || this.isDead()) {
-                    clearInterval(shootInterval);
-                    return;
-                }
-                const toPlayer = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, vent.position));
-                
-                const lava = Matter.Bodies.circle(vent.position.x, vent.position.y, 15, {
-                    label: 'projectile', isSensor: true,
-                    plugin: { data: { id: Math.random().toString(), type: 'lava', health: 1, maxHealth: 1, size: 15 } as EnemyData }
-                });
-                Matter.Body.setVelocity(lava, Matter.Vector.mult(toPlayer, 12));
-                Matter.Composite.add(this.engine.world, lava);
-                setTimeout(() => { if (lava.parent) Matter.Composite.remove(this.engine.world, lava); }, 3000);
-            }, 1500);
-        }
-        
-    }, 1000);
     
     this.timerInterval = setInterval(() => {
       if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
