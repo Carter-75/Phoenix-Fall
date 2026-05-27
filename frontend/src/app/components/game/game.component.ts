@@ -480,32 +480,11 @@ export class GameComponent implements OnInit, OnDestroy {
         Matter.Body.applyForce(enemy, enemy.position, Matter.Vector.mult(normalized, moveSpeed));
       });
 
-      // 3.5 Scroll Walls
-      const scrollSpeed = 2 * this.gameState.currentStats().speed;
-      this.walls.forEach(wall => {
-          Matter.Body.setPosition(wall, { x: wall.position.x, y: wall.position.y + scrollSpeed });
-          if (wall.position.y > window.innerHeight + 300) {
-              Matter.Composite.remove(this.engine.world, wall);
-              this.walls = this.walls.filter(w => w !== wall);
-          }
-      });
-
       // 4. Magnetism and Lava Gravity for items
       const magnetRadius = 150 * this.gameState.currentStats().magnetism;
       this.items.forEach(item => {
          const data = item.plugin['data'];
          const isBossGem = this.inBossDefeatSequence() && data && data.type === 'gem';
-         
-         if (data && data.type === 'lava') {
-             // Lava gets pulled downwards by gravity
-             Matter.Body.applyForce(item, item.position, { x: 0, y: 0.005 });
-             
-             // Check if lava falls off screen and remove it
-             if (item.position.y > window.innerHeight + 100) {
-                 Matter.Composite.remove(this.engine.world, item);
-                 this.items = this.items.filter(i => i !== item);
-             }
-         }
          
          if (isBossGem && now - this.bossDefeatTimestamp > 1500) {
             // Boss Defeat Homing Phase: Boss gems forcefully float to phoenix after 1.5s
@@ -514,8 +493,8 @@ export class GameComponent implements OnInit, OnDestroy {
             // Cancel existing gravity/velocity and pull strongly
             Matter.Body.setVelocity(item, { x: 0, y: 0 });
             Matter.Body.applyForce(item, item.position, Matter.Vector.mult(normalized, 0.05));
-         } else if (data && data.type !== 'lava') {
-             // Normal Magnetism (Lava is not magnetic)
+         } else if (data) {
+             // Normal Magnetism
              const force = Matter.Vector.sub(this.playerBody.position, item.position);
              const dist = Matter.Vector.magnitude(force);
              if (dist < magnetRadius) {
@@ -553,7 +532,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
       // 5. Publish bodies to ParticleBg rendering service
       const entities: PhysicsEntity[] = [];
-      const renderBodies = [...Matter.Composite.allBodies(this.engine.world), ...this.walls];
+      const renderBodies = [...Matter.Composite.allBodies(this.engine.world)];
       renderBodies.forEach(body => {
          if (body.label !== 'player') {
              const data = body.plugin['data'] as any;
@@ -563,10 +542,7 @@ export class GameComponent implements OnInit, OnDestroy {
                      x: body.position.x,
                      y: body.position.y,
                      type: data.type,
-                     size: (data.type === 'wall_chunk' || data.type === 'volcano_vent') ? 150 : (body.circleRadius || 20),
-                     width: data.width,
-                     height: data.height,
-                     isLeft: data.isLeft // pass side info for walls
+                     size: body.circleRadius || 20
                  });
              }
          }
@@ -609,104 +585,9 @@ export class GameComponent implements OnInit, OnDestroy {
       this.fireProjectile();
     }, 1000 / attackSpeed);
     
-    // Volcano Eruptions from Vents
-    setInterval(() => {
-        if (this.gameEnded() || this.isDead() || this.bossSpawned() || this.gameState.isPaused()) return;
-        
-        // Find all active volcano vents
-        const vents = this.walls.filter(w => {
-            const data = w.plugin['data'];
-            return data && data.type === 'volcano_vent';
-        });
-        
-        if (vents.length === 0) return;
-        
-        // Pick a random vent to erupt
-        const vent = vents[Math.floor(Math.random() * vents.length)];
-        const data = vent.plugin['data'];
-        
-        // Mostly streams, sometimes single blob
-        const isStream = Math.random() < 0.8;
-        const count = isStream ? 5 + Math.floor(Math.random() * 5) : 1 + Math.floor(Math.random() * 2);
-        for (let i = 0; i < count; i++) {
-            setTimeout(() => this.spawnLavaBlob(data.isLeft, vent.position.x, vent.position.y), i * 100);
-        }
-    }, 3000);
-    
-    // Spawn Wall Chunks
-    this.wallInterval = setInterval(() => {
-        if (this.gameEnded() || this.gameState.isPaused()) return;
-        this.spawnWallChunk();
-    }, 1500); // Spawns new wall blocks
-    
-    // Pre-fill screen with walls on start
-    for (let i = 0; i < 5; i++) {
-        this.spawnWallChunk(i * (window.innerHeight / 4));
-    }
   }
 
-  private spawnWallChunk(startY: number = -200) {
-      const height = 300;
-      const width = window.innerWidth * 0.2;
-      
-      for (let side of ['left', 'right']) {
-          const isLeft = side === 'left';
-          const isVent = Math.random() < 0.2; // 20% chance to be a volcano vent
-          
-          const x = isLeft ? width / 2 : window.innerWidth - (width / 2);
-          const y = startY;
-          
-          const chunk = Matter.Bodies.rectangle(x, y, width, height, {
-              isStatic: true, // It acts as a static barrier
-              label: 'wall',
-              friction: 0.1,
-              restitution: 0.8, // Bouncy rock
-              collisionFilter: {
-                  category: 0x0004,
-                  mask: 0xFFFF ^ 0x0002 // Collide with everything EXCEPT player
-              },
-              plugin: {
-                  data: {
-                      id: Math.random().toString(36).substr(2, 9),
-                      type: isVent ? 'volcano_vent' : 'wall_chunk',
-                      isLeft: isLeft,
-                      width: width,
-                      height: height
-                  }
-              }
-          });
-          
-          Matter.Composite.add(this.engine.world, chunk);
-          this.walls.push(chunk);
-      }
-  }
 
-  private spawnLavaBlob(isLeft: boolean, startX: number, startY: number) {
-      // Offset slightly towards center so it doesn't get stuck in the wall
-      const x = startX + (isLeft ? 50 : -50);
-      const y = startY;
-      
-      const lava = Matter.Bodies.circle(x, y, 20, {
-          label: 'item',
-          isSensor: false, // NOT a sensor, so it bounces off the physical walls
-          restitution: 0.6, // Bouncy
-          friction: 0.1,
-          plugin: {
-              data: {
-                  id: Math.random().toString(36).substr(2, 9),
-                  type: 'lava'
-              }
-          }
-      });
-      
-      // Volcano explosion velocity (arcs inwards and upwards)
-      const vx = (isLeft ? 1 : -1) * (10 + Math.random() * 10);
-      const vy = -(15 + Math.random() * 15);
-      Matter.Body.setVelocity(lava, { x: vx, y: vy });
-      
-      Matter.Composite.add(this.engine.world, lava);
-      this.items.push(lava);
-  }
 
   private triggerDrillAttack() {
       if (this.gameState.isRebirthing()) return;

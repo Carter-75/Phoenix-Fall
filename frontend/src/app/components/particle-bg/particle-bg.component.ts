@@ -975,53 +975,6 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
              x /= (sum * 2); y /= (sum * 2); z /= (sum * 2);
           }
       }
-      else if (data.type === 'lava') {
-          // Dense, spherical blob of magma
-          const rad = Math.cbrt(Math.random()) * r * 0.8;
-          const u = Math.random() * Math.PI * 2;
-          const v = Math.acos(2 * Math.random() - 1);
-          x = rad * Math.sin(v) * Math.cos(u);
-          y = rad * Math.sin(v) * Math.sin(u) + (Math.random() - 0.5) * r * 0.5; // Slightly elongated vertically
-          z = rad * Math.cos(v);
-          
-          // Color gradient: yellow core to dark red edges
-          const distToCenter = rad / (r * 0.8);
-          col[idx] = 1.0; 
-          col[idx+1] = (1.0 - distToCenter) * 0.8; // More green in center = yellow
-          col[idx+2] = 0.0;
-      }
-      else if (data.type === 'wall_chunk' || data.type === 'volcano_vent') {
-          const isVent = data.type === 'volcano_vent';
-          // Massive vertical rocky block with jagged faces
-          
-          const w3D = data.width ? (data.width / window.innerWidth) * (this.boundX * 2) : r * 1.5;
-          const h3D = data.height ? (data.height / window.innerHeight) * (this.boundY * 2) : r * 4.0;
-          
-          let rx = (Math.random() - 0.5) * w3D * 1.2; // Fill width with slight overshoot
-          let ry = (Math.random() - 0.5) * h3D;
-          let rz = (Math.random() - 0.5) * 4.0; // Fixed depth for walls
-          
-          // Jagged distortion (reduced to prevent tornado effect)
-          rx += Math.sin(ry * 1.5) * 0.5;
-          rz += Math.cos(ry * 1.0) * 0.5;
-          
-          x = rx; y = ry; z = -15 + rz;
-          
-          // Magma gradient based on heat/depth
-          if (isVent && Math.abs(x) < r * 0.8 && Math.abs(y) < r * 0.5) {
-              // Glowing core of the vent (central hot spot)
-              col[idx] = 1.0; col[idx+1] = 0.8 + (Math.random() * 0.2); col[idx+2] = 0.2; // Blinding Yellow/White
-          } else {
-              const heat = Math.random();
-              if (heat > 0.85) {
-                  col[idx] = 1.0; col[idx+1] = 0.3 + Math.random()*0.2; col[idx+2] = 0.0; // Glowing Orange lava cracks
-              } else if (heat > 0.5) {
-                  col[idx] = 0.6; col[idx+1] = 0.1; col[idx+2] = 0.0; // Dark red crust
-              } else {
-                  col[idx] = 0.2 + Math.random()*0.1; col[idx+1] = 0.05; col[idx+2] = 0.05; // Blackened obsidian rock
-              }
-          }
-      }
       else if (data.type === 'coin') {
           // Torus / Ring
           const angle = Math.random() * Math.PI * 2;
