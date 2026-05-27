@@ -68,6 +68,7 @@ import { AudioService } from '../../services/audio.service';
         display: flex; justify-content: center; align-items: center;
         z-index: 1000;
         backdrop-filter: blur(5px);
+        pointer-events: auto;
     }
     .settings-content {
         background: linear-gradient(145deg, #1a1a24, #0d0d14);
