@@ -451,7 +451,11 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
               // Freeze in place completely
               bird.velocity.set(0, 0, 0);
           } else {
-              mat.color.setRGB(1, 1, 1);
+              if (this.gameState.isDrilling()) {
+                  mat.color.setRGB(1.5, 0.3, 0.3); // Intense red glow
+              } else {
+                  mat.color.setRGB(1, 1, 1); // Normal color
+              }
               bird.flapTime += 0.04;
               
               // Track Mouse
