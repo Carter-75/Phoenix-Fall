@@ -55,7 +55,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
   private particles!: THREE.Points;
-  private walls!: THREE.Points;
+  private lavaFlowsGroup!: THREE.Group;
   private bgGlow!: THREE.Mesh;
   private sideArtGroup!: THREE.Group;
   private goldenAuraMesh!: THREE.Points;
@@ -86,7 +86,6 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.initThree();
     this.createParticles();
-    this.createWalls();
     this.createCosmetics();
     
     this.bird = this.createBirdState('orange');
@@ -202,6 +201,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     this.sideArtGroup = new THREE.Group();
     this.scene.add(this.sideArtGroup);
 
+    this.lavaFlowsGroup = new THREE.Group();
+    this.scene.add(this.lavaFlowsGroup);
+
     this.updateBounds();
   }
 
@@ -231,40 +233,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     this.scene.add(this.particles);
   }
 
-  private createWalls() {
-    const geo = new THREE.BufferGeometry();
-    const count = 4000;
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const vel = new Float32Array(count * 3);
-    for(let i=0; i<count; i++) {
-        const idx = i*3;
-        const isLeft = Math.random() > 0.5;
-        
-        pos[idx] = (isLeft ? -1 : 1) * (this.boundX + 2);
-        pos[idx+1] = (Math.random() - 0.5) * 80; // y from -40 to 40
-        pos[idx+2] = (Math.random() - 0.5) * 30 - 10; // z depth
-        
-        // Volcano exploding velocities (towards center, up, slightly forward/back)
-        vel[idx] = (isLeft ? 1 : -1) * (Math.random() * 0.4 + 0.1); // X velocity
-        vel[idx+1] = Math.random() * 0.5 - 0.1; // Y velocity
-        vel[idx+2] = (Math.random() - 0.5) * 0.3; // Z velocity
-        
-        // Bunch of different lava colors
-        const randColor = Math.random();
-        if (randColor < 0.2) { col[idx] = 1.0; col[idx+1] = 0.8; col[idx+2] = 0.0; } // Yellow
-        else if (randColor < 0.5) { col[idx] = 1.0; col[idx+1] = 0.4; col[idx+2] = 0.0; } // Orange
-        else if (randColor < 0.8) { col[idx] = 0.8; col[idx+1] = 0.1; col[idx+2] = 0.0; } // Red
-        else { col[idx] = 0.4; col[idx+1] = 0.0; col[idx+2] = 0.0; } // Dark Red
-    }
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    geo.setAttribute('velocity', new THREE.BufferAttribute(vel, 3));
-    
-    const mat = new THREE.PointsMaterial({ size: 0.25, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
-    this.walls = new THREE.Points(geo, mat);
-    this.scene.add(this.walls);
-  }
+
 
   private buildRealmSideArt(worldIndex: number) {
       if (!this.sideArtGroup) return; // Wait for init
@@ -312,9 +281,8 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       
       for (let side of ['left', 'right']) {
           const sign = side === 'left' ? -1 : 1;
-          // The camera is at z=5, walls are at z=-10, bird is at z=-15.
-          // Adjust offset so the walls significantly encroach into the screen
-          const xOffset = sign * (this.boundX * 0.65);
+          // Set to 0.85 offset (the LIMIT line)
+          const xOffset = sign * (this.boundX * 0.85);
           
           for (let i = 0; i < 2; i++) { // Two segments per side to loop seamlessly
               const core = new THREE.Mesh(geometry, coreMat);
@@ -333,6 +301,53 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
               this.sideArtGroup.add(core);
               this.sideArtGroup.add(wire);
           }
+      }
+
+      // Add 3D Dripping Lava Flows
+      // Clear existing lava flows
+      while(this.lavaFlowsGroup.children.length > 0) {
+          const child = this.lavaFlowsGroup.children[0] as THREE.Mesh;
+          this.lavaFlowsGroup.remove(child);
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+              if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+              else child.material.dispose();
+          }
+      }
+
+      const lavaGeo = new THREE.SphereGeometry(1, 16, 16);
+      
+      const lavaMaterials = [
+          new THREE.MeshBasicMaterial({ color: 0xffdd00, transparent: true, opacity: 0.9 }), // Bright Yellow
+          new THREE.MeshBasicMaterial({ color: 0xff7700, transparent: true, opacity: 0.9 }), // Bright Orange
+          new THREE.MeshBasicMaterial({ color: 0xcc2200, transparent: true, opacity: 0.85 }), // Crimson Red
+      ];
+
+      for (let i = 0; i < 100; i++) {
+          const mat = lavaMaterials[Math.floor(Math.random() * lavaMaterials.length)];
+          const blob = new THREE.Mesh(lavaGeo, mat);
+          
+          const isLeft = Math.random() > 0.5;
+          const sign = isLeft ? -1 : 1;
+          
+          // Place along the inner edge of the wall offset
+          const wallX = sign * (this.boundX * 0.85);
+          const x = wallX + sign * (Math.random() * 2 - 1); // Slight variation around the wall surface
+          const y = (Math.random() - 0.5) * 120; // Spread vertically
+          const z = -10 + (Math.random() - 0.5) * 5; // Near the walls
+          
+          blob.position.set(x, y, z);
+          
+          // Stretch vertically to look like dripping fluid
+          const scaleX = 0.5 + Math.random() * 1.5;
+          const scaleY = 3.0 + Math.random() * 8.0; // Extreme vertical stretch
+          const scaleZ = 0.5 + Math.random() * 1.5;
+          blob.scale.set(scaleX, scaleY, scaleZ);
+          
+          // Save speeds for animation
+          (blob as any).dripSpeed = 0.2 + Math.random() * 0.6; // Base drip speed down the wall
+          
+          this.lavaFlowsGroup.add(blob);
       }
   }
 
@@ -494,36 +509,27 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         this.particles.geometry.attributes['position'].needsUpdate = true;
         this.particles.rotation.y += 0.0001;
 
-        // Walls moving down (volcano explosions)
-        if (this.walls) {
-            const wPos = this.walls.geometry.attributes['position'].array as Float32Array;
-            const wVel = this.walls.geometry.attributes['velocity'].array as Float32Array;
-            const gravity = -0.015;
+        // Lava flows moving down the walls
+        if (this.lavaFlowsGroup) {
             const speedScale = this.gameState.currentStats().speed;
-            
-            for (let i = 0; i < wPos.length; i += 3) {
-              // Apply velocity
-              wPos[i] += wVel[i] * speedScale;
-              wPos[i+1] += wVel[i+1] * speedScale;
-              wPos[i+2] += wVel[i+2] * speedScale;
-              
-              // Apply gravity and global downward camera scroll
-              wVel[i+1] += gravity * speedScale;
-              wPos[i+1] -= 0.2 * speedScale; // Global scroll
-              
-              // If it falls too far, reset it as a new explosion from the walls
-              if (wPos[i+1] < -40) {
-                 const isLeft = Math.random() > 0.5;
-                 wPos[i] = (isLeft ? -1 : 1) * (this.boundX + 2);
-                 wPos[i+1] = 40 + Math.random() * 20; // Spawn near top/middle
-                 wPos[i+2] = (Math.random() - 0.5) * 30 - 10;
-                 
-                 wVel[i] = (isLeft ? 1 : -1) * (Math.random() * 0.4 + 0.1);
-                 wVel[i+1] = Math.random() * 0.5 - 0.1;
-                 wVel[i+2] = (Math.random() - 0.5) * 0.3;
-              }
-            }
-            this.walls.geometry.attributes['position'].needsUpdate = true;
+            this.lavaFlowsGroup.children.forEach(child => {
+                const blob = child as THREE.Mesh;
+                const dripSpeed = (blob as any).dripSpeed || 0.5;
+                
+                // Fall based on global speed + local drip speed
+                blob.position.y -= (0.2 * speedScale) + dripSpeed;
+                
+                // Slowly morph the blob to look viscous
+                blob.scale.y += (Math.random() - 0.5) * 0.1;
+                blob.scale.y = THREE.MathUtils.clamp(blob.scale.y, 2.0, 15.0);
+                
+                if (blob.position.y < -60) {
+                    // Respawn at top
+                    blob.position.y = 60 + Math.random() * 20;
+                    blob.position.x = Math.sign(blob.position.x) * (this.boundX * 0.85) + Math.sign(blob.position.x) * (Math.random() * 2 - 1);
+                    (blob as any).dripSpeed = 0.2 + Math.random() * 0.6;
+                }
+            });
         }
 
         // Side Art moving down
