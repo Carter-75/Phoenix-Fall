@@ -993,14 +993,17 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       else if (data.type === 'wall_chunk' || data.type === 'volcano_vent') {
           const isVent = data.type === 'volcano_vent';
           // Massive vertical rocky block with jagged faces
-          // Distribute more towards the surface for a rugged look
-          let rx = (Math.random() - 0.5) * r * 1.8;
-          let ry = (Math.random() - 0.5) * r * 4.0; // Extremely tall
-          let rz = (Math.random() - 0.5) * r * 2.0;
           
-          // Jagged distortion
-          rx += Math.sin(ry * 0.5) * (r * 0.3);
-          rz += Math.cos(ry * 0.3) * (r * 0.3);
+          const w3D = data.width ? (data.width / window.innerWidth) * (this.boundX * 2) : r * 1.5;
+          const h3D = data.height ? (data.height / window.innerHeight) * (this.boundY * 2) : r * 4.0;
+          
+          let rx = (Math.random() - 0.5) * w3D * 1.2; // Fill width with slight overshoot
+          let ry = (Math.random() - 0.5) * h3D;
+          let rz = (Math.random() - 0.5) * 4.0; // Fixed depth for walls
+          
+          // Jagged distortion (reduced to prevent tornado effect)
+          rx += Math.sin(ry * 1.5) * 0.5;
+          rz += Math.cos(ry * 1.0) * 0.5;
           
           x = rx; y = ry; z = -15 + rz;
           

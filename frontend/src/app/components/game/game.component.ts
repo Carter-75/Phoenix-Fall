@@ -564,6 +564,8 @@ export class GameComponent implements OnInit, OnDestroy {
                      y: body.position.y,
                      type: data.type,
                      size: (data.type === 'wall_chunk' || data.type === 'volcano_vent') ? 150 : (body.circleRadius || 20),
+                     width: data.width,
+                     height: data.height,
                      isLeft: data.isLeft // pass side info for walls
                  });
              }
@@ -667,7 +669,9 @@ export class GameComponent implements OnInit, OnDestroy {
                   data: {
                       id: Math.random().toString(36).substr(2, 9),
                       type: isVent ? 'volcano_vent' : 'wall_chunk',
-                      isLeft: isLeft
+                      isLeft: isLeft,
+                      width: width,
+                      height: height
                   }
               }
           });

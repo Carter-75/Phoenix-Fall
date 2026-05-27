@@ -28,6 +28,8 @@ export interface PhysicsEntity {
   y: number; // 2D screen y
   type: string;
   size: number;
+  width?: number;
+  height?: number;
   isLeft?: boolean;
 }
 
