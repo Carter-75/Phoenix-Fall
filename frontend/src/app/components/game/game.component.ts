@@ -922,23 +922,12 @@ export class GameComponent implements OnInit, OnDestroy {
           plugin: { data }
       };
 
-      if (type === 'bat') {
-          // Compound: small circular body + two rectangular wings
-          const bodyPart = Matter.Bodies.circle(x, y, size * 0.4);
-          const leftWing = Matter.Bodies.rectangle(x - size, y, size * 1.5, size * 0.4);
-          const rightWing = Matter.Bodies.rectangle(x + size, y, size * 1.5, size * 0.4);
-          return Matter.Body.create({ parts: [bodyPart, leftWing, rightWing], ...options });
-      } else if (type === 'slime') {
-          // Bounding box for hemisphere
+      if (type === 'slime') {
           return Matter.Bodies.rectangle(x, y, size * 2, size * 1.5, { ...options, chamfer: { radius: [size*0.7, size*0.7, 0, 0] } as any });
       } else if (type === 'golem') {
-          // Core + Orbiting rocks means bounds are larger
           return Matter.Bodies.circle(x, y, size * 1.5, options);
       } else if (type === 'boss') {
-          // Demonic Skull compound
-          const skull = Matter.Bodies.circle(x, y, size * 1.2);
-          const jaw = Matter.Bodies.rectangle(x, y + size, size * 1.5, size * 0.8);
-          return Matter.Body.create({ parts: [skull, jaw], ...options });
+          return Matter.Bodies.circle(x, y, size * 1.5, options);
       }
 
       return Matter.Bodies.circle(x, y, size, options);

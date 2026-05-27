@@ -380,14 +380,15 @@ export class GameStateService {
           this.level.set(user.level || 0);
           this.xp.set(user.xp || 0);
           this.trophies.set(user.trophies || []);
-          this.coins.set(Math.floor(user.coins !== undefined ? user.coins : 100));
-          this.gems.set(Math.floor(user.gems || 0));
+          this.coins.set(Math.floor(Number(user.coins !== undefined && user.coins !== null ? user.coins : 100)) || 100);
+          this.gems.set(Math.floor(Number(user.gems)) || 0);
           if (user.acceptedLegalPolicies) this.acceptedLegalPolicies.set(true);
           this.unlockedWorlds.set(user.unlockedWorlds && user.unlockedWorlds.length > 0 ? user.unlockedWorlds : [0]);
           if (user.worldUpgrades && Object.keys(user.worldUpgrades).length > 0) {
               const upgrades = user.worldUpgrades;
               // Migration for old saves
               Object.keys(upgrades).forEach(key => {
+                  if (!upgrades[key]) upgrades[key] = { ...DEFAULT_STATS };
                   if (upgrades[key].auraRadius < 250) upgrades[key].auraRadius = 250;
                   if (upgrades[key].attackRange === undefined) upgrades[key].attackRange = 400;
                   if (!upgrades[key].unlockedAbilities) upgrades[key].unlockedAbilities = {};

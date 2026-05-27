@@ -60,6 +60,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   private sideArtGroup!: THREE.Group;
   private goldenAuraMesh!: THREE.Points;
   private celestialShieldMesh!: THREE.Points;
+  private drillAuraMesh!: THREE.Points;
   private cosmicTrailMesh!: THREE.Points;
   private animationId!: number;
   
@@ -79,7 +80,6 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       const worldIndex = this.gameState.selectedWorldIndex();
       const theme = this.gameState.worlds[worldIndex].theme;
       this.updateColors(theme);
-      this.buildRealmSideArt(worldIndex);
     });
   }
   
@@ -198,12 +198,6 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     this.bgGlow.position.set(0, 0, -50);
     this.scene.add(this.bgGlow);
 
-    this.sideArtGroup = new THREE.Group();
-    this.scene.add(this.sideArtGroup);
-
-    this.lavaFlowsGroup = new THREE.Group();
-    this.scene.add(this.lavaFlowsGroup);
-
     this.updateBounds();
   }
 
@@ -235,34 +229,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
 
 
-  private buildRealmSideArt(worldIndex: number) {
-      if (!this.sideArtGroup) return; // Wait for init
-      
-      // Clear existing art
-      while(this.sideArtGroup.children.length > 0){ 
-          const child = this.sideArtGroup.children[0] as THREE.Mesh;
-          this.sideArtGroup.remove(child);
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) {
-              if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-              else child.material.dispose();
-          }
-      }
 
-      switch (worldIndex) {
-          case 0:
-              // Realm 1: Ember Wastes
-              this.buildRealm1Art();
-              break;
-          case 1:
-              // Realm 2: Crimson Void (placeholder)
-              break;
-      }
-  }
-
-  private buildRealm1Art() {
-      // Background aesthetics only; the actual walls are now dynamic physics chunks handled in updateEntities
-  }
 
   private createCosmetics() {
     // Golden Aura (Detailed Particles)
@@ -297,6 +264,22 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     this.goldenAuraMesh = new THREE.Points(auraGeo, auraMat);
     this.goldenAuraMesh.visible = false;
     this.scene.add(this.goldenAuraMesh);
+
+    // Drill Aura (Red Glow)
+    const drillAuraGeo = new THREE.BufferGeometry();
+    const drillAuraCol = new Float32Array(auraCount * 3);
+    for (let i = 0; i < auraCount; i++) {
+        drillAuraCol[i*3] = 1.0;
+        drillAuraCol[i*3+1] = Math.random() * 0.2;
+        drillAuraCol[i*3+2] = Math.random() * 0.1;
+    }
+    drillAuraGeo.setAttribute('position', new THREE.BufferAttribute(auraPos.slice(), 3));
+    drillAuraGeo.setAttribute('basePosition', new THREE.BufferAttribute(auraBase.slice(), 3));
+    drillAuraGeo.setAttribute('color', new THREE.BufferAttribute(drillAuraCol, 3));
+    const drillAuraMat = new THREE.PointsMaterial({ size: 0.2, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
+    this.drillAuraMesh = new THREE.Points(drillAuraGeo, drillAuraMat);
+    this.drillAuraMesh.visible = false;
+    this.scene.add(this.drillAuraMesh);
 
     // Celestial Shield (Large Detailed Wireframe/Particle Sphere)
     const shieldCount = 600;
@@ -421,15 +404,6 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         }
         this.particles.geometry.attributes['position'].needsUpdate = true;
         this.particles.rotation.y += 0.0001;
-
-        // Lava flows moving down the walls
-        if (this.lavaFlowsGroup) {
-            // (Lava flows are now physics-based entities)
-        }
-
-        // Side Art moving down
-        if (this.sideArtGroup) {
-        }
 
         const speed = 0.08 * this.gameState.currentStats().speed; 
         const bird = this.bird;
@@ -613,6 +587,29 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
                     auraPos[i*3+2] = bx * sinA + bz * cosA;
                 }
                 this.goldenAuraMesh.geometry.attributes['position'].needsUpdate = true;
+            }
+        }
+
+        if (this.drillAuraMesh) {
+            this.drillAuraMesh.visible = this.gameState.isDrilling() && !this.gameState.isRebirthing();
+            if (this.drillAuraMesh.visible) {
+                this.drillAuraMesh.position.copy(bird.position);
+                this.drillAuraMesh.quaternion.copy(dummy.quaternion);
+                
+                // Animate drill aura particles
+                const auraPos = this.drillAuraMesh.geometry.attributes['position'].array as Float32Array;
+                const auraBase = this.drillAuraMesh.geometry.attributes['basePosition'].array as Float32Array;
+                const time = Date.now() * 0.004; // Faster rotation
+                
+                for (let i = 0; i < auraPos.length / 3; i++) {
+                    const idx = i * 3;
+                    const r = Math.sqrt(auraBase[idx]*auraBase[idx] + auraBase[idx+2]*auraBase[idx+2]) * 0.5; // Tighter radius
+                    const theta = Math.atan2(auraBase[idx+2], auraBase[idx]) + time;
+                    auraPos[idx] = r * Math.cos(theta);
+                    auraPos[idx+1] = auraBase[idx+1] * 2.0; // Stretched vertically
+                    auraPos[idx+2] = r * Math.sin(theta);
+                }
+                this.drillAuraMesh.geometry.attributes['position'].needsUpdate = true;
             }
         }
 
