@@ -342,11 +342,11 @@ export class GameComponent implements OnInit, OnDestroy {
                 let val = data.value || 0;
                 if (this.gameState.hasGoldenAura() && Math.random() < 0.1) val *= 5;
                 const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
-                this.gameState.coins.update(c => c + (val * scale * this.gameState.coinMultiplier()));
+                this.gameState.coins.update(c => c + Math.max(1, Math.floor(val * scale * this.gameState.coinMultiplier())));
             }
             if (data.type === 'gem') {
                 const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
-                this.gameState.gems.update(g => g + ((data.value || 0) * scale));
+                this.gameState.gems.update(g => g + Math.max(1, Math.floor((data.value || 0) * scale)));
                 if (this.inBossDefeatSequence()) {
                     this.bossGemsCollected++;
                     if (this.bossGemsCollected >= this.bossGemsDropped && !this.animatingAscension()) {
