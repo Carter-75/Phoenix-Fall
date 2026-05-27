@@ -141,10 +141,10 @@ export class GameStateService {
               this.level.set(data.level || 0);
               this.xp.set(data.xp || 0);
               this.trophies.set(data.trophies || []);
-              this.coins.set(data.coins !== undefined ? data.coins : 100);
+              this.coins.set(Math.floor(data.coins !== undefined ? data.coins : 100));
               
               // Boot-up creep: Increase chance of popup by 10% each session
-              if (data.gems !== undefined) this.gems.set(data.gems);
+              if (data.gems !== undefined) this.gems.set(Math.floor(data.gems));
               if (data.hasPurchasedGems !== undefined) this.hasPurchasedGems.set(data.hasPurchasedGems);
               if (data.acceptedLegalPolicies !== undefined) this.acceptedLegalPolicies.set(data.acceptedLegalPolicies);
               if (data.upsellChance !== undefined) {
@@ -380,8 +380,8 @@ export class GameStateService {
           this.level.set(user.level || 0);
           this.xp.set(user.xp || 0);
           this.trophies.set(user.trophies || []);
-          this.coins.set(user.coins !== undefined ? user.coins : 100);
-          this.gems.set(user.gems || 0);
+          this.coins.set(Math.floor(user.coins !== undefined ? user.coins : 100));
+          this.gems.set(Math.floor(user.gems || 0));
           if (user.acceptedLegalPolicies) this.acceptedLegalPolicies.set(true);
           this.unlockedWorlds.set(user.unlockedWorlds && user.unlockedWorlds.length > 0 ? user.unlockedWorlds : [0]);
           if (user.worldUpgrades && Object.keys(user.worldUpgrades).length > 0) {
