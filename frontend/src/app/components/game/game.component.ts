@@ -196,14 +196,20 @@ export class GameComponent implements OnInit, OnDestroy {
 
   getTapMaxCooldown() {
       const id = this.gameState.currentStats().activeTapAbility || 'burst';
-      if (id === 'drill_attack') return 3;
-      if (id === 'fire_breath') return 4;
-      return 5; // burst
+      if (id === 'drill_attack') return 3.6; // 3s cooldown + 0.6s duration
+      if (id === 'fire_breath') return 9.0;  // 8s cooldown + 1s duration
+      return 5.0; // burst
   }
 
   getHoldMaxCooldown() {
       const id = this.gameState.currentStats().activeHoldAbility || 'aura';
-      if (id === 'phoenix_turret') return 12;
+      if (id === 'phoenix_turret') {
+          const level = this.gameState.currentStats().unlockedAbilities['phoenix_turret']?.level || 1;
+          const duration = 6 + level; // active duration in seconds
+          const returnTime = 2; // return duration in seconds
+          const cooldown = Math.max(6, 12 - (level * 0.5));
+          return duration + returnTime + cooldown;
+      }
       if (id === 'rebirth') return 60; // 60s cooldown for Rebirth
       return 15; // aura
   }
@@ -232,6 +238,12 @@ export class GameComponent implements OnInit, OnDestroy {
   // Listeners bound
   private boundKeyDown = this.onKeyDown.bind(this);
   private boundVisibility = this.onVisibilityChange.bind(this);
+  private boundMouseMove = this.onMouseMove.bind(this);
+  private boundMouseDown = this.onMouseDown.bind(this);
+  private boundMouseUp = this.onMouseUp.bind(this);
+  private boundTouchStart = this.onTouchStart.bind(this);
+  private boundTouchMove = this.onTouchMove.bind(this);
+  private boundTouchEnd = this.onTouchEnd.bind(this);
 
   constructor(private ngZone: NgZone) {}
 
@@ -244,37 +256,44 @@ export class GameComponent implements OnInit, OnDestroy {
     this.initPhysics();
     this.startGameLoop();
     
-    window.addEventListener('mousemove', this.onMouseMove.bind(this));
-    window.addEventListener('mousedown', this.onMouseDown.bind(this));
-    window.addEventListener('mouseup', this.onMouseUp.bind(this));
-    window.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
-    window.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
-    window.addEventListener('touchend', this.onTouchEnd.bind(this));
+    window.addEventListener('mousemove', this.boundMouseMove);
+    window.addEventListener('mousedown', this.boundMouseDown);
+    window.addEventListener('mouseup', this.boundMouseUp);
+    window.addEventListener('touchstart', this.boundTouchStart, { passive: false });
+    window.addEventListener('touchmove', this.boundTouchMove, { passive: false });
+    window.addEventListener('touchend', this.boundTouchEnd);
     
     window.addEventListener('keydown', this.boundKeyDown);
     document.addEventListener('visibilitychange', this.boundVisibility);
   }
 
   ngOnDestroy() {
-    clearInterval(this.timerInterval);
-    clearTimeout(this.spawnInterval);
-    clearInterval(this.attackInterval);
-    clearInterval(this.reviveInterval);
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    if (this.spawnInterval) clearTimeout(this.spawnInterval);
+    if (this.attackInterval) clearInterval(this.attackInterval);
+    if (this.wallInterval) clearInterval(this.wallInterval);
+    if (this.reviveInterval) clearInterval(this.reviveInterval);
     
-    window.removeEventListener('mousemove', this.onMouseMove.bind(this));
-    window.removeEventListener('mousedown', this.onMouseDown.bind(this));
-    window.removeEventListener('mouseup', this.onMouseUp.bind(this));
-    window.removeEventListener('touchstart', this.onTouchStart.bind(this));
-    window.removeEventListener('touchmove', this.onTouchMove.bind(this));
-    window.removeEventListener('touchend', this.onTouchEnd.bind(this));
+    window.removeEventListener('mousemove', this.boundMouseMove);
+    window.removeEventListener('mousedown', this.boundMouseDown);
+    window.removeEventListener('mouseup', this.boundMouseUp);
+    window.removeEventListener('touchstart', this.boundTouchStart);
+    window.removeEventListener('touchmove', this.boundTouchMove);
+    window.removeEventListener('touchend', this.boundTouchEnd);
     window.removeEventListener('keydown', this.boundKeyDown);
     document.removeEventListener('visibilitychange', this.boundVisibility);
     
     this.gameState.phoenixOverridePosition.set(null);
     this.gameState.activeEntities.set([]);
     
-    if (this.runner) Matter.Runner.stop(this.runner);
-    if (this.engine) Matter.Engine.clear(this.engine);
+    if (this.engine) {
+        Matter.Events.off(this.engine, 'beforeUpdate');
+        Matter.Events.off(this.engine, 'collisionStart');
+        Matter.Engine.clear(this.engine);
+    }
+    if (this.runner) {
+        Matter.Runner.stop(this.runner);
+    }
   }
 
   private initPhysics() {
@@ -556,6 +575,11 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private startGameLoop() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    if (this.spawnInterval) clearTimeout(this.spawnInterval);
+    if (this.attackInterval) clearInterval(this.attackInterval);
+    if (this.wallInterval) clearInterval(this.wallInterval);
+    
     this.timerInterval = setInterval(() => {
       if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
       
@@ -587,7 +611,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private triggerDrillAttack() {
       if (this.gameState.isRebirthing()) return;
-      this.tapCooldown.set(3);
+      this.tapCooldown.set(3.6);
       this.audioService.playSFX('shoot');
       
       const level = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['drill_attack']?.level || 1;
@@ -608,7 +632,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private triggerFireBreath() {
       if (this.gameState.isRebirthing()) return;
-      this.tapCooldown.set(8);
+      this.tapCooldown.set(9.0);
       const damage = this.gameState.currentStats().damage * 0.5;
       this.audioService.playSFX('shoot');
       
@@ -656,7 +680,8 @@ export class GameComponent implements OnInit, OnDestroy {
       const damageMult = 1 + (level * 0.5);
       const baseDamage = this.gameState.currentStats().damage * damageMult;
       
-      this.holdCooldown.set(cooldown);
+      const totalCooldown = (duration / 1000) + 2 + cooldown;
+      this.holdCooldown.set(totalCooldown);
       const egg = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 20, {
           isStatic: true, isSensor: true, label: 'projectile',
           plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1, maxHealth: 1, size: 20 } as EnemyData }
@@ -787,7 +812,10 @@ export class GameComponent implements OnInit, OnDestroy {
               clearInterval(fireInterval);
               isReturning = true;
               
+              let exploded = false;
               const explode = () => {
+                  if (exploded) return;
+                  exploded = true;
                   if (!baby.parent || !egg.parent) return;
                   Matter.Events.off(this.engine, 'beforeUpdate', boidLogic);
                   

@@ -783,30 +783,54 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       else if (data.type === 'fire') {
         entity.mesh.scale.multiplyScalar(0.96); // Shrink over time
         entity.mesh.rotation.y += 0.1;
+      } else if (data.type === 'egg' && entity.basePositions) {
+        const pPositions = entity.mesh.geometry.attributes['position'].array as Float32Array;
+        const time = Date.now() * 0.003 + (entity.timeOffset || 0);
+        entity.mesh.rotation.y = time * 0.5;
+        entity.mesh.rotation.z = time * 0.2;
+        
+        for(let i=0; i<pPositions.length; i+=3) {
+            const baseX = entity.basePositions[i];
+            const baseY = entity.basePositions[i+1];
+            const baseZ = entity.basePositions[i+2];
+            const dist = Math.sqrt(baseX*baseX + baseY*baseY + baseZ*baseZ);
+            
+            // Pulsate outer vortex shell
+            if (dist > 15) {
+                const pulse = 1 + Math.sin(time * 3 + dist) * 0.1;
+                pPositions[i] = baseX * pulse;
+                pPositions[i+1] = baseY * pulse;
+                pPositions[i+2] = baseZ * pulse;
+            }
+        }
+        entity.mesh.geometry.attributes['position'].needsUpdate = true;
       } else if (data.type === 'turret') {
-        // True vertex-level flapping animation just like the main phoenix
-        if (this.bird && this.bird.basePositions) {
+        if (entity.basePositions) {
             const pPositions = entity.mesh.geometry.attributes['position'].array as Float32Array;
-            const r = data.size / 30;
+            const time = Date.now() * 0.015 + (entity.timeOffset || 0);
+            
             for (let i = 0; i < 4000; i++) {
                  const idx = i * 3;
-                 if (this.bird.basePositions.length > idx + 2) {
-                     const baseX = this.bird.basePositions[idx];
-                     const baseY = this.bird.basePositions[idx+1];
-                     const baseZ = this.bird.basePositions[idx+2];
+                 if (entity.basePositions.length > idx + 2) {
+                     const baseX = entity.basePositions[idx];
+                     const baseY = entity.basePositions[idx+1];
+                     const baseZ = entity.basePositions[idx+2];
                      
-                     const flapAmount = Math.abs(baseX) * 0.5;
-                     const flapPhase = (Date.now() * 0.01) - baseZ * 2.0;
-                     const flapOffset = Math.sin(flapPhase) * flapAmount;
-                     
-                     pPositions[idx] = baseX * 0.4 * r;
-                     pPositions[idx+1] = (baseY + flapOffset) * 0.4 * r;
-                     pPositions[idx+2] = baseZ * 0.4 * r;
+                     if (Math.abs(baseY) > 5) { // Trail particles
+                         const swirlAngle = time + baseY;
+                         const radius = Math.abs(baseX);
+                         pPositions[idx] = Math.cos(swirlAngle) * radius;
+                         pPositions[idx+2] = Math.sin(swirlAngle) * radius;
+                         pPositions[idx+1] = baseY + ((time * 10) % 20); 
+                     } else {
+                         const flapPhase = time - baseZ * 2.0;
+                         const flapOffset = Math.sin(flapPhase) * Math.abs(baseX) * 0.5;
+                         pPositions[idx+1] = baseY + flapOffset;
+                     }
                  }
             }
             entity.mesh.geometry.attributes['position'].needsUpdate = true;
         }
-      } else if (data.type !== 'egg') {
         entity.mesh.rotation.y += 0.02;
       }
 
@@ -1001,28 +1025,47 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
          z = (Math.random() - 0.5) * r * 2.5;
       }
       else if (data.type === 'egg') {
-         // Hollow speckled egg
+         // Golden Torus Knot Core + Swirling Vortex Shell
+         const t = Math.random() * Math.PI * 2;
+         const p = 3; const q = 4;
+         const rad_knot = Math.cos(q * t) + 2;
+         const knotX = rad_knot * Math.cos(p * t) * r * 0.3;
+         const knotY = rad_knot * Math.sin(p * t) * r * 0.3;
+         const knotZ = -Math.sin(q * t) * r * 0.3;
+         
          const u = Math.random() * Math.PI * 2;
-         const v = Math.acos(2 * Math.random() - 1);
-         const rad = r; // use surface
-         x = rad * Math.sin(v) * Math.cos(u) * 0.7;
-         y = rad * Math.sin(v) * Math.sin(u) * 1.1;
-         z = rad * Math.cos(v) * 0.7;
+         const v = Math.random() * Math.PI;
+         const vortexR = r * 1.5 * (1 - Math.pow(Math.random(), 3)); 
+         
+         if (Math.random() > 0.3) {
+             x = knotX + (Math.random() - 0.5) * r * 0.1;
+             y = knotY + (Math.random() - 0.5) * r * 0.1;
+             z = knotZ + (Math.random() - 0.5) * r * 0.1;
+         } else {
+             x = vortexR * Math.sin(v) * Math.cos(u);
+             y = vortexR * Math.sin(v) * Math.sin(u);
+             z = vortexR * Math.cos(v);
+         }
       }
       else if (data.type === 'turret') {
-         // Copy baby bird from main bird base positions (scaled down and animated)
+         // Tiny fiery bird with trailing vortex
          if (this.bird && this.bird.basePositions && this.bird.basePositions.length > idx + 2) {
              const baseX = this.bird.basePositions[idx];
              const baseY = this.bird.basePositions[idx+1];
              const baseZ = this.bird.basePositions[idx+2];
              
-             const flapAmount = Math.abs(baseX) * 0.5;
-             const flapPhase = (Date.now() * 0.01) - baseZ * 2.0;
-             const flapOffset = Math.sin(flapPhase) * flapAmount;
-             
-             x = baseX * 0.4 * r;
-             y = (baseY + flapOffset) * 0.4 * r;
-             z = baseZ * 0.4 * r;
+             if (Math.random() > 0.6) {
+                 // Trail vortex
+                 const t = Math.random() * Math.PI * 2;
+                 const trailR = r * Math.random() * 2.5;
+                 x = Math.cos(t) * trailR;
+                 y = Math.sin(t) * trailR + (Math.random() * r * 2.0);
+                 z = (Math.random() - 0.5) * r;
+             } else {
+                 x = baseX * 0.4 * r;
+                 y = baseY * 0.4 * r;
+                 z = baseZ * 0.4 * r;
+             }
          }
       }
       else {
@@ -1051,13 +1094,10 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           col[idx+1] = bColors[idx+1];
           col[idx+2] = bColors[idx+2];
       } else if (data.type === 'egg') {
-          // Use Y to create bands of magma and ash
-          const normalizedY = y / r;
           const rand = Math.random();
-          if (rand > 0.85) { col[idx] = 0.1; col[idx+1] = 0.1; col[idx+2] = 0.1; } // Ash speckles
-          else if (normalizedY < -0.5) { col[idx] = 1.0; col[idx+1] = 0.2; col[idx+2] = 0.0; } // Deep red bottom
-          else if (normalizedY > 0.5) { col[idx] = 1.0; col[idx+1] = 0.8; col[idx+2] = 0.2; } // Bright gold top
-          else { col[idx] = 0.8; col[idx+1] = 0.4; col[idx+2] = 0.0; } // Orange middle
+          if (rand > 0.8) { col[idx] = 1.0; col[idx+1] = 1.0; col[idx+2] = 0.8; } // White/Gold
+          else if (rand > 0.4) { col[idx] = 1.0; col[idx+1] = 0.8; col[idx+2] = 0.0; } // Bright Gold
+          else { col[idx] = 1.0; col[idx+1] = 0.3; col[idx+2] = 0.0; } // Fiery Orange
       } else {
           col[idx] = color.r * (0.8 + Math.random()*0.4);
           col[idx+1] = color.g * (0.8 + Math.random()*0.4);
@@ -1073,7 +1113,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     mesh.frustumCulled = false;
     
     // Store base positions for complex entities to allow vertex animation
-    const basePositions = ['slime', 'bat', 'golem', 'boss'].includes(data.type) ? new Float32Array(pos) : undefined;
+    const basePositions = ['slime', 'bat', 'golem', 'boss', 'egg', 'turret'].includes(data.type) ? new Float32Array(pos) : undefined;
 
     return { mesh, type: data.type, basePositions, timeOffset: Math.random() * 1000 };
   }
