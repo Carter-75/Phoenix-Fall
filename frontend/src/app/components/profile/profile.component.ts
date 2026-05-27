@@ -1,13 +1,50 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { GameStateService } from '../../services/game-state.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+
+interface TrophyDef {
+   id: string;
+   name: string;
+   desc: string;
+}
+
+interface RealmTrophies {
+   realmName: string;
+   trophies: TrophyDef[];
+}
+
+const TROPHY_CATALOG: RealmTrophies[] = [
+  {
+    realmName: 'The Awakening (Realm 1)',
+    trophies: [
+      { id: 'First Blood', name: 'First Blood', desc: 'Defeat your first enemy.' },
+      { id: 'Survivor', name: 'Survivor', desc: 'Survive for 60 seconds in a single run.' },
+      { id: 'Healer', name: 'Healer', desc: 'Collect 5 health hearts in a run.' },
+      { id: 'Upgraded', name: 'Upgraded', desc: 'Purchase your first permanent upgrade.' },
+      { id: 'Ability Unlocked', name: 'Ability Unlocked', desc: 'Unlock an active ability.' },
+      { id: 'Slime Slayer', name: 'Slime Slayer', desc: 'Slay 50 slimes in a single run.' },
+      { id: 'Bat Hunter', name: 'Bat Hunter', desc: 'Shoot down 25 bats in a single run.' },
+      { id: 'Golem Breaker', name: 'Golem Breaker', desc: 'Shatter 5 golems in a single run.' },
+      { id: 'Wealthy', name: 'Wealthy', desc: 'Accumulate 1,000 coins.' },
+      { id: 'Gem Hoarder', name: 'Gem Hoarder', desc: 'Hoard 10 precious gems.' },
+      { id: 'Realm Conqueror', name: 'Realm Conqueror', desc: 'Defeat the Realm Boss.' }
+    ]
+  },
+  {
+    realmName: 'The Crimson Void (Realm 2)',
+    trophies: [
+       // Expandable for future realms
+    ]
+  }
+];
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="fixed inset-0 flex flex-col items-center p-8 z-50 overflow-y-auto">
       <button (click)="goBack()" class="absolute top-6 left-6 text-white/50 hover:text-white transition flex items-center gap-2">
@@ -35,16 +72,42 @@ import { CommonModule } from '@angular/common';
             </button>
           </div>
           
-          <h3 class="text-2xl font-bold text-white mb-4">Trophies</h3>
-          <div class="flex flex-wrap gap-3">
-             @if (gameState.trophies().length === 0) {
-                 <div class="w-full text-white/40 text-center py-4">No trophies yet. Keep playing!</div>
+          <div class="flex items-center justify-between mb-4">
+             <h3 class="text-2xl font-bold text-white">Trophies</h3>
+             <input type="text" [(ngModel)]="searchQuery" placeholder="Search trophies..." class="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:border-orange-500 transition w-64">
+          </div>
+          
+          <div class="space-y-8">
+             @for (realm of filteredTrophies(); track realm.realmName) {
+                @if (realm.trophies.length > 0) {
+                    <div>
+                        <h4 class="text-xl font-bold text-orange-400 mb-3 border-b border-white/10 pb-2">{{ realm.realmName }}</h4>
+                        <div class="flex flex-wrap gap-3">
+                           @for (trophy of realm.trophies; track trophy.id) {
+                               @if (hasTrophy(trophy.id)) {
+                                   <div class="bg-white/5 border border-yellow-500/30 rounded-lg py-2 px-4 flex items-center gap-3 shadow-[0_0_10px_rgba(234,179,8,0.05)] hover:bg-white/10 transition cursor-help" [title]="trophy.desc">
+                                      <span class="text-2xl drop-shadow-md">🏆</span>
+                                      <div class="flex flex-col">
+                                          <span class="text-yellow-100 font-bold text-sm leading-tight">{{ trophy.name }}</span>
+                                          <span class="text-white/40 text-xs">{{ trophy.desc }}</span>
+                                      </div>
+                                   </div>
+                               } @else {
+                                   <div class="bg-white/5 border border-white/10 rounded-lg py-2 px-4 flex items-center gap-3 opacity-50 cursor-not-allowed">
+                                      <span class="text-2xl grayscale">🔒</span>
+                                      <div class="flex flex-col">
+                                          <span class="text-white/50 font-bold text-sm leading-tight">???</span>
+                                          <span class="text-white/30 text-xs">Keep playing to unlock</span>
+                                      </div>
+                                   </div>
+                               }
+                           }
+                        </div>
+                    </div>
+                }
              }
-             @for (trophy of gameState.trophies(); track trophy) {
-                 <div class="bg-white/5 border border-yellow-500/30 rounded-lg py-2 px-4 flex items-center gap-2 shadow-[0_0_10px_rgba(234,179,8,0.05)] hover:bg-white/10 transition">
-                    <span class="text-xl drop-shadow-md">🏆</span>
-                    <span class="text-yellow-100 font-bold text-sm">{{ trophy }}</span>
-                 </div>
+             @if (filteredTrophies().length === 0 || allTrophiesEmpty()) {
+                 <div class="w-full text-white/40 text-center py-4 bg-white/5 rounded-xl border border-white/10">No trophies match your search.</div>
              }
           </div>
           
@@ -167,6 +230,35 @@ export class ProfileComponent {
   gameState = inject(GameStateService);
   auth = inject(AuthService);
   audio = inject(AudioService);
+
+  searchQuery = signal('');
+
+  hasTrophy(id: string): boolean {
+      return this.gameState.trophies().includes(id);
+  }
+
+  filteredTrophies = computed(() => {
+      const query = this.searchQuery().toLowerCase().trim();
+      
+      return TROPHY_CATALOG.map(realm => {
+          const filtered = realm.trophies.filter(t => {
+              if (!query) return true;
+              
+              // If unlocked, search by name or desc
+              if (this.hasTrophy(t.id)) {
+                  return t.name.toLowerCase().includes(query) || t.desc.toLowerCase().includes(query);
+              }
+              
+              // If locked, cannot be searched by name/desc, unless they search "???"
+              return "???".includes(query) || "keep playing to unlock".includes(query);
+          });
+          return { ...realm, trophies: filtered };
+      }).filter(realm => realm.trophies.length > 0);
+  });
+
+  allTrophiesEmpty(): boolean {
+      return this.filteredTrophies().every(r => r.trophies.length === 0);
+  }
 
   goBack() {
     this.audio.playSFX('hit');
