@@ -4,11 +4,15 @@ import { Injectable, signal } from '@angular/core';
   providedIn: 'root'
 })
 export class AudioService {
-  public isMuted = signal<boolean>(false);
+  public masterVolume = signal<number>(1.0);
+  public menuVolume = signal<number>(1.0);
+  public attackVolume = signal<number>(1.0);
+  public intenseVolume = signal<number>(1.0);
   
   private currentBgm: HTMLAudioElement | null = null;
   private menuBgm = new Audio('assets/audio/menu_bgm.wav');
   private world1Bgm = new Audio('assets/audio/world_1_bgm.wav');
+  private intenseBgm = new Audio('assets/audio/intense_bgm.wav');
   
   private sfxShoot = new Audio('assets/audio/shoot.wav');
   private sfxHit = new Audio('assets/audio/hit.wav');
@@ -19,43 +23,72 @@ export class AudioService {
 
   constructor() {
     this.menuBgm.loop = true;
-    this.menuBgm.volume = 0.3;
-    
     this.world1Bgm.loop = true;
-    this.world1Bgm.volume = 0.3;
+    this.intenseBgm.loop = true;
 
-    // Load from local storage
-    const saved = localStorage.getItem('phoenix_muted');
-    if (saved === 'true') {
-        this.isMuted.set(true);
-    }
+    this.loadSettings();
+    this.updateVolumes();
   }
 
-  toggleMute() {
-    this.isMuted.set(!this.isMuted());
-    localStorage.setItem('phoenix_muted', this.isMuted().toString());
-    
-    if (this.isMuted()) {
-        if (this.currentBgm) this.currentBgm.pause();
-    } else {
-        if (this.currentBgm) this.currentBgm.play().catch(e => console.log('BGM play prevented', e));
-    }
+  private loadSettings() {
+      const savedMaster = localStorage.getItem('phoenix_vol_master');
+      if (savedMaster !== null) this.masterVolume.set(parseFloat(savedMaster));
+      
+      const savedMenu = localStorage.getItem('phoenix_vol_menu');
+      if (savedMenu !== null) this.menuVolume.set(parseFloat(savedMenu));
+      
+      const savedAttack = localStorage.getItem('phoenix_vol_attack');
+      if (savedAttack !== null) this.attackVolume.set(parseFloat(savedAttack));
+      
+      const savedIntense = localStorage.getItem('phoenix_vol_intense');
+      if (savedIntense !== null) this.intenseVolume.set(parseFloat(savedIntense));
+  }
+
+  public saveSettings() {
+      localStorage.setItem('phoenix_vol_master', this.masterVolume().toString());
+      localStorage.setItem('phoenix_vol_menu', this.menuVolume().toString());
+      localStorage.setItem('phoenix_vol_attack', this.attackVolume().toString());
+      localStorage.setItem('phoenix_vol_intense', this.intenseVolume().toString());
+      this.updateVolumes();
+  }
+
+  private updateVolumes() {
+      const mVol = this.masterVolume();
+      this.menuBgm.volume = 0.3 * mVol * this.menuVolume();
+      this.world1Bgm.volume = 0.3 * mVol * this.menuVolume(); // Game bgm uses menu/music volume channel
+      this.intenseBgm.volume = 0.5 * mVol * this.intenseVolume();
+  }
+
+  // Helper to check if effectively muted
+  public isMuted() {
+      return this.masterVolume() === 0;
   }
 
   playMenuBgm() {
     this.stopBgm();
     this.currentBgm = this.menuBgm;
-    if (!this.isMuted()) {
+    if (!this.isMuted() && this.menuVolume() > 0) {
         this.currentBgm.play().catch(e => console.log('BGM play prevented', e));
     }
   }
   
   playWorldBgm(worldId: number = 0) {
       this.stopBgm();
-      // Right now only world 1 (id 0) is generated, fallback to world 1
       this.currentBgm = this.world1Bgm;
-      if (!this.isMuted()) {
+      if (!this.isMuted() && this.menuVolume() > 0) {
           this.currentBgm.play().catch(e => console.log('BGM play prevented', e));
+      }
+  }
+  
+  playIntenseBgm() {
+      if (this.intenseBgm.paused && !this.isMuted() && this.intenseVolume() > 0) {
+          this.intenseBgm.play().catch(e => console.log('Intense BGM play prevented', e));
+      }
+  }
+  
+  stopIntenseBgm() {
+      if (!this.intenseBgm.paused) {
+          this.intenseBgm.pause();
       }
   }
 
@@ -87,8 +120,13 @@ export class AudioService {
     
     if (audio) {
         const clone = audio.cloneNode() as HTMLAudioElement;
-        clone.volume = 0.4;
-        clone.play().catch(e => console.log('SFX play prevented', e));
+        const isMenuSfx = (type === 'buy' || type === 'click');
+        const channelVol = isMenuSfx ? this.menuVolume() : this.attackVolume();
+        clone.volume = 0.4 * this.masterVolume() * channelVol;
+        
+        if (clone.volume > 0) {
+            clone.play().catch(e => console.log('SFX play prevented', e));
+        }
     }
   }
 }

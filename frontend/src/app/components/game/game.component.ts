@@ -1,7 +1,8 @@
-import { Component, ElementRef, OnInit, OnDestroy, ViewChild, inject, NgZone, signal, computed } from '@angular/core';
+import { Component, ElementRef, OnInit, OnDestroy, ViewChild, inject, NgZone, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GameStateService, PhysicsEntity, ABILITIES } from '../../services/game-state.service';
 import { AudioService } from '../../services/audio.service';
+import { SettingsComponent } from '../settings/settings.component';
 import * as Matter from 'matter-js';
 import anime from 'animejs';
 
@@ -19,7 +20,7 @@ interface EnemyData {
 @Component({
   selector: 'app-game',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SettingsComponent],
   template: `
     <div class="fixed inset-0 z-10 w-full h-full pointer-events-none">
       
@@ -88,11 +89,18 @@ interface EnemyData {
             <button (click)="togglePause()" class="w-full py-4 bg-white/10 hover:bg-white/20 border border-white/30 rounded-2xl text-white font-bold text-xl transition">
               Resume
             </button>
+            <button (click)="showSettings = true" class="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/20 rounded-2xl text-white font-bold text-lg transition">
+              Settings
+            </button>
             <button (click)="quitGame()" class="w-full py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
               Quit to Menu
             </button>
           </div>
         </div>
+      }
+      
+      @if (showSettings) {
+          <app-settings (close)="showSettings = false"></app-settings>
       }
 
       <!-- Damage Overlay (Red Flash) -->
@@ -179,6 +187,8 @@ export class GameComponent implements OnInit, OnDestroy {
   public inBossDefeatSequence = signal<boolean>(false);
   public bossDefeatTimestamp = 0;
   public animatingAscension = signal<boolean>(false);
+  
+  public showSettings = false;
 
   // Revive UI
   public reviveCountdown = signal<number>(10);
@@ -245,7 +255,16 @@ export class GameComponent implements OnInit, OnDestroy {
   private boundTouchMove = this.onTouchMove.bind(this);
   private boundTouchEnd = this.onTouchEnd.bind(this);
 
-  constructor(private ngZone: NgZone) {}
+  constructor(private ngZone: NgZone) {
+      effect(() => {
+          const hpRatio = this.currentHealth() / this.maxHealth();
+          if (hpRatio < 0.3 && hpRatio > 0 && !this.gameState.isPaused() && !this.gameEnded()) {
+              this.audioService.playIntenseBgm();
+          } else {
+              this.audioService.stopIntenseBgm();
+          }
+      });
+  }
 
   ngOnInit() {
     this.currentHealth.set(this.maxHealth());
@@ -271,7 +290,6 @@ export class GameComponent implements OnInit, OnDestroy {
     if (this.timerInterval) clearInterval(this.timerInterval);
     if (this.spawnInterval) clearTimeout(this.spawnInterval);
     if (this.attackInterval) clearInterval(this.attackInterval);
-    if (this.attackInterval) clearInterval(this.attackInterval);
     if (this.reviveInterval) clearInterval(this.reviveInterval);
     
     window.removeEventListener('mousemove', this.boundMouseMove);
@@ -294,6 +312,8 @@ export class GameComponent implements OnInit, OnDestroy {
     if (this.runner) {
         Matter.Runner.stop(this.runner);
     }
+    
+    this.audioService.stopIntenseBgm();
   }
 
   private initPhysics() {
@@ -520,6 +540,9 @@ export class GameComponent implements OnInit, OnDestroy {
                 const normalized = Matter.Vector.normalise(force);
                 const pullStrength = 0.002 * (1 - dist / magnetRadius);
                 Matter.Body.applyForce(item, item.position, Matter.Vector.mult(normalized, pullStrength));
+             } else {
+                 // Fall down via gravity
+                 Matter.Body.applyForce(item, item.position, { x: 0, y: 0.0005 });
              }
          }
       });
@@ -548,6 +571,15 @@ export class GameComponent implements OnInit, OnDestroy {
               }
           });
       }
+
+      // 4.6 Cleanup off-screen items
+      this.items = this.items.filter(item => {
+          if (item.position.y > window.innerHeight + 200) {
+              if (item.parent) Matter.Composite.remove(this.engine.world, item);
+              return false;
+          }
+          return true;
+      });
 
       // 5. Publish bodies to ParticleBg rendering service
       const entities: PhysicsEntity[] = [];

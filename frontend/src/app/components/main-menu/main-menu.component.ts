@@ -3,11 +3,12 @@ import { GameStateService } from '../../services/game-state.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
 import { CommonModule } from '@angular/common';
+import { SettingsComponent } from '../settings/settings.component';
 
 @Component({
   selector: 'app-main-menu',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SettingsComponent],
   template: `
     <div class="flex flex-col items-center justify-center w-full h-screen text-white pointer-events-none">
       
@@ -82,10 +83,14 @@ import { CommonModule } from '@angular/common';
         </button>
       </div>
       
-      <!-- Audio Toggle -->
-      <button (click)="toggleAudio()" class="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition pointer-events-auto">
-         {{ audio.isMuted() ? '🔇' : '🔊' }}
+      <!-- Settings Button -->
+      <button (click)="showSettings = true" class="absolute bottom-6 right-6 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/50 hover:text-white font-bold transition pointer-events-auto">
+         SETTINGS ⚙️
       </button>
+      
+      @if(showSettings) {
+         <app-settings (close)="showSettings = false"></app-settings>
+      }
     </div>
   `
 })
@@ -96,6 +101,8 @@ export class MainMenuComponent {
 
   currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
   isWorldUnlocked = computed(() => this.gameState.selectedWorldIndex() === 0);
+  
+  showSettings = false;
 
   nextWorld() {
     this.audio.playSFX('click');
@@ -136,9 +143,7 @@ export class MainMenuComponent {
     this.gameState.activeScreen.set('leaderboard');
   }
 
-  toggleAudio() {
-    this.audio.toggleMute();
-  }
+
 
   startGame() {
     if (this.isWorldUnlocked()) {

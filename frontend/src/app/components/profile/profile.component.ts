@@ -179,18 +179,7 @@ const TROPHY_CATALOG: RealmTrophies[] = [
         <div class="mt-8">
           <h3 class="text-2xl font-bold text-white mb-6 flex items-center gap-2"><span class="text-3xl">⚙️</span> Settings</h3>
           <div class="flex flex-col gap-4">
-              <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
-                <div class="flex flex-col">
-                   <span class="text-white font-bold text-lg">Game Audio</span>
-                   <span class="text-white/50 text-sm">Toggle all sound effects and music</span>
-                </div>
-                <button (click)="toggleAudio()" class="w-16 h-8 rounded-full transition-colors relative"
-                        [ngClass]="audio.isMuted() ? 'bg-gray-600' : 'bg-orange-500'">
-                   <div class="absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md"
-                        [ngClass]="audio.isMuted() ? 'left-1' : 'left-9'"></div>
-                </button>
-              </div>
-              
+
               <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between">
                 <div class="flex flex-col">
                    <span class="text-white font-bold text-lg">Legal & Policies</span>
@@ -284,11 +273,6 @@ export class ProfileComponent {
   logout() {
       this.audio.playSFX('hit');
       this.auth.logout();
-  }
-
-  toggleAudio() {
-    this.audio.toggleMute();
-    this.audio.playSFX('click');
   }
 
   toggleCosmetic(type: string) {
