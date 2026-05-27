@@ -281,37 +281,44 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   }
 
   private buildRealm1Art() {
-      // Jagged glowing crystals
-      const geometry = new THREE.DodecahedronGeometry(1.5, 0);
+      // Massive looping canyon walls
+      const height = 120;
+      const geometry = new THREE.BoxGeometry(4, height, 10, 4, 30, 2);
       
-      const coreMat = new THREE.MeshBasicMaterial({ color: 0xaa2200, transparent: true, opacity: 0.4 });
-      const wireMat = new THREE.MeshBasicMaterial({ color: 0xff5500, wireframe: true, transparent: true, opacity: 0.8 });
+      // Disrupt the vertices to make it look like a rugged, jagged cliff
+      const positions = geometry.attributes['position'] as THREE.BufferAttribute;
+      for (let i = 0; i < positions.count; i++) {
+          const x = positions.getX(i);
+          const z = positions.getZ(i);
+          positions.setX(i, x + (Math.random() - 0.5) * 2.5);
+          positions.setZ(i, z + (Math.random() - 0.5) * 1.5);
+      }
+      geometry.computeVertexNormals();
+
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0xaa2200, transparent: true, opacity: 0.15 });
+      const wireMat = new THREE.MeshBasicMaterial({ color: 0xff5500, wireframe: true, transparent: true, opacity: 0.4 });
       
-      for (let i = 0; i < 30; i++) {
-          const isLeft = Math.random() > 0.5;
-          const x = (isLeft ? -1 : 1) * (this.boundX + 1 + Math.random() * 3);
-          const y = (Math.random() - 0.5) * 80;
-          const z = -5 - Math.random() * 10;
+      for (let side of ['left', 'right']) {
+          const sign = side === 'left' ? -1 : 1;
+          const xOffset = sign * (this.boundX + 3);
           
-          const core = new THREE.Mesh(geometry, coreMat);
-          const wire = new THREE.Mesh(geometry, wireMat);
-          
-          const scaleY = 1 + Math.random() * 3;
-          core.scale.set(1, scaleY, 1);
-          wire.scale.set(1.05, scaleY * 1.05, 1.05);
-          
-          core.position.set(x, y, z);
-          wire.position.set(x, y, z);
-          
-          core.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-          wire.rotation.copy(core.rotation);
-          
-          // Store original rotations for animation
-          (core as any).baseRotation = core.rotation.clone();
-          (wire as any).baseRotation = wire.rotation.clone();
-          
-          this.sideArtGroup.add(core);
-          this.sideArtGroup.add(wire);
+          for (let i = 0; i < 2; i++) { // Two segments per side to loop seamlessly
+              const core = new THREE.Mesh(geometry, coreMat);
+              const wire = new THREE.Mesh(geometry, wireMat);
+              
+              const yOffset = i * height - (height / 2); // Start one at 0, one at height
+              
+              core.position.set(xOffset, yOffset, -10);
+              wire.position.set(xOffset, yOffset, -10);
+              
+              (core as any).isWall = true;
+              (core as any).wallHeight = height;
+              (wire as any).isWall = true;
+              (wire as any).wallHeight = height;
+              
+              this.sideArtGroup.add(core);
+              this.sideArtGroup.add(wire);
+          }
       }
   }
 
@@ -488,14 +495,21 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
             this.sideArtGroup.children.forEach(child => {
                 const mesh = child as THREE.Mesh;
                 mesh.position.y -= 0.2 * this.gameState.currentStats().speed;
-                if (mesh.position.y < -40) {
-                    mesh.position.y = 40 + Math.random() * 10;
-                }
                 
-                // Add a subtle rotation based on the mesh's baseRotation if it exists
-                if ((mesh as any).baseRotation) {
-                    mesh.rotation.x += 0.01;
-                    mesh.rotation.y += 0.01;
+                if ((mesh as any).isWall) {
+                    const h = (mesh as any).wallHeight;
+                    // If it falls below camera, loop it to the top
+                    if (mesh.position.y < -h) {
+                        mesh.position.y += h * 2;
+                    }
+                } else {
+                    if (mesh.position.y < -40) {
+                        mesh.position.y = 40 + Math.random() * 10;
+                    }
+                    if ((mesh as any).baseRotation) {
+                        mesh.rotation.x += 0.01;
+                        mesh.rotation.y += 0.01;
+                    }
                 }
             });
         }
