@@ -158,14 +158,23 @@ export interface ActiveDeal {
             </div>
             <div class="w-full mt-4">
               @if (canAffordWithGemsButNotCoins(getCost('maxHealth', 100, 10, 100))) {
-                 <button (click)="buyHealth(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('maxHealth', 100, 10, 100)) }}
+                 <div class="flex gap-2 w-full">
+                   <button (click)="buyHealth(true)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(200,0,255,0.3)]">
+                     <img src="assets/gem_icon.png" class="w-7 h-7"/>
+                   </button>
+                   <button (click)="buyWithAd('maxHealth')" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                     <span class="text-2xl">📺</span>
+                   </button>
+                 </div>
+              } @else if (gameState.coins() < getCost('maxHealth', 100, 10, 100)) {
+                 <button (click)="buyWithAd('maxHealth')" class="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                   <span class="text-xl">📺</span>
                  </button>
-} @else {
-                 <button (click)="buyHealth()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('maxHealth', 100, 10, 100)">
+              } @else {
+                 <button (click)="buyHealth()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition" [disabled]="gameState.coins() < getCost('maxHealth', 100, 10, 100)">
                    <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('maxHealth', 100, 10, 100) }}
                  </button>
-                            }
+              }
             </div>
           </div>
 
@@ -181,14 +190,23 @@ export interface ActiveDeal {
             </div>
             <div class="w-full mt-4">
               @if (canAffordWithGemsButNotCoins(getCost('speed', 150, 0.1, 1))) {
-                 <button (click)="buySpeed(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('speed', 150, 0.1, 1)) }}
+                 <div class="flex gap-2 w-full">
+                   <button (click)="buySpeed(true)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(200,0,255,0.3)]">
+                     <img src="assets/gem_icon.png" class="w-7 h-7"/>
+                   </button>
+                   <button (click)="buyWithAd('speed')" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                     <span class="text-2xl">📺</span>
+                   </button>
+                 </div>
+              } @else if (gameState.coins() < getCost('speed', 150, 0.1, 1)) {
+                 <button (click)="buyWithAd('speed')" class="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                   <span class="text-xl">📺</span>
                  </button>
-} @else {
-                 <button (click)="buySpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('speed', 150, 0.1, 1)">
+              } @else {
+                 <button (click)="buySpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition" [disabled]="gameState.coins() < getCost('speed', 150, 0.1, 1)">
                    <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('speed', 150, 0.1, 1) }}
                  </button>
-                            }
+              }
             </div>
           </div>
 
@@ -204,14 +222,23 @@ export interface ActiveDeal {
             </div>
             <div class="w-full mt-4">
               @if (canAffordWithGemsButNotCoins(getCost('magnetism', 200, 0.1, 1))) {
-                 <button (click)="buyMagnet(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('magnetism', 200, 0.1, 1)) }}
+                 <div class="flex gap-2 w-full">
+                   <button (click)="buyMagnet(true)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(200,0,255,0.3)]">
+                     <img src="assets/gem_icon.png" class="w-7 h-7"/>
+                   </button>
+                   <button (click)="buyWithAd('magnetism')" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                     <span class="text-2xl">📺</span>
+                   </button>
+                 </div>
+              } @else if (gameState.coins() < getCost('magnetism', 200, 0.1, 1)) {
+                 <button (click)="buyWithAd('magnetism')" class="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                   <span class="text-xl">📺</span>
                  </button>
-} @else {
-                 <button (click)="buyMagnet()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('magnetism', 200, 0.1, 1)">
+              } @else {
+                 <button (click)="buyMagnet()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition" [disabled]="gameState.coins() < getCost('magnetism', 200, 0.1, 1)">
                    <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('magnetism', 200, 0.1, 1) }}
                  </button>
-                            }
+              }
             </div>
           </div>
 
@@ -227,14 +254,23 @@ export interface ActiveDeal {
             </div>
             <div class="w-full mt-4">
               @if (canAffordWithGemsButNotCoins(getCost('damage', 250, 1, 10))) {
-                 <button (click)="buyDamage(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('damage', 250, 1, 10)) }}
+                 <div class="flex gap-2 w-full">
+                   <button (click)="buyDamage(true)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(200,0,255,0.3)]">
+                     <img src="assets/gem_icon.png" class="w-7 h-7"/>
+                   </button>
+                   <button (click)="buyWithAd('damage')" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                     <span class="text-2xl">📺</span>
+                   </button>
+                 </div>
+              } @else if (gameState.coins() < getCost('damage', 250, 1, 10)) {
+                 <button (click)="buyWithAd('damage')" class="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                   <span class="text-xl">📺</span>
                  </button>
-} @else {
-                 <button (click)="buyDamage()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('damage', 250, 1, 10)">
+              } @else {
+                 <button (click)="buyDamage()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition" [disabled]="gameState.coins() < getCost('damage', 250, 1, 10)">
                    <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('damage', 250, 1, 10) }}
                  </button>
-                            }
+              }
             </div>
           </div>
 
@@ -250,14 +286,23 @@ export interface ActiveDeal {
             </div>
             <div class="w-full mt-4">
               @if (canAffordWithGemsButNotCoins(getCost('attackSpeed', 300, 0.1, 1))) {
-                 <button (click)="buyAttackSpeed(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('attackSpeed', 300, 0.1, 1)) }}
+                 <div class="flex gap-2 w-full">
+                   <button (click)="buyAttackSpeed(true)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(200,0,255,0.3)]">
+                     <img src="assets/gem_icon.png" class="w-7 h-7"/>
+                   </button>
+                   <button (click)="buyWithAd('attackSpeed')" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                     <span class="text-2xl">📺</span>
+                   </button>
+                 </div>
+              } @else if (gameState.coins() < getCost('attackSpeed', 300, 0.1, 1)) {
+                 <button (click)="buyWithAd('attackSpeed')" class="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                   <span class="text-xl">📺</span>
                  </button>
-} @else {
-                 <button (click)="buyAttackSpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('attackSpeed', 300, 0.1, 1)">
+              } @else {
+                 <button (click)="buyAttackSpeed()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition" [disabled]="gameState.coins() < getCost('attackSpeed', 300, 0.1, 1)">
                    <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackSpeed', 300, 0.1, 1) }}
                  </button>
-                            }
+              }
             </div>
           </div>
 
@@ -273,14 +318,23 @@ export interface ActiveDeal {
             </div>
             <div class="w-full mt-4">
               @if (canAffordWithGemsButNotCoins(getCost('attackRange', 250, 50, 400))) {
-                 <button (click)="buyAttackRange(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('attackRange', 250, 50, 400)) }}
+                 <div class="flex gap-2 w-full">
+                   <button (click)="buyAttackRange(true)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(200,0,255,0.3)]">
+                     <img src="assets/gem_icon.png" class="w-7 h-7"/>
+                   </button>
+                   <button (click)="buyWithAd('attackRange')" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                     <span class="text-2xl">📺</span>
+                   </button>
+                 </div>
+              } @else if (gameState.coins() < getCost('attackRange', 250, 50, 400)) {
+                 <button (click)="buyWithAd('attackRange')" class="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                   <span class="text-xl">📺</span>
                  </button>
-} @else {
-                 <button (click)="buyAttackRange()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('attackRange', 250, 50, 400)">
+              } @else {
+                 <button (click)="buyAttackRange()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition" [disabled]="gameState.coins() < getCost('attackRange', 250, 50, 400)">
                    <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('attackRange', 250, 50, 400) }}
                  </button>
-                            }
+              }
             </div>
           </div>
 
@@ -296,14 +350,23 @@ export interface ActiveDeal {
             </div>
             <div class="w-full mt-4">
               @if (canAffordWithGemsButNotCoins(getCost('auraRadius', 400, 10, 250))) {
-                 <button (click)="buyAuraRadius(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('auraRadius', 400, 10, 250)) }}
+                 <div class="flex gap-2 w-full">
+                   <button (click)="buyAuraRadius(true)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(200,0,255,0.3)]">
+                     <img src="assets/gem_icon.png" class="w-7 h-7"/>
+                   </button>
+                   <button (click)="buyWithAd('auraRadius')" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                     <span class="text-2xl">📺</span>
+                   </button>
+                 </div>
+              } @else if (gameState.coins() < getCost('auraRadius', 400, 10, 250)) {
+                 <button (click)="buyWithAd('auraRadius')" class="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                   <span class="text-xl">📺</span>
                  </button>
-} @else {
-                 <button (click)="buyAuraRadius()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('auraRadius', 400, 10, 250)">
+              } @else {
+                 <button (click)="buyAuraRadius()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition" [disabled]="gameState.coins() < getCost('auraRadius', 400, 10, 250)">
                    <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('auraRadius', 400, 10, 250) }}
                  </button>
-                            }
+              }
             </div>
           </div>
 
@@ -319,14 +382,23 @@ export interface ActiveDeal {
             </div>
             <div class="w-full mt-4">
               @if (canAffordWithGemsButNotCoins(getCost('homingLevel', 300, 1, 0))) {
-                 <button (click)="buyHoming(true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale">
-                   <img src="assets/gem_icon.png" class="w-5 h-5"/> {{ getGemCost(getCost('homingLevel', 300, 1, 0)) }}
+                 <div class="flex gap-2 w-full">
+                   <button (click)="buyHoming(true)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(200,0,255,0.3)]">
+                     <img src="assets/gem_icon.png" class="w-7 h-7"/>
+                   </button>
+                   <button (click)="buyWithAd('homingLevel')" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                     <span class="text-2xl">📺</span>
+                   </button>
+                 </div>
+              } @else if (gameState.coins() < getCost('homingLevel', 300, 1, 0)) {
+                 <button (click)="buyWithAd('homingLevel')" class="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                   <span class="text-xl">📺</span>
                  </button>
-} @else {
-                 <button (click)="buyHoming()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale" [disabled]="gameState.coins() < getCost('homingLevel', 300, 1, 0)">
+              } @else {
+                 <button (click)="buyHoming()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition" [disabled]="gameState.coins() < getCost('homingLevel', 300, 1, 0)">
                    <img src="assets/coin_icon.png" class="w-5 h-5"/> {{ getCost('homingLevel', 300, 1, 0) }}
                  </button>
-                            }
+              }
             </div>
           </div>
         </div>
@@ -829,6 +901,54 @@ export class ShopComponent implements OnInit, OnDestroy {
 
   get abilitiesList() { return Object.values(ABILITIES); }
 
+  
+  buyWithAd(type: string) {
+    const win = window as any;
+    const executeUpgrade = () => {
+        switch(type) {
+            case 'maxHealth': this.buyHealth(false, true); break;
+            case 'speed': this.buySpeed(false, true); break;
+            case 'magnetism': this.buyMagnet(false, true); break;
+            case 'damage': this.buyDamage(false, true); break;
+            case 'attackSpeed': this.buyAttackSpeed(false, true); break;
+            case 'attackRange': this.buyAttackRange(false, true); break;
+            case 'auraRadius': this.buyAuraRadius(false, true); break;
+            case 'homingLevel': this.buyHoming(false, true); break;
+        }
+    };
+
+    if (typeof win.adBreak === 'function') {
+        win.adBreak({
+            type: 'reward',
+            name: 'upgrade_ad',
+            beforeReward: (showAdFn: any) => { showAdFn(); },
+            adViewed: () => { executeUpgrade(); },
+            adDismissed: () => { },
+            beforeAd: () => {
+                this.gameState.audio.masterVolume.set(0);
+                this.gameState.audio.saveSettings();
+            },
+            afterAd: () => {
+                const savedMaster = localStorage.getItem('phoenix_vol_master');
+                this.gameState.audio.masterVolume.set(savedMaster !== null ? parseFloat(savedMaster) : 1.0);
+                this.gameState.audio.saveSettings();
+            }
+        });
+    } else {
+        console.warn("Google AdSense adBreak API not found. Mocking ad watch...");
+        this.gameState.audio.masterVolume.set(0);
+        this.gameState.audio.saveSettings();
+        
+        setTimeout(() => {
+            const savedMaster = localStorage.getItem('phoenix_vol_master');
+            this.gameState.audio.masterVolume.set(savedMaster !== null ? parseFloat(savedMaster) : 1.0);
+            this.gameState.audio.saveSettings();
+            
+            executeUpgrade();
+        }, 2000);
+    }
+  }
+
   closeShop() {
     this.gameState.audio.playSFX('click');
     this.gameState.syncProgressToServer(); // Instantly save any purchased upgrades to backend
@@ -966,9 +1086,16 @@ export class ShopComponent implements OnInit, OnDestroy {
     }
   }
 
-  buyHealth(useGems: boolean = false) {
+  buyHealth(useGems: boolean = false, isFree: boolean = false) {
+
     const cost = this.getCost('maxHealth', 100, 10, 100);
-    if (useGems) {
+        if (isFree) {
+      this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].maxHealth += 10;
+          return { ...u };
+        });
+      this.gameState.audio.playSFX('buy');
+    } else if (useGems) {
       const gemCost = this.getGemCost(cost);
       if (this.gameState.gems() >= gemCost) {
         this.gameState.gems.update(c => c - gemCost);
@@ -988,9 +1115,16 @@ export class ShopComponent implements OnInit, OnDestroy {
     }
   }
 
-  buySpeed(useGems: boolean = false) {
+  buySpeed(useGems: boolean = false, isFree: boolean = false) {
+
     const cost = this.getCost('speed', 150, 0.1, 1);
-    if (useGems) {
+        if (isFree) {
+      this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].speed = +(u[this.gameState.selectedWorldIndex()].speed + 0.1).toFixed(2);
+          return { ...u };
+        });
+      this.gameState.audio.playSFX('buy');
+    } else if (useGems) {
       const gemCost = this.getGemCost(cost);
       if (this.gameState.gems() >= gemCost) {
         this.gameState.gems.update(c => c - gemCost);
@@ -1010,9 +1144,16 @@ export class ShopComponent implements OnInit, OnDestroy {
     }
   }
 
-  buyMagnet(useGems: boolean = false) {
+  buyMagnet(useGems: boolean = false, isFree: boolean = false) {
+
     const cost = this.getCost('magnetism', 200, 0.1, 1);
-    if (useGems) {
+        if (isFree) {
+      this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].magnetism = +(u[this.gameState.selectedWorldIndex()].magnetism + 0.1).toFixed(2);
+          return { ...u };
+        });
+      this.gameState.audio.playSFX('buy');
+    } else if (useGems) {
       const gemCost = this.getGemCost(cost);
       if (this.gameState.gems() >= gemCost) {
         this.gameState.gems.update(c => c - gemCost);
@@ -1032,9 +1173,16 @@ export class ShopComponent implements OnInit, OnDestroy {
     }
   }
 
-  buyDamage(useGems: boolean = false) {
+  buyDamage(useGems: boolean = false, isFree: boolean = false) {
+
     const cost = this.getCost('damage', 250, 1, 10);
-    if (useGems) {
+        if (isFree) {
+      this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].damage += 1;
+          return { ...u };
+        });
+      this.gameState.audio.playSFX('buy');
+    } else if (useGems) {
       const gemCost = this.getGemCost(cost);
       if (this.gameState.gems() >= gemCost) {
         this.gameState.gems.update(c => c - gemCost);
@@ -1054,9 +1202,16 @@ export class ShopComponent implements OnInit, OnDestroy {
     }
   }
 
-  buyAttackSpeed(useGems: boolean = false) {
+  buyAttackSpeed(useGems: boolean = false, isFree: boolean = false) {
+
     const cost = this.getCost('attackSpeed', 300, 0.1, 1);
-    if (useGems) {
+        if (isFree) {
+      this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].attackSpeed = +(u[this.gameState.selectedWorldIndex()].attackSpeed + 0.1).toFixed(2);
+          return { ...u };
+        });
+      this.gameState.audio.playSFX('buy');
+    } else if (useGems) {
       const gemCost = this.getGemCost(cost);
       if (this.gameState.gems() >= gemCost) {
         this.gameState.gems.update(c => c - gemCost);
@@ -1076,9 +1231,16 @@ export class ShopComponent implements OnInit, OnDestroy {
     }
   }
 
-  buyAttackRange(useGems: boolean = false) {
+  buyAttackRange(useGems: boolean = false, isFree: boolean = false) {
+
     const cost = this.getCost('attackRange', 250, 50, 400);
-    if (useGems) {
+        if (isFree) {
+      this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].attackRange += 50;
+          return { ...u };
+        });
+      this.gameState.audio.playSFX('buy');
+    } else if (useGems) {
       const gemCost = this.getGemCost(cost);
       if (this.gameState.gems() >= gemCost) {
         this.gameState.gems.update(c => c - gemCost);
@@ -1098,9 +1260,16 @@ export class ShopComponent implements OnInit, OnDestroy {
     }
   }
 
-  buyAuraRadius(useGems: boolean = false) {
+  buyAuraRadius(useGems: boolean = false, isFree: boolean = false) {
+
     const cost = this.getCost('auraRadius', 400, 10, 250);
-    if (useGems) {
+        if (isFree) {
+      this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].auraRadius += 10;
+          return { ...u };
+        });
+      this.gameState.audio.playSFX('buy');
+    } else if (useGems) {
       const gemCost = this.getGemCost(cost);
       if (this.gameState.gems() >= gemCost) {
         this.gameState.gems.update(c => c - gemCost);
@@ -1120,9 +1289,16 @@ export class ShopComponent implements OnInit, OnDestroy {
     }
   }
 
-  buyHoming(useGems: boolean = false) {
+  buyHoming(useGems: boolean = false, isFree: boolean = false) {
+
     const cost = this.getCost('homingLevel', 300, 1, 0);
-    if (useGems) {
+        if (isFree) {
+      this.gameState.worldUpgrades.update(u => {
+          u[this.gameState.selectedWorldIndex()].homingLevel += 1;
+          return { ...u };
+        });
+      this.gameState.audio.playSFX('buy');
+    } else if (useGems) {
       const gemCost = this.getGemCost(cost);
       if (this.gameState.gems() >= gemCost) {
         this.gameState.gems.update(c => c - gemCost);

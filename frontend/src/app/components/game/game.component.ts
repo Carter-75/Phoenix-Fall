@@ -124,6 +124,10 @@ interface EnemyData {
               <img src="assets/gem_icon.png" class="w-6 h-6"/>
               <span class="text-white font-bold text-xl">{{ getReviveCost() }}</span>
             </button>
+            <button (click)="reviveWithAd()" class="w-full mt-2 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:brightness-125 border border-cyan-400/50 rounded-2xl flex justify-center items-center gap-3 transition shadow-[0_0_20px_rgba(0,200,255,0.3)]">
+              <span class="text-white font-bold text-xl">Watch Ad to Revive</span>
+              <span class="text-2xl">📺</span>
+            </button>
             <button (click)="quitGame()" class="w-full mt-4 py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
               Give Up
             </button>
@@ -1415,6 +1419,17 @@ export class GameComponent implements OnInit, OnDestroy {
     }, 1000);
   }
 
+  private startReviveCountdown() {
+      if (this.reviveInterval) clearInterval(this.reviveInterval);
+      this.reviveInterval = setInterval(() => {
+          this.reviveCountdown.update(c => c - 1);
+          if (this.reviveCountdown() <= 0) {
+              clearInterval(this.reviveInterval);
+              this.quitGame();
+          }
+      }, 1000);
+  }
+
   public getReviveCost(): number {
     return 10 * Math.pow(2, this.reviveCount);
   }
@@ -1425,6 +1440,49 @@ export class GameComponent implements OnInit, OnDestroy {
         this.gameState.gems.update(g => g - cost); 
         this.reviveCount++;
         this.executeRevival(); 
+    }
+  }
+
+  public reviveWithAd() {
+    // Pause the countdown while ad plays
+    clearInterval(this.reviveInterval);
+    
+    const win = window as any;
+    if (typeof win.adBreak === 'function') {
+        win.adBreak({
+            type: 'reward',
+            name: 'revive_ad',
+            beforeReward: (showAdFn: any) => { showAdFn(); },
+            adViewed: () => {
+                this.executeRevival();
+            },
+            adDismissed: () => {
+                // User skipped ad, resume countdown
+                this.startReviveCountdown();
+            },
+            beforeAd: () => {
+                this.audioService.masterVolume.set(0);
+                this.audioService.saveSettings();
+            },
+            afterAd: () => {
+                const savedMaster = localStorage.getItem('phoenix_vol_master');
+                this.audioService.masterVolume.set(savedMaster !== null ? parseFloat(savedMaster) : 1.0);
+                this.audioService.saveSettings();
+            }
+        });
+    } else {
+        console.warn("Google AdSense adBreak API not found. Mocking ad watch...");
+        // Mock 2 second ad watch
+        this.audioService.masterVolume.set(0);
+        this.audioService.saveSettings();
+        
+        setTimeout(() => {
+            const savedMaster = localStorage.getItem('phoenix_vol_master');
+            this.audioService.masterVolume.set(savedMaster !== null ? parseFloat(savedMaster) : 1.0);
+            this.audioService.saveSettings();
+            
+            this.executeRevival();
+        }, 2000);
     }
   }
 
