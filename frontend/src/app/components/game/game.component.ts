@@ -200,18 +200,20 @@ export class GameComponent implements OnInit, OnDestroy {
 
   getTapMaxCooldown() {
       const id = this.gameState.currentStats().activeTapAbility || 'burst';
-      if (id === 'drill_attack') return 3; 
-      if (id === 'fire_breath') return 8;  
-      return 5; // burst
+      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities[id];
+      const mod = abilityData?.modifiers?.['cooldown'] || 1.0;
+      if (id === 'drill_attack') return 3 * mod; 
+      if (id === 'fire_breath') return 8 * mod;  
+      return 5 * mod; // burst
   }
 
   getHoldMaxCooldown() {
       const id = this.gameState.currentStats().activeHoldAbility || 'aura';
-      if (id === 'phoenix_turret') {
-          return 10;
-      }
-      if (id === 'rebirth') return 60; // 60s cooldown for Rebirth
-      return 15; // aura
+      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities[id];
+      const mod = abilityData?.modifiers?.['cooldown'] || 1.0;
+      if (id === 'phoenix_turret') return 10 * mod;
+      if (id === 'rebirth') return 60 * mod; // 60s cooldown for Rebirth
+      return 15 * mod; // aura
   }
   
   // Input Tracking
@@ -353,7 +355,7 @@ export class GameComponent implements OnInit, OnDestroy {
             if (data.type !== 'boss') {
                 Matter.Body.applyForce(otherBody, otherBody.position, Matter.Vector.mult(normalized, -0.05));
             }
-          } else if (otherBody.label === 'projectile' && data.type === 'projectile_enemy') {
+          } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy' || data.type === 'lava')) {
             this.takeDamage(15);
             Matter.Composite.remove(this.engine.world, otherBody);
           } else if (otherBody.label === 'item') {
@@ -373,24 +375,20 @@ export class GameComponent implements OnInit, OnDestroy {
                     }
                 }
             }
-            if (data.type === 'heart' || data.type === 'lava') {
+            if (data.type === 'heart') {
                 this.audioService.playSFX('heal');
                 const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
                 
-                // Hearts heal full value, Lava heals 5 base
-                const baseHeal = data.type === 'heart' ? (data.value || 0) : 5;
-                const healAmt = Math.floor(baseHeal * scale);
+                const healAmt = Math.floor((data.value || 0) * scale);
                 
                 this.currentHealth.update(h => Math.floor(Math.min(this.maxHealth(), h + healAmt)));
                 
-                if (data.type === 'heart') {
-                    this.gameState.heartsCollected.update(v => v + 1);
-                    if (this.gameState.heartsCollected() >= 5) this.gameState.awardTrophy("Healer");
-                }
+                this.gameState.heartsCollected.update(v => v + 1);
+                if (this.gameState.heartsCollected() >= 5) this.gameState.awardTrophy("Healer");
                 
-                // Green flash for heart, Orange flash for lava
+                // Green flash for heart
                 const el = document.createElement('div');
-                const colorClass = data.type === 'heart' ? 'bg-green-500/20' : 'bg-orange-500/30';
+                const colorClass = 'bg-green-500/20';
                 el.className = `fixed inset-0 ${colorClass} z-50 pointer-events-none transition-opacity duration-300`;
                 document.body.appendChild(el);
                 setTimeout(() => el.style.opacity = '0', 50);
@@ -553,6 +551,15 @@ export class GameComponent implements OnInit, OnDestroy {
           });
       }
 
+      // 4.6 Cleanup off-screen walls
+      this.walls = this.walls.filter(wall => {
+          if (wall.position.y > window.innerHeight + 200) {
+              if (wall.parent) Matter.Composite.remove(this.engine.world, wall);
+              return false;
+          }
+          return true;
+      });
+
       // 5. Publish bodies to ParticleBg rendering service
       const entities: PhysicsEntity[] = [];
       const renderBodies = [...Matter.Composite.allBodies(this.engine.world)];
@@ -585,6 +592,59 @@ export class GameComponent implements OnInit, OnDestroy {
     if (this.attackInterval) clearInterval(this.attackInterval);
     if (this.wallInterval) clearInterval(this.wallInterval);
     
+    this.wallInterval = setInterval(() => {
+        if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
+        
+        const speed = 4 + (this.gameState.currentStats().speed * 0.1);
+        
+        // Spawn walls on left and right sides
+        const leftWall = Matter.Bodies.rectangle(50, -100, 100, 200, {
+            isSensor: true,
+            plugin: { data: { id: Math.random().toString(), type: 'wall_chunk', health: 1, maxHealth: 1, size: 50 } as EnemyData }
+        });
+        Matter.Body.setVelocity(leftWall, { x: 0, y: speed });
+        
+        const rightWall = Matter.Bodies.rectangle(window.innerWidth - 50, -100, 100, 200, {
+            isSensor: true,
+            plugin: { data: { id: Math.random().toString(), type: 'wall_chunk', health: 1, maxHealth: 1, size: 50 } as EnemyData }
+        });
+        Matter.Body.setVelocity(rightWall, { x: 0, y: speed });
+        
+        Matter.Composite.add(this.engine.world, [leftWall, rightWall]);
+        this.walls.push(leftWall, rightWall);
+        
+        // Sometimes spawn a vent that shoots lava
+        if (Math.random() < 0.2) {
+            const side = Math.random() < 0.5 ? 'left' : 'right';
+            const x = side === 'left' ? 100 : window.innerWidth - 100;
+            const vent = Matter.Bodies.circle(x, -100, 30, {
+                isSensor: true,
+                plugin: { data: { id: Math.random().toString(), type: 'volcano_vent', health: 1, maxHealth: 1, size: 30 } as EnemyData }
+            });
+            Matter.Body.setVelocity(vent, { x: 0, y: speed });
+            Matter.Composite.add(this.engine.world, vent);
+            this.walls.push(vent);
+            
+            // Lava shooting logic attached to the vent
+            const shootInterval = setInterval(() => {
+                if (!vent.parent || this.gameEnded() || this.gameState.isPaused() || this.isDead()) {
+                    clearInterval(shootInterval);
+                    return;
+                }
+                const toPlayer = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, vent.position));
+                
+                const lava = Matter.Bodies.circle(vent.position.x, vent.position.y, 15, {
+                    label: 'projectile', isSensor: true,
+                    plugin: { data: { id: Math.random().toString(), type: 'lava', health: 1, maxHealth: 1, size: 15 } as EnemyData }
+                });
+                Matter.Body.setVelocity(lava, Matter.Vector.mult(toPlayer, 12));
+                Matter.Composite.add(this.engine.world, lava);
+                setTimeout(() => { if (lava.parent) Matter.Composite.remove(this.engine.world, lava); }, 3000);
+            }, 1500);
+        }
+        
+    }, 1000);
+    
     this.timerInterval = setInterval(() => {
       if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
       
@@ -616,31 +676,35 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private triggerDrillAttack() {
       if (this.gameState.isRebirthing()) return;
-      this.tapCooldown.set(3);
-      this.tapAbilityEndTime = Date.now() + 600;
+      
+      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['drill_attack'];
+      const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+      const duration = 600 * mods['duration'];
+
+      this.tapCooldown.set(3 * mods['cooldown']);
+      this.tapAbilityEndTime = Date.now() + duration;
       this.audioService.playSFX('shoot');
       
-      const level = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['drill_attack']?.level || 1;
-      const scaleFactor = 1 + (level * 0.5); // Increase hitbox size per level
-      
-      Matter.Body.scale(this.playerBody, scaleFactor, scaleFactor);
-      
       const dir = Matter.Vector.normalise(Matter.Vector.sub({ x: this.mouseX, y: this.mouseY }, this.playerBody.position));
-      Matter.Body.setVelocity(this.playerBody, Matter.Vector.mult(dir, 40));
+      Matter.Body.setVelocity(this.playerBody, Matter.Vector.mult(dir, 40 * mods['speed']));
       
       this.gameState.isDrilling.set(true);
       setTimeout(() => {
           this.gameState.isDrilling.set(false);
           Matter.Body.setVelocity(this.playerBody, { x: 0, y: 0 });
-          Matter.Body.scale(this.playerBody, 1/scaleFactor, 1/scaleFactor); // Revert size
-      }, 600);
+      }, duration);
   }
 
   private triggerFireBreath() {
       if (this.gameState.isRebirthing()) return;
-      this.tapCooldown.set(8);
+
+      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['fire_breath'];
+      const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+      
+      this.tapCooldown.set(8 * mods['cooldown']);
       this.tapAbilityEndTime = Date.now() + 1000;
-      const damage = this.gameState.currentStats().damage * 0.5;
+      const damage = this.gameState.currentStats().damage * 0.5 * mods['damage'];
+      const range = 12 * mods['range'];
       this.audioService.playSFX('shoot');
       
       // Auto-target nearest enemy instead of mouse
@@ -671,7 +735,7 @@ export class GameComponent implements OnInit, OnDestroy {
                   isSensor: true, label: 'projectile',
                   plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData }
               });
-              Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 12));
+              Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, range));
               Matter.Composite.add(this.engine.world, proj);
               setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 500);
           }, i * 50);
@@ -679,14 +743,15 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private triggerPhoenixTurret() {
-      const level = this.gameState.currentStats().unlockedAbilities['phoenix_turret']?.level || 1;
-      const seekRange = 500 + (level * 100);
-      const tetherRange = 100 + (level * 25);
-      const duration = 6000 + (level * 1000);
-      const damageMult = 1 + (level * 0.5);
-      const baseDamage = this.gameState.currentStats().damage * damageMult;
+      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['phoenix_turret'];
+      const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
       
-      this.holdCooldown.set(10);
+      const seekRange = 500 * (mods['range'] || 1.0);
+      const tetherRange = 100 * (mods['range'] || 1.0);
+      const duration = 6000 * mods['duration'];
+      const baseDamage = this.gameState.currentStats().damage * mods['damage'];
+      
+      this.holdCooldown.set(10 * mods['cooldown']);
       this.holdAbilityEndTime = Date.now() + duration + 2000; // Freeze CD during duration + return
       
       const egg = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 20, {
@@ -871,14 +936,19 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private triggerBurst() {
       if (this.gameState.isRebirthing()) return;
-      this.tapCooldown.set(5);
-      const damage = this.gameState.currentStats().burstDamage;
+
+      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['burst'];
+      const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+
+      this.tapCooldown.set(5 * mods['cooldown']);
+      const damage = this.gameState.currentStats().burstDamage * mods['damage'];
+      const radius = 10 * mods['radius'];
       this.audioService.playSFX('shoot');
       
       for(let i=0; i<8; i++) {
           const angle = (i / 8) * Math.PI * 2;
           const dir = { x: Math.cos(angle), y: Math.sin(angle) };
-          const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 10, {
+          const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, radius, {
               isSensor: true,
               label: 'projectile',
               plugin: {
@@ -892,8 +962,11 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private triggerAura() {
-      this.holdCooldown.set(15);
-      const radius = this.gameState.currentStats().auraRadius;
+      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['aura'];
+      const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+      
+      this.holdCooldown.set(15 * mods['cooldown']);
+      const radius = this.gameState.currentStats().auraRadius * mods['radius'];
       
       const aura = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, radius, {
           isSensor: true,
@@ -908,7 +981,7 @@ export class GameComponent implements OnInit, OnDestroy {
       this.enemies.forEach(e => {
           const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, aura.position));
           if (dist < radius + (e.circleRadius || 0)) {
-              this.damageEnemy(e, this.gameState.currentStats().damage * 5);
+              this.damageEnemy(e, this.gameState.currentStats().damage * 5 * mods['damage']);
           }
       });
 
@@ -1208,6 +1281,10 @@ export class GameComponent implements OnInit, OnDestroy {
         return;
     }
     
+    if (this.gameState.isDrilling()) {
+        amount *= 0.1;
+    }
+
     this.audioService.playSFX('hit');
     this.currentHealth.update(h => Math.max(0, h - amount));
     this.damageFlash.set(true);

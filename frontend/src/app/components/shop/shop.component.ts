@@ -371,8 +371,18 @@ export interface ActiveDeal {
                      } @else {
                         <!-- Unlocked -->
                         <div class="flex flex-col w-full gap-2">
-                           <div class="flex items-center justify-between">
-                              <span class="text-cyan-400 font-mono text-sm">Level {{ gameState.currentStats().unlockedAbilities[ability.id].level }}</span>
+                           <div class="flex flex-col gap-1 w-full">
+                              <span class="text-cyan-400 font-mono text-sm font-bold">Level {{ gameState.currentStats().unlockedAbilities[ability.id].level }}</span>
+                              <!-- Dynamic Stats Display -->
+                              <div class="flex flex-wrap gap-1 text-[10px] uppercase font-mono">
+                                 @for (mod of gameState.currentStats().unlockedAbilities[ability.id].modifiers | keyvalue; track mod.key) {
+                                    @if (mod.value !== 1.0) {
+                                       <span class="bg-black/30 border border-white/10 px-1.5 py-0.5 rounded text-white/60">
+                                          {{ mod.key }}: <span [ngClass]="mod.key === 'cooldown' ? (mod.value < 1.0 ? 'text-green-400' : 'text-red-400') : (mod.value > 1.0 ? 'text-green-400' : 'text-red-400')">{{ mod.value | number:'1.2-2' }}x</span>
+                                       </span>
+                                    }
+                                 }
+                              </div>
                            </div>
                            <div class="flex gap-1 w-full mt-2">
                               <button (click)="equipAbility(ability.id, ability.type)" class="flex-1 py-2 bg-white/10 border border-white/20 rounded-xl font-bold text-white text-sm hover:bg-white/20 transition">
@@ -833,7 +843,7 @@ export class ShopComponent implements OnInit, OnDestroy {
             this.gameState.worldUpgrades.update(upgrades => {
                 const worldId = this.gameState.selectedWorldIndex();
                 const stats = upgrades[worldId];
-                return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1 } } } };
+                return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1, modifiers: { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 } } } } };
             });
             this.gameState.awardTrophy("Ability Unlocked");
             this.gameState.audio.playSFX('buy');
@@ -843,7 +853,7 @@ export class ShopComponent implements OnInit, OnDestroy {
         this.gameState.worldUpgrades.update(upgrades => {
             const worldId = this.gameState.selectedWorldIndex();
             const stats = upgrades[worldId];
-            return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1 } } } };
+            return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1, modifiers: { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 } } } } };
         });
         this.gameState.awardTrophy("Ability Unlocked");
         this.gameState.audio.playSFX('buy');
@@ -859,7 +869,9 @@ export class ShopComponent implements OnInit, OnDestroy {
                  const worldId = this.gameState.selectedWorldIndex();
                  const stats = upgrades[worldId];
                  const currentLvl = stats.unlockedAbilities[id]?.level || 1;
-                 return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1 } } } };
+                 const currentModifiers = stats.unlockedAbilities[id]?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+                 const newModifiers = this.gameState.generateAbilityUpgrade(id, currentLvl + 1, currentModifiers);
+                 return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1, modifiers: newModifiers } } } };
              });
              this.gameState.audio.playSFX('buy');
          }
@@ -869,7 +881,9 @@ export class ShopComponent implements OnInit, OnDestroy {
              const worldId = this.gameState.selectedWorldIndex();
              const stats = upgrades[worldId];
              const currentLvl = stats.unlockedAbilities[id]?.level || 1;
-             return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1 } } } };
+             const currentModifiers = stats.unlockedAbilities[id]?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+             const newModifiers = this.gameState.generateAbilityUpgrade(id, currentLvl + 1, currentModifiers);
+             return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1, modifiers: newModifiers } } } };
          });
          this.gameState.audio.playSFX('buy');
      }

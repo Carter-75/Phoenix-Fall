@@ -265,21 +265,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     this.goldenAuraMesh.visible = false;
     this.scene.add(this.goldenAuraMesh);
 
-    // Drill Aura (Red Glow)
-    const drillAuraGeo = new THREE.BufferGeometry();
-    const drillAuraCol = new Float32Array(auraCount * 3);
-    for (let i = 0; i < auraCount; i++) {
-        drillAuraCol[i*3] = 1.0;
-        drillAuraCol[i*3+1] = Math.random() * 0.2;
-        drillAuraCol[i*3+2] = Math.random() * 0.1;
-    }
-    drillAuraGeo.setAttribute('position', new THREE.BufferAttribute(auraPos.slice(), 3));
-    drillAuraGeo.setAttribute('basePosition', new THREE.BufferAttribute(auraBase.slice(), 3));
-    drillAuraGeo.setAttribute('color', new THREE.BufferAttribute(drillAuraCol, 3));
-    const drillAuraMat = new THREE.PointsMaterial({ size: 0.2, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
-    this.drillAuraMesh = new THREE.Points(drillAuraGeo, drillAuraMat);
-    this.drillAuraMesh.visible = false;
-    this.scene.add(this.drillAuraMesh);
+
 
     // Celestial Shield (Large Detailed Wireframe/Particle Sphere)
     const shieldCount = 600;
@@ -443,9 +429,13 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
                 directToTarget.normalize().multiplyScalar(0.015);
               }
 
-              const speedMult = this.gameState.currentStats().speed;
+              let speedMult = this.gameState.currentStats().speed;
+              if (this.gameState.isDrilling()) {
+                  const modifiers = this.gameState.currentStats().unlockedAbilities['drill_attack']?.modifiers;
+                  if (modifiers && modifiers['speed']) speedMult *= modifiers['speed'];
+              }
               const maxTurnForce = (0.001 / this.birdScale) * speedMult; 
-              const desiredVelocity = bird.velocity.clone().add(directToTarget.multiplyScalar(speedMult)).normalize().multiplyScalar(speed);
+              const desiredVelocity = bird.velocity.clone().add(directToTarget.multiplyScalar(speedMult)).normalize().multiplyScalar(speed * speedMult);
               const steering = desiredVelocity.sub(bird.velocity);
               if (steering.length() > maxTurnForce) steering.normalize().multiplyScalar(maxTurnForce);
               bird.velocity.add(steering);
@@ -581,29 +571,6 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
                     auraPos[i*3+2] = bx * sinA + bz * cosA;
                 }
                 this.goldenAuraMesh.geometry.attributes['position'].needsUpdate = true;
-            }
-        }
-
-        if (this.drillAuraMesh) {
-            this.drillAuraMesh.visible = this.gameState.isDrilling() && !this.gameState.isRebirthing();
-            if (this.drillAuraMesh.visible) {
-                this.drillAuraMesh.position.copy(bird.position);
-                this.drillAuraMesh.quaternion.copy(dummy.quaternion);
-                
-                // Animate drill aura particles
-                const auraPos = this.drillAuraMesh.geometry.attributes['position'].array as Float32Array;
-                const auraBase = this.drillAuraMesh.geometry.attributes['basePosition'].array as Float32Array;
-                const time = Date.now() * 0.004; // Faster rotation
-                
-                for (let i = 0; i < auraPos.length / 3; i++) {
-                    const idx = i * 3;
-                    const r = Math.sqrt(auraBase[idx]*auraBase[idx] + auraBase[idx+2]*auraBase[idx+2]) * 0.5; // Tighter radius
-                    const theta = Math.atan2(auraBase[idx+2], auraBase[idx]) + time;
-                    auraPos[idx] = r * Math.cos(theta);
-                    auraPos[idx+1] = auraBase[idx+1] * 2.0; // Stretched vertically
-                    auraPos[idx+2] = r * Math.sin(theta);
-                }
-                this.drillAuraMesh.geometry.attributes['position'].needsUpdate = true;
             }
         }
 
@@ -851,6 +818,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     else if (data.type === 'turret') color.setHex(0xffffff); // Use original bird colors
     else if (data.type === 'wall_chunk') color.setHex(0x551100); // Dark Magma Crust
     else if (data.type === 'volcano_vent') color.setHex(0xff5500); // Glowing Magma Vent
+    else if (data.type === 'lava') color.setHex(0xff3300); // Lava projectile
 
     const r = data.size / 30; // Scale factor
 

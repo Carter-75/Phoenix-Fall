@@ -59,11 +59,15 @@ const TROPHY_CATALOG: RealmTrophies[] = [
               {{ auth.currentUser()!.username.charAt(0).toUpperCase() }}
             </div>
             <div>
-              <h2 class="text-4xl font-black text-white">{{ auth.currentUser()!.username }}</h2>
-              <div class="text-orange-400 font-bold text-xl mt-1">Level {{ auth.currentUser()!.level }}</div>
-              <div class="text-white/50 text-sm mt-1">{{ auth.currentUser()!.xp }} / {{ gameState.getXpRequiredForLevel(auth.currentUser()!.level) }} XP</div>
-              <div class="w-64 h-3 bg-white/10 rounded-full mt-2 overflow-hidden border border-white/10">
-                <div class="h-full bg-gradient-to-r from-orange-500 to-red-500" [style.width.%]="(auth.currentUser()!.xp / gameState.getXpRequiredForLevel(auth.currentUser()!.level)) * 100"></div>
+              <div class="flex items-baseline gap-3">
+                <h2 class="text-3xl font-black text-white leading-none">{{ auth.currentUser()!.username }}</h2>
+                <div class="text-orange-400 font-bold text-lg leading-none">Lv. {{ auth.currentUser()!.level }}</div>
+              </div>
+              <div class="flex items-center gap-2 mt-2">
+                <div class="w-48 h-2 bg-white/10 rounded-full overflow-hidden border border-white/10">
+                  <div class="h-full bg-gradient-to-r from-orange-500 to-red-500" [style.width.%]="(auth.currentUser()!.xp / gameState.getXpRequiredForLevel(auth.currentUser()!.level)) * 100"></div>
+                </div>
+                <div class="text-white/50 text-xs font-mono">{{ auth.currentUser()!.xp }}/{{ gameState.getXpRequiredForLevel(auth.currentUser()!.level) }} XP</div>
               </div>
             </div>
             
@@ -252,7 +256,14 @@ export class ProfileComponent {
               // If locked, cannot be searched by name/desc, unless they search "???"
               return "???".includes(query) || "keep playing to unlock".includes(query);
           });
-          return { ...realm, trophies: filtered };
+          // Sort achieved trophies to top, unachieved to bottom
+          const sorted = filtered.sort((a, b) => {
+              const aHas = this.hasTrophy(a.id) ? 1 : 0;
+              const bHas = this.hasTrophy(b.id) ? 1 : 0;
+              return bHas - aHas;
+          });
+          
+          return { ...realm, trophies: sorted };
       }).filter(realm => realm.trophies.length > 0);
   });
 

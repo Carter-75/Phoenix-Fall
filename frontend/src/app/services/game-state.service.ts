@@ -7,6 +7,11 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { App } from '@capacitor/app';
 
+export interface AbilityData {
+  level: number;
+  modifiers: Record<string, number>;
+}
+
 export interface WorldStats {
   maxHealth: number;
   speed: number; // Flight speed/handling
@@ -17,7 +22,7 @@ export interface WorldStats {
   auraRadius: number; // Hold still radius
   homingLevel: number; // Seeker upgrade
   attackRange: number; // How far projectiles fly
-  unlockedAbilities: Record<string, { level: number }>;
+  unlockedAbilities: Record<string, AbilityData>;
   activeTapAbility: string | null;
   activeHoldAbility: string | null;
 }
@@ -67,8 +72,20 @@ export const ABILITIES: Record<string, { id: string, type: 'tap' | 'hold', name:
 const DEFAULT_STATS: WorldStats = { 
   maxHealth: 100, speed: 1.0, magnetism: 1.0, damage: 10, attackSpeed: 1.0, 
   burstDamage: 20, auraRadius: 250, homingLevel: 0, attackRange: 400,
-  unlockedAbilities: { 'burst': { level: 1 }, 'aura': { level: 1 } }, 
+  unlockedAbilities: { 
+    'burst': { level: 1, modifiers: { cooldown: 1.0, damage: 1.0, radius: 1.0 } }, 
+    'aura': { level: 1, modifiers: { damage: 1.0, radius: 1.0 } } 
+  }, 
   activeTapAbility: 'burst', activeHoldAbility: 'aura'
+};
+
+const ABILITY_UPGRADE_TARGETS: Record<string, { targetLevel: number, stats: Record<string, number> }> = {
+  drill_attack: { targetLevel: 30, stats: { cooldown: 0.25, speed: 3.0, duration: 5.0 } },
+  burst: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0, radius: 3.0 } },
+  phoenix_turret: { targetLevel: 30, stats: { cooldown: 0.5, duration: 3.0, damage: 3.0 } },
+  fire_breath: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0, range: 3.0 } },
+  aura: { targetLevel: 30, stats: { damage: 5.0, radius: 3.0 } },
+  rebirth: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0 } }
 };
 
 @Injectable({
@@ -173,7 +190,17 @@ export class GameStateService {
                       Object.keys(data.worldUpgrades).forEach(key => {
                           const upgrades = data.worldUpgrades[key as unknown as number];
                           Object.keys(upgrades).forEach(statKey => {
-                              if (typeof upgrades[statKey as keyof WorldStats] === 'number' && isNaN(upgrades[statKey as keyof WorldStats] as number)) {
+                              if (statKey === 'unlockedAbilities') {
+                                  const abilities = (upgrades as any)[statKey] as Record<string, any>;
+                                  Object.keys(abilities).forEach(abKey => {
+                                      const ability = abilities[abKey];
+                                      if (ability && typeof ability.level === 'number' && !ability.modifiers) {
+                                          ability.modifiers = {
+                                              cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0
+                                          };
+                                      }
+                                  });
+                              } else if (typeof upgrades[statKey as keyof WorldStats] === 'number' && isNaN(upgrades[statKey as keyof WorldStats] as number)) {
                                   (upgrades as any)[statKey] = (DEFAULT_STATS as any)[statKey];
                               }
                           });
@@ -395,16 +422,109 @@ export class GameStateService {
                   if (upgrades[key].activeTapAbility === undefined) upgrades[key].activeTapAbility = null;
                   if (upgrades[key].activeHoldAbility === undefined) upgrades[key].activeHoldAbility = null;
                   
-                  // Auto-heal NaN
+              // Auto-heal NaN
                   Object.keys(upgrades[key]).forEach(statKey => {
-                      if (typeof upgrades[key][statKey] === 'number' && isNaN(upgrades[key][statKey])) {
+                      if (statKey === 'unlockedAbilities') {
+                          const abilities = upgrades[key][statKey] as Record<string, any>;
+                          Object.keys(abilities).forEach(abKey => {
+                              const ability = abilities[abKey];
+                              if (ability && typeof ability.level === 'number' && !ability.modifiers) {
+                                  // Migrate old format to AbilityData
+                                  ability.modifiers = {
+                                      cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0
+                                  };
+                              }
+                          });
+                      } else if (typeof upgrades[key][statKey] === 'number' && isNaN(upgrades[key][statKey])) {
                           upgrades[key][statKey] = (DEFAULT_STATS as any)[statKey];
                       }
                   });
               });
               this.worldUpgrades.set(upgrades);
           }
+  }
+
+  // Dynamic Upgrade System
+  public upgradeAbility(worldId: number, abilityId: string) {
+      const abilityConfig = ABILITIES[abilityId];
+      if (!abilityConfig) return;
+      if (this.coins() < abilityConfig.upgradeCost) return;
+
+      this.coins.set(this.coins() - abilityConfig.upgradeCost);
+
+      const upgrades = { ...this.worldUpgrades() };
+      const worldStats = upgrades[worldId];
+      if (!worldStats.unlockedAbilities[abilityId]) {
+          worldStats.unlockedAbilities[abilityId] = { level: 1, modifiers: { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 } };
       }
+
+      const abilityData = worldStats.unlockedAbilities[abilityId];
+      abilityData.level++;
+      abilityData.modifiers = this.generateAbilityUpgrade(abilityId, abilityData.level, abilityData.modifiers);
+
+      this.worldUpgrades.set(upgrades);
+      this.audio.playSFX('heal'); // Level up sound
+  }
+
+  public generateAbilityUpgrade(abilityId: string, currentLevel: number, currentModifiers: Record<string, number>): Record<string, number> {
+      const config = ABILITY_UPGRADE_TARGETS[abilityId] || { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0 } };
+      const newModifiers = { ...currentModifiers };
+      
+      const stats = Object.keys(config.stats);
+      if (stats.length === 0) return newModifiers;
+
+      // Ensure stats exist
+      for (const stat of stats) {
+          if (newModifiers[stat] === undefined) newModifiers[stat] = 1.0;
+      }
+
+      const expectedProgress = currentLevel / config.targetLevel; 
+      
+      let weights = stats.map(stat => {
+          const targetVal = config.stats[stat];
+          const currentVal = newModifiers[stat];
+          const isReduction = targetVal < 1.0; 
+          
+          let progress = 0;
+          if (isReduction) {
+              progress = (1.0 - currentVal) / (1.0 - targetVal);
+          } else {
+              progress = (currentVal - 1.0) / (targetVal - 1.0);
+          }
+          
+          // The "Cone Idea": Heavily weight stats that fall behind
+          let deficit = expectedProgress - progress;
+          let weight = Math.max(0.01, 1.0 + (deficit * 10)); 
+          return { stat, weight };
+      });
+      
+      const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+      let rand = Math.random() * totalWeight;
+      let chosenStat = stats[0];
+      for (const w of weights) {
+          rand -= w.weight;
+          if (rand <= 0) {
+              chosenStat = w.stat;
+              break;
+          }
+      }
+      
+      // Apply buff
+      const targetVal = config.stats[chosenStat];
+      const isReduction = targetVal < 1.0;
+      const totalDelta = Math.abs(targetVal - 1.0);
+      const avgDeltaPerLevel = totalDelta / config.targetLevel;
+      
+      // Randomize between 0.5x and 1.5x of the average step
+      const buffAmount = avgDeltaPerLevel * (0.5 + Math.random());
+      
+      if (isReduction) {
+          newModifiers[chosenStat] = Math.max(0.05, newModifiers[chosenStat] - buffAmount);
+      } else {
+          newModifiers[chosenStat] += buffAmount;
+      }
+      
+      return newModifiers;
   }
 
   // Helper for XP math
@@ -451,6 +571,9 @@ export class GameStateService {
   public async syncProgressToServer() {
       if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) return;
       
+      this.coins.update(c => Math.floor(c));
+      this.gems.update(g => Math.floor(g));
+
       const payload = {
           level: this.level(),
           xp: this.xp(),
