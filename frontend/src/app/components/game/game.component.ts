@@ -546,7 +546,7 @@ export class GameComponent implements OnInit, OnDestroy {
                 Matter.Body.applyForce(item, item.position, Matter.Vector.mult(normalized, pullStrength));
              } else {
                  // Fall down via gravity
-                 Matter.Body.applyForce(item, item.position, { x: 0, y: 0.0005 });
+                 Matter.Body.applyForce(item, item.position, { x: 0, y: 0.00015 });
              }
          }
       });
