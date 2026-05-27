@@ -261,94 +261,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   }
 
   private buildRealm1Art() {
-      // Massive looping canyon walls
-      const height = 120;
-      const geometry = new THREE.BoxGeometry(10, height, 20, 6, 40, 2);
-      
-      // Disrupt the vertices to make it look like a rugged, jagged cliff
-      const positions = geometry.attributes['position'] as THREE.BufferAttribute;
-      for (let i = 0; i < positions.count; i++) {
-          const x = positions.getX(i);
-          const z = positions.getZ(i);
-          // Large jagged variations
-          positions.setX(i, x + (Math.random() - 0.5) * 4.0);
-          positions.setZ(i, z + (Math.random() - 0.5) * 3.0);
-      }
-      geometry.computeVertexNormals();
-
-      const coreMat = new THREE.MeshBasicMaterial({ color: 0xaa2200, transparent: true, opacity: 0.3 });
-      const wireMat = new THREE.MeshBasicMaterial({ color: 0xff5500, wireframe: true, transparent: true, opacity: 0.7 });
-      
-      for (let side of ['left', 'right']) {
-          const sign = side === 'left' ? -1 : 1;
-          // Set to 0.85 offset (the LIMIT line)
-          const xOffset = sign * (this.boundX * 0.85);
-          
-          for (let i = 0; i < 2; i++) { // Two segments per side to loop seamlessly
-              const core = new THREE.Mesh(geometry, coreMat);
-              const wire = new THREE.Mesh(geometry, wireMat);
-              
-              const yOffset = i * height - (height / 2); // Start one at 0, one at height
-              
-              core.position.set(xOffset, yOffset, -10);
-              wire.position.set(xOffset, yOffset, -10);
-              
-              (core as any).isWall = true;
-              (core as any).wallHeight = height;
-              (wire as any).isWall = true;
-              (wire as any).wallHeight = height;
-              
-              this.sideArtGroup.add(core);
-              this.sideArtGroup.add(wire);
-          }
-      }
-
-      // Add 3D Dripping Lava Flows
-      // Clear existing lava flows
-      while(this.lavaFlowsGroup.children.length > 0) {
-          const child = this.lavaFlowsGroup.children[0] as THREE.Mesh;
-          this.lavaFlowsGroup.remove(child);
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) {
-              if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-              else child.material.dispose();
-          }
-      }
-
-      const lavaGeo = new THREE.SphereGeometry(1, 16, 16);
-      
-      const lavaMaterials = [
-          new THREE.MeshBasicMaterial({ color: 0xffdd00, transparent: true, opacity: 0.9 }), // Bright Yellow
-          new THREE.MeshBasicMaterial({ color: 0xff7700, transparent: true, opacity: 0.9 }), // Bright Orange
-          new THREE.MeshBasicMaterial({ color: 0xcc2200, transparent: true, opacity: 0.85 }), // Crimson Red
-      ];
-
-      for (let i = 0; i < 100; i++) {
-          const mat = lavaMaterials[Math.floor(Math.random() * lavaMaterials.length)];
-          const blob = new THREE.Mesh(lavaGeo, mat);
-          
-          const isLeft = Math.random() > 0.5;
-          const sign = isLeft ? -1 : 1;
-          
-          // Place along the inner edge of the wall offset
-          const wallX = sign * (this.boundX * 0.85);
-          const x = wallX + sign * (Math.random() * 2 - 1); // Slight variation around the wall surface
-          const y = (Math.random() - 0.5) * 120; // Spread vertically
-          const z = -10 + (Math.random() - 0.5) * 5; // Near the walls
-          
-          blob.position.set(x, y, z);
-          
-          // Stretch vertically to look like dripping fluid
-          const scaleX = 0.5 + Math.random() * 1.5;
-          const scaleY = 3.0 + Math.random() * 8.0; // Extreme vertical stretch
-          const scaleZ = 0.5 + Math.random() * 1.5;
-          blob.scale.set(scaleX, scaleY, scaleZ);
-          
-          // Save speeds for animation
-          (blob as any).dripSpeed = 0.2 + Math.random() * 0.6; // Base drip speed down the wall
-          
-          this.lavaFlowsGroup.add(blob);
-      }
+      // Background aesthetics only; the actual walls are now dynamic physics chunks handled in updateEntities
   }
 
   private createCosmetics() {
@@ -511,49 +424,11 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
         // Lava flows moving down the walls
         if (this.lavaFlowsGroup) {
-            const speedScale = this.gameState.currentStats().speed;
-            this.lavaFlowsGroup.children.forEach(child => {
-                const blob = child as THREE.Mesh;
-                const dripSpeed = (blob as any).dripSpeed || 0.5;
-                
-                // Fall based on global speed + local drip speed
-                blob.position.y -= (0.2 * speedScale) + dripSpeed;
-                
-                // Slowly morph the blob to look viscous
-                blob.scale.y += (Math.random() - 0.5) * 0.1;
-                blob.scale.y = THREE.MathUtils.clamp(blob.scale.y, 2.0, 15.0);
-                
-                if (blob.position.y < -60) {
-                    // Respawn at top
-                    blob.position.y = 60 + Math.random() * 20;
-                    blob.position.x = Math.sign(blob.position.x) * (this.boundX * 0.85) + Math.sign(blob.position.x) * (Math.random() * 2 - 1);
-                    (blob as any).dripSpeed = 0.2 + Math.random() * 0.6;
-                }
-            });
+            // (Lava flows are now physics-based entities)
         }
 
         // Side Art moving down
         if (this.sideArtGroup) {
-            this.sideArtGroup.children.forEach(child => {
-                const mesh = child as THREE.Mesh;
-                mesh.position.y -= 0.2 * this.gameState.currentStats().speed;
-                
-                if ((mesh as any).isWall) {
-                    const h = (mesh as any).wallHeight;
-                    // If it falls below camera, loop it to the top
-                    if (mesh.position.y < -h) {
-                        mesh.position.y += h * 2;
-                    }
-                } else {
-                    if (mesh.position.y < -40) {
-                        mesh.position.y = 40 + Math.random() * 10;
-                    }
-                    if ((mesh as any).baseRotation) {
-                        mesh.rotation.x += 0.01;
-                        mesh.rotation.y += 0.01;
-                    }
-                }
-            });
         }
 
         const speed = 0.08 * this.gameState.currentStats().speed; 
@@ -940,7 +815,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
   private createEntityMesh(data: PhysicsEntity): ParticleEntity {
     const geo = new THREE.BufferGeometry();
-    const count = data.type === 'boss' || data.type === 'turret' ? 4000 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (data.type === 'coin' || data.type === 'gem' || data.type === 'heart' ? 200 : 800)));
+    const count = data.type === 'boss' || data.type === 'turret' ? 4000 : (data.type === 'wall_chunk' || data.type === 'volcano_vent' ? 2500 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (data.type === 'coin' || data.type === 'gem' || data.type === 'heart' ? 200 : 800))));
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
 
@@ -959,6 +834,8 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     else if (data.type === 'fire') color.setHex(0xff5500); // Orange/Red
     else if (data.type === 'egg') color.setHex(0xffaa00); // Golden Egg
     else if (data.type === 'turret') color.setHex(0xffffff); // Use original bird colors
+    else if (data.type === 'wall_chunk') color.setHex(0x551100); // Dark Magma Crust
+    else if (data.type === 'volcano_vent') color.setHex(0xff5500); // Glowing Magma Vent
 
     const r = data.size / 30; // Scale factor
 
@@ -1112,6 +989,35 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           col[idx] = 1.0; 
           col[idx+1] = (1.0 - distToCenter) * 0.8; // More green in center = yellow
           col[idx+2] = 0.0;
+      }
+      else if (data.type === 'wall_chunk' || data.type === 'volcano_vent') {
+          const isVent = data.type === 'volcano_vent';
+          // Massive vertical rocky block with jagged faces
+          // Distribute more towards the surface for a rugged look
+          let rx = (Math.random() - 0.5) * r * 1.8;
+          let ry = (Math.random() - 0.5) * r * 4.0; // Extremely tall
+          let rz = (Math.random() - 0.5) * r * 2.0;
+          
+          // Jagged distortion
+          rx += Math.sin(ry * 0.5) * (r * 0.3);
+          rz += Math.cos(ry * 0.3) * (r * 0.3);
+          
+          x = rx; y = ry; z = rz;
+          
+          // Magma gradient based on heat/depth
+          if (isVent && Math.abs(x) < r * 0.8 && Math.abs(y) < r * 0.5) {
+              // Glowing core of the vent (central hot spot)
+              col[idx] = 1.0; col[idx+1] = 0.8 + (Math.random() * 0.2); col[idx+2] = 0.2; // Blinding Yellow/White
+          } else {
+              const heat = Math.random();
+              if (heat > 0.85) {
+                  col[idx] = 1.0; col[idx+1] = 0.3 + Math.random()*0.2; col[idx+2] = 0.0; // Glowing Orange lava cracks
+              } else if (heat > 0.5) {
+                  col[idx] = 0.6; col[idx+1] = 0.1; col[idx+2] = 0.0; // Dark red crust
+              } else {
+                  col[idx] = 0.2 + Math.random()*0.1; col[idx+1] = 0.05; col[idx+2] = 0.05; // Blackened obsidian rock
+              }
+          }
       }
       else if (data.type === 'coin') {
           // Torus / Ring

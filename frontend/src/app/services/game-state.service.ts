@@ -28,6 +28,7 @@ export interface PhysicsEntity {
   y: number; // 2D screen y
   type: string;
   size: number;
+  isLeft?: boolean;
 }
 
 export interface World {
