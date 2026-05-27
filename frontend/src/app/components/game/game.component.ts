@@ -7,7 +7,7 @@ import anime from 'animejs';
 
 interface EnemyData {
   id: string;
-  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret' | 'egg';
+  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret' | 'egg' | 'lava';
   health: number;
   maxHealth: number;
   lastAttackTime?: number;
@@ -345,16 +345,25 @@ export class GameComponent implements OnInit, OnDestroy {
                     }
                 }
             }
-            if (data.type === 'heart') {
+            if (data.type === 'heart' || data.type === 'lava') {
                 this.audioService.playSFX('heal');
                 const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
-                const healAmt = Math.floor((data.value || 0) * scale);
+                
+                // Hearts heal full value, Lava heals 5 base
+                const baseHeal = data.type === 'heart' ? (data.value || 0) : 5;
+                const healAmt = Math.floor(baseHeal * scale);
+                
                 this.currentHealth.update(h => Math.floor(Math.min(this.maxHealth(), h + healAmt)));
-                this.gameState.heartsCollected.update(v => v + 1);
-                if (this.gameState.heartsCollected() >= 5) this.gameState.awardTrophy("Healer");
-                // Small green flash for healing
+                
+                if (data.type === 'heart') {
+                    this.gameState.heartsCollected.update(v => v + 1);
+                    if (this.gameState.heartsCollected() >= 5) this.gameState.awardTrophy("Healer");
+                }
+                
+                // Green flash for heart, Orange flash for lava
                 const el = document.createElement('div');
-                el.className = 'fixed inset-0 bg-green-500/20 z-50 pointer-events-none transition-opacity duration-300';
+                const colorClass = data.type === 'heart' ? 'bg-green-500/20' : 'bg-orange-500/30';
+                el.className = `fixed inset-0 ${colorClass} z-50 pointer-events-none transition-opacity duration-300`;
                 document.body.appendChild(el);
                 setTimeout(() => el.style.opacity = '0', 50);
                 setTimeout(() => el.remove(), 350);
@@ -562,6 +571,41 @@ export class GameComponent implements OnInit, OnDestroy {
       if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
       this.fireProjectile();
     }, 1000 / attackSpeed);
+    
+    // Volcano Eruptions from walls
+    setInterval(() => {
+        if (this.gameEnded() || this.isDead() || this.bossSpawned() || this.gameState.isPaused()) return;
+        // Erupt 1-3 blobs
+        const count = 1 + Math.floor(Math.random() * 3);
+        const isLeft = Math.random() > 0.5;
+        for (let i = 0; i < count; i++) {
+            setTimeout(() => this.spawnLavaBlob(isLeft), i * 200); // stagger shots
+        }
+    }, 4000);
+  }
+
+  private spawnLavaBlob(isLeft: boolean) {
+      const x = isLeft ? -50 : window.innerWidth + 50;
+      const y = window.innerHeight * 0.2 + Math.random() * (window.innerHeight * 0.6); // Spawns along the middle chunk of the wall
+      
+      const lava = Matter.Bodies.circle(x, y, 20, {
+          label: 'item',
+          isSensor: true,
+          plugin: {
+              data: {
+                  id: Math.random().toString(36).substr(2, 9),
+                  type: 'lava'
+              }
+          }
+      });
+      
+      // Volcano explosion velocity (arcs inwards and upwards)
+      const vx = (isLeft ? 1 : -1) * (15 + Math.random() * 10);
+      const vy = -(10 + Math.random() * 15);
+      Matter.Body.setVelocity(lava, { x: vx, y: vy });
+      
+      Matter.Composite.add(this.engine.world, lava);
+      this.items.push(lava);
   }
 
   private triggerDrillAttack() {

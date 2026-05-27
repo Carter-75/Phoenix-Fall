@@ -1098,6 +1098,21 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
              x /= (sum * 2); y /= (sum * 2); z /= (sum * 2);
           }
       }
+      else if (data.type === 'lava') {
+          // Dense, spherical blob of magma
+          const rad = Math.cbrt(Math.random()) * r * 0.8;
+          const u = Math.random() * Math.PI * 2;
+          const v = Math.acos(2 * Math.random() - 1);
+          x = rad * Math.sin(v) * Math.cos(u);
+          y = rad * Math.sin(v) * Math.sin(u) + (Math.random() - 0.5) * r * 0.5; // Slightly elongated vertically
+          z = rad * Math.cos(v);
+          
+          // Color gradient: yellow core to dark red edges
+          const distToCenter = rad / (r * 0.8);
+          col[idx] = 1.0; 
+          col[idx+1] = (1.0 - distToCenter) * 0.8; // More green in center = yellow
+          col[idx+2] = 0.0;
+      }
       else if (data.type === 'coin') {
           // Torus / Ring
           const angle = Math.random() * Math.PI * 2;
