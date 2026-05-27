@@ -283,24 +283,27 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   private buildRealm1Art() {
       // Massive looping canyon walls
       const height = 120;
-      const geometry = new THREE.BoxGeometry(4, height, 10, 4, 30, 2);
+      const geometry = new THREE.BoxGeometry(10, height, 20, 6, 40, 2);
       
       // Disrupt the vertices to make it look like a rugged, jagged cliff
       const positions = geometry.attributes['position'] as THREE.BufferAttribute;
       for (let i = 0; i < positions.count; i++) {
           const x = positions.getX(i);
           const z = positions.getZ(i);
-          positions.setX(i, x + (Math.random() - 0.5) * 2.5);
-          positions.setZ(i, z + (Math.random() - 0.5) * 1.5);
+          // Large jagged variations
+          positions.setX(i, x + (Math.random() - 0.5) * 4.0);
+          positions.setZ(i, z + (Math.random() - 0.5) * 3.0);
       }
       geometry.computeVertexNormals();
 
-      const coreMat = new THREE.MeshBasicMaterial({ color: 0xaa2200, transparent: true, opacity: 0.15 });
-      const wireMat = new THREE.MeshBasicMaterial({ color: 0xff5500, wireframe: true, transparent: true, opacity: 0.4 });
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0xaa2200, transparent: true, opacity: 0.3 });
+      const wireMat = new THREE.MeshBasicMaterial({ color: 0xff5500, wireframe: true, transparent: true, opacity: 0.7 });
       
       for (let side of ['left', 'right']) {
           const sign = side === 'left' ? -1 : 1;
-          const xOffset = sign * (this.boundX + 3);
+          // The camera is at z=5, walls are at z=-10, bird is at z=-15.
+          // Adjust offset so the walls significantly encroach into the screen
+          const xOffset = sign * (this.boundX * 0.65);
           
           for (let i = 0; i < 2; i++) { // Two segments per side to loop seamlessly
               const core = new THREE.Mesh(geometry, coreMat);
