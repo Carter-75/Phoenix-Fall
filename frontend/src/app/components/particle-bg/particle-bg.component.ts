@@ -535,13 +535,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
               const flickerX = (Math.random() - 0.5) * 0.05 * this.birdScale;
               const flickerY = (Math.random() - 0.5) * 0.05 * this.birdScale;
               
-              let stretchZ = 0;
-              if (this.gameState.isDrilling() && scaledBaseZ < 0.5) {
-                  const level = this.gameState.currentStats().unlockedAbilities['drill_attack']?.level || 1;
-                  stretchZ = -(2 + level * 0.5) * this.birdScale; // Extend beak forward dynamically based on upgrade
-              }
-              
-              const localOffset = new THREE.Vector3(scaledBaseX + flickerX, scaledBaseY + flapOffset + flickerY, stretchZ);
+              const localOffset = new THREE.Vector3(scaledBaseX + flickerX, scaledBaseY + flapOffset + flickerY, 0);
               localOffset.applyQuaternion(hQuat);
               
               let finalX = hPos.x + localOffset.x;
