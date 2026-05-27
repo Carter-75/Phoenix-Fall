@@ -925,24 +925,18 @@ export class ShopComponent implements OnInit, OnDestroy {
             adViewed: () => { executeUpgrade(); },
             adDismissed: () => { },
             beforeAd: () => {
-                this.gameState.audio.masterVolume.set(0);
-                this.gameState.audio.saveSettings();
+                this.gameState.audio.pauseAudioForAd();
             },
             afterAd: () => {
-                const savedMaster = localStorage.getItem('phoenix_vol_master');
-                this.gameState.audio.masterVolume.set(savedMaster !== null ? parseFloat(savedMaster) : 1.0);
-                this.gameState.audio.saveSettings();
+                this.gameState.audio.resumeAudioAfterAd();
             }
         });
     } else {
         console.warn("Google AdSense adBreak API not found. Mocking ad watch...");
-        this.gameState.audio.masterVolume.set(0);
-        this.gameState.audio.saveSettings();
+        this.gameState.audio.pauseAudioForAd();
         
         setTimeout(() => {
-            const savedMaster = localStorage.getItem('phoenix_vol_master');
-            this.gameState.audio.masterVolume.set(savedMaster !== null ? parseFloat(savedMaster) : 1.0);
-            this.gameState.audio.saveSettings();
+            this.gameState.audio.resumeAudioAfterAd();
             
             executeUpgrade();
         }, 2000);

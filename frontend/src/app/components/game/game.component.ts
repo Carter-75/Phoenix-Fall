@@ -430,6 +430,18 @@ export class GameComponent implements OnInit, OnDestroy {
             const projData = projectile.plugin['data'] as EnemyData;
             if (!projData || projData.type === 'projectile_enemy') continue;
 
+            if (projData.type === 'egg' || projData.type === 'turret') {
+                projData.health -= (other.label === 'boss' ? 50 : 10);
+                if (projData.type === 'egg' && other.parent) {
+                    (projData as any).aggroTarget = other;
+                }
+                if (projData.health <= 0 && projData.type === 'turret') {
+                    Matter.Composite.remove(this.engine.world, projectile);
+                }
+                this.triggerImpactEffect(projectile.position.x, projectile.position.y, false);
+                continue;
+            }
+
             if (projData.type !== 'aura') { 
                 Matter.Composite.remove(this.engine.world, projectile);
             }
@@ -727,7 +739,7 @@ export class GameComponent implements OnInit, OnDestroy {
       
       const egg = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 20, {
           isStatic: true, isSensor: true, label: 'projectile',
-          plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1, maxHealth: 1, size: 20 } as EnemyData }
+          plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1000, maxHealth: 1000, size: 20, aggroTarget: null } as any }
       });
       Matter.Composite.add(this.engine.world, egg);
       
@@ -737,19 +749,59 @@ export class GameComponent implements OnInit, OnDestroy {
           
           const baby = Matter.Bodies.circle(egg.position.x, egg.position.y - 30, 15, {
               isSensor: true, label: 'projectile', frictionAir: 0.1,
-              plugin: { data: { id: Math.random().toString(), type: 'turret', health: 1, maxHealth: 1, size: 15 } as EnemyData }
+              plugin: { data: { id: Math.random().toString(), type: 'turret', health: 500, maxHealth: 500, size: 15 } as EnemyData }
           });
           Matter.Composite.add(this.engine.world, baby);
           
-          // Remove rigid constraint so we can use smooth Boids steering
-          // (No constraint created)
-
-          // 1. Continuous Boids Steering Logic
-          let isReturning = false;
-          const boidLogic = () => {
-              if (!baby.parent || !egg.parent) return;
+          let exploded = false;
+          let fireInterval: any;
+          let boidLogic: any;
+          
+          const explode = () => {
+              if (exploded) return;
+              exploded = true;
+              if (boidLogic) Matter.Events.off(this.engine, 'beforeUpdate', boidLogic);
+              if (fireInterval) clearInterval(fireInterval);
               
-              const speed = isReturning ? 8 : 4;
+              this.audioService.playSFX('explosion');
+              const radius = 200;
+              
+              for (let i = 0; i < 40; i++) {
+                  const angle = Math.random() * Math.PI * 2;
+                  const speed = Math.random() * 8 + 4;
+                  const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+                  const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 15, {
+                      isSensor: true, label: 'projectile',
+                      plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage * 5 } as EnemyData }
+                  });
+                  Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, speed));
+                  Matter.Composite.add(this.engine.world, proj);
+                  setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 500 + Math.random() * 300);
+              }
+              
+              this.enemies.forEach(e => {
+                  const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, egg.position));
+                  if (dist < radius) this.damageEnemy(e, baseDamage * 5);
+              });
+              
+                  Matter.Composite.remove(this.engine.world, baby);
+              if (egg.parent) Matter.Composite.remove(this.engine.world, egg);
+          };
+
+          let isReturning = false;
+          boidLogic = () => {
+              const eggData = egg.plugin['data'] as any;
+              if (eggData && eggData.health <= 0 && !exploded) {
+                  explode();
+                  return;
+              }
+              
+              if (!baby.parent || !egg.parent) {
+                  if (!exploded) explode();
+                  return;
+              }
+              
+              const speed = isReturning ? 8 : (eggData.aggroTarget ? 6 : 4);
               const maxTurnForce = 0.5;
               let combinedForce = { x: 0, y: 0 };
               
@@ -758,39 +810,41 @@ export class GameComponent implements OnInit, OnDestroy {
                   combinedForce.x = dir.x * 5.0;
                   combinedForce.y = dir.y * 5.0;
               } else {
-                  // Organic Wander
                   const t = Date.now() * 0.002;
                   const wanderForce = { x: Math.cos(t), y: Math.sin(t) };
                   combinedForce.x += wanderForce.x * 0.5;
                   combinedForce.y += wanderForce.y * 0.5;
                   
-                  // Enemy Seek
                   let nearest = null;
                   if (this.enemies.length > 0) {
-                      nearest = this.enemies[0];
-                      let minDist = Infinity;
-                      this.enemies.forEach(e => {
-                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
-                          if (dist < minDist) { minDist = dist; nearest = e; }
-                      });
-                      if (minDist < seekRange) {
+                      if (eggData && eggData.aggroTarget && eggData.aggroTarget.parent) {
+                          nearest = eggData.aggroTarget;
+                      } else {
+                          nearest = this.enemies[0];
+                          let minDist = Infinity;
+                          this.enemies.forEach(e => {
+                              const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
+                              if (dist < minDist) { minDist = dist; nearest = e; }
+                          });
+                      }
+                      
+                      const distToNearest = Matter.Vector.magnitude(Matter.Vector.sub(nearest.position, baby.position));
+                      if (distToNearest < seekRange) {
                           const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, baby.position));
                           combinedForce.x += dir.x * 2.0;
                           combinedForce.y += dir.y * 2.0;
                       }
                   }
                   
-                  // Soft Containment (Repel if far from egg)
                   const distToEgg = Matter.Vector.magnitude(Matter.Vector.sub(baby.position, egg.position));
                   if (distToEgg > tetherRange) {
                       const repel = Matter.Vector.normalise(Matter.Vector.sub(egg.position, baby.position));
-                      const repelStrength = (distToEgg - tetherRange) * 0.1; // Dynamic weight based on how far out it is
+                      const repelStrength = (distToEgg - tetherRange) * 0.1;
                       combinedForce.x += repel.x * repelStrength;
                       combinedForce.y += repel.y * repelStrength;
                   }
               }
               
-              // Reynolds Steering
               if (combinedForce.x === 0 && combinedForce.y === 0) combinedForce = { x: 1, y: 0 };
               const desiredVelocity = Matter.Vector.mult(Matter.Vector.normalise(combinedForce), speed);
               const steering = Matter.Vector.sub(desiredVelocity, baby.velocity);
@@ -803,7 +857,6 @@ export class GameComponent implements OnInit, OnDestroy {
                   Matter.Body.applyForce(baby, baby.position, Matter.Vector.mult(steering, 0.005));
               }
               
-              // Ensure constant forward motion
               const currentSpeed = Matter.Vector.magnitude(baby.velocity);
               if (currentSpeed > 0) {
                  Matter.Body.setVelocity(baby, Matter.Vector.mult(Matter.Vector.normalise(baby.velocity), speed));
@@ -814,23 +867,29 @@ export class GameComponent implements OnInit, OnDestroy {
           
           Matter.Events.on(this.engine, 'beforeUpdate', boidLogic);
 
-          // 2. Fire Breathing Interval
-          const fireInterval = setInterval(() => {
+          fireInterval = setInterval(() => {
               if (!baby.parent) {
                   clearInterval(fireInterval);
                   return;
               }
               
               if (this.enemies.length > 0) {
-                  let nearest = this.enemies[0];
-                  let minDist = Infinity;
-                  this.enemies.forEach(e => {
-                      const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
-                      if (dist < minDist) { minDist = dist; nearest = e; }
-                  });
-                  if (minDist < seekRange) {
+                  const eggData = egg.plugin['data'] as any;
+                  let nearest = null;
+                  if (eggData && eggData.aggroTarget && eggData.aggroTarget.parent) {
+                      nearest = eggData.aggroTarget;
+                  } else {
+                      nearest = this.enemies[0];
+                      let minDist = Infinity;
+                      this.enemies.forEach(e => {
+                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
+                          if (dist < minDist) { minDist = dist; nearest = e; }
+                      });
+                  }
+                  
+                  const distToNearest = Matter.Vector.magnitude(Matter.Vector.sub(nearest.position, baby.position));
+                  if (distToNearest < seekRange) {
                       const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, baby.position));
-                      // Breathe a cone of fire
                       for(let i=0; i<5; i++) {
                           setTimeout(() => {
                               if (!baby.parent) return;
@@ -851,45 +910,11 @@ export class GameComponent implements OnInit, OnDestroy {
           }, 500);
 
           setTimeout(() => {
-              if (!baby.parent || !egg.parent) return;
-              clearInterval(fireInterval);
+              if (!baby.parent || !egg.parent || exploded) return;
               isReturning = true;
               
-              let exploded = false;
-              const explode = () => {
-                  if (exploded) return;
-                  exploded = true;
-                  if (!baby.parent || !egg.parent) return;
-                  Matter.Events.off(this.engine, 'beforeUpdate', boidLogic);
-                  
-                  // Volcanic explosion for turret
-                  this.audioService.playSFX('explosion');
-                  const radius = 200;
-                  
-                  for (let i = 0; i < 40; i++) {
-                      const angle = Math.random() * Math.PI * 2;
-                      const speed = Math.random() * 8 + 4;
-                      const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
-                      const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 15, {
-                          isSensor: true, label: 'projectile',
-                          plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage * 5 } as EnemyData }
-                      });
-                      Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, speed));
-                      Matter.Composite.add(this.engine.world, proj);
-                      setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 500 + Math.random() * 300);
-                  }
-                  
-                  this.enemies.forEach(e => {
-                      const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, egg.position));
-                      if (dist < radius) this.damageEnemy(e, baseDamage * 5);
-                  });
-                  
-                  Matter.Composite.remove(this.engine.world, baby);
-                  Matter.Composite.remove(this.engine.world, egg);
-              };
-
               const returnCheck = setInterval(() => {
-                  if (!baby.parent || !egg.parent) { clearInterval(returnCheck); return; }
+                  if (!baby.parent || !egg.parent || exploded) { clearInterval(returnCheck); return; }
                   const dist = Matter.Vector.magnitude(Matter.Vector.sub(baby.position, egg.position));
                   if (dist < 20) {
                       clearInterval(returnCheck);
@@ -899,8 +924,8 @@ export class GameComponent implements OnInit, OnDestroy {
               
               setTimeout(() => {
                   clearInterval(returnCheck);
-                  if (baby.parent && egg.parent) explode();
-              }, 2000); // 2 second max return time
+                  if (baby.parent && egg.parent && !exploded) explode();
+              }, 2000);
           }, duration);
       }, 2000);
   }
@@ -1461,25 +1486,19 @@ export class GameComponent implements OnInit, OnDestroy {
                 this.startReviveCountdown();
             },
             beforeAd: () => {
-                this.audioService.masterVolume.set(0);
-                this.audioService.saveSettings();
+                this.audioService.pauseAudioForAd();
             },
             afterAd: () => {
-                const savedMaster = localStorage.getItem('phoenix_vol_master');
-                this.audioService.masterVolume.set(savedMaster !== null ? parseFloat(savedMaster) : 1.0);
-                this.audioService.saveSettings();
+                this.audioService.resumeAudioAfterAd();
             }
         });
     } else {
         console.warn("Google AdSense adBreak API not found. Mocking ad watch...");
         // Mock 2 second ad watch
-        this.audioService.masterVolume.set(0);
-        this.audioService.saveSettings();
+        this.audioService.pauseAudioForAd();
         
         setTimeout(() => {
-            const savedMaster = localStorage.getItem('phoenix_vol_master');
-            this.audioService.masterVolume.set(savedMaster !== null ? parseFloat(savedMaster) : 1.0);
-            this.audioService.saveSettings();
+            this.audioService.resumeAudioAfterAd();
             
             this.executeRevival();
         }, 2000);

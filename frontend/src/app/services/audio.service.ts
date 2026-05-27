@@ -64,6 +64,25 @@ export class AudioService {
       return this.masterVolume() === 0;
   }
 
+  private preAdMasterVolume: number | null = null;
+
+  public pauseAudioForAd() {
+      this.preAdMasterVolume = this.masterVolume();
+      this.masterVolume.set(0);
+      this.updateVolumes(); // Update active audio elements without saving 0 to localStorage
+  }
+
+  public resumeAudioAfterAd() {
+      if (this.preAdMasterVolume !== null) {
+          this.masterVolume.set(this.preAdMasterVolume);
+          this.preAdMasterVolume = null;
+      } else {
+          const savedMaster = localStorage.getItem('phoenix_vol_master');
+          this.masterVolume.set(savedMaster !== null ? parseFloat(savedMaster) : 1.0);
+      }
+      this.updateVolumes();
+  }
+
   playMenuBgm() {
     this.stopBgm();
     this.currentBgm = this.menuBgm;
