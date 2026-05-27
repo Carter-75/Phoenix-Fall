@@ -442,6 +442,7 @@ export class GameStateService {
               });
               this.worldUpgrades.set(upgrades);
           }
+      }
   }
 
   // Dynamic Upgrade System

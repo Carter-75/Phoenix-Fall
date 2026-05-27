@@ -232,7 +232,8 @@ export class GameComponent implements OnInit, OnDestroy {
   private timerInterval: any;
   private spawnInterval: any;
   private attackInterval: any;
-  private attackInterval: any;
+  private enemies: Matter.Body[] = [];
+  private items: Matter.Body[] = [];
 
   // Listeners bound
   private boundKeyDown = this.onKeyDown.bind(this);
