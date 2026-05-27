@@ -257,10 +257,9 @@ export class GameComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     clearInterval(this.timerInterval);
-    clearInterval(this.spawnInterval);
+    clearTimeout(this.spawnInterval);
     clearInterval(this.attackInterval);
     clearInterval(this.reviveInterval);
-    clearInterval(this.wallInterval);
     
     window.removeEventListener('mousemove', this.onMouseMove.bind(this));
     window.removeEventListener('mousedown', this.onMouseDown.bind(this));
@@ -574,10 +573,7 @@ export class GameComponent implements OnInit, OnDestroy {
       }
     }, 1000);
 
-    this.spawnInterval = setInterval(() => {
-      if (this.gameEnded() || this.isDead() || this.bossSpawned() || this.gameState.isPaused()) return;
-      this.spawnEnemy();
-    }, 2000);
+    this.scheduleNextSpawn();
 
     const attackSpeed = this.gameState.currentStats().attackSpeed;
     this.attackInterval = setInterval(() => {
@@ -888,7 +884,6 @@ export class GameComponent implements OnInit, OnDestroy {
       const options = {
           label: type === 'boss' ? 'boss' : 'enemy',
           frictionAir: type === 'boss' ? 0.1 : 0.05,
-          density: type === 'boss' ? 10 : 1,
           plugin: { data }
       };
 
@@ -923,6 +918,18 @@ export class GameComponent implements OnInit, OnDestroy {
 
     this.enemies.push(boss);
     Matter.Composite.add(this.engine.world, boss);
+  }
+
+  private scheduleNextSpawn() {
+    if (this.spawnInterval) clearTimeout(this.spawnInterval);
+    if (!this.gameEnded() && !this.isDead() && !this.bossSpawned() && !this.gameState.isPaused()) {
+        this.spawnEnemy();
+    }
+    
+    // Calculate next delay based on progress (from 2000ms down to 300ms)
+    const progress = this.progressPercent();
+    const delay = Math.max(300, 2000 - (progress * 17));
+    this.spawnInterval = setTimeout(() => this.scheduleNextSpawn(), delay);
   }
 
   private spawnEnemy() {
