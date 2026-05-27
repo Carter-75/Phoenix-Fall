@@ -294,7 +294,12 @@ export class GameComponent implements OnInit, OnDestroy {
       label: 'player'
     });
 
-    Composite.add(this.engine.world, [this.playerBody]);
+    // Static physics boundaries for the 3D walls (aligned roughly at 10% and 90% screen width to match the visual 0.85 offset)
+    const wallOptions = { isStatic: true, label: 'wall', friction: 0.1 };
+    const leftWall = Bodies.rectangle(window.innerWidth * 0.1, window.innerHeight / 2, window.innerWidth * 0.2, window.innerHeight * 2, wallOptions);
+    const rightWall = Bodies.rectangle(window.innerWidth * 0.9, window.innerHeight / 2, window.innerWidth * 0.2, window.innerHeight * 2, wallOptions);
+
+    Composite.add(this.engine.world, [this.playerBody, leftWall, rightWall]);
 
     // Handle collisions
     Matter.Events.on(this.engine, 'collisionStart', (event) => {
@@ -470,11 +475,22 @@ export class GameComponent implements OnInit, OnDestroy {
         Matter.Body.applyForce(enemy, enemy.position, Matter.Vector.mult(normalized, moveSpeed));
       });
 
-      // 4. Magnetism for items
+      // 4. Magnetism and Lava Gravity for items
       const magnetRadius = 150 * this.gameState.currentStats().magnetism;
       this.items.forEach(item => {
          const data = item.plugin['data'];
          const isBossGem = this.inBossDefeatSequence() && data && data.type === 'gem';
+         
+         if (data && data.type === 'lava') {
+             // Lava gets pulled downwards by gravity
+             Matter.Body.applyForce(item, item.position, { x: 0, y: 0.005 });
+             
+             // Check if lava falls off screen and remove it
+             if (item.position.y > window.innerHeight + 100) {
+                 Matter.Composite.remove(this.engine.world, item);
+                 this.items = this.items.filter(i => i !== item);
+             }
+         }
          
          if (isBossGem && now - this.bossDefeatTimestamp > 1500) {
             // Boss Defeat Homing Phase: Boss gems forcefully float to phoenix after 1.5s
@@ -483,8 +499,8 @@ export class GameComponent implements OnInit, OnDestroy {
             // Cancel existing gravity/velocity and pull strongly
             Matter.Body.setVelocity(item, { x: 0, y: 0 });
             Matter.Body.applyForce(item, item.position, Matter.Vector.mult(normalized, 0.05));
-         } else {
-             // Normal Magnetism
+         } else if (data && data.type !== 'lava') {
+             // Normal Magnetism (Lava is not magnetic)
              const force = Matter.Vector.sub(this.playerBody.position, item.position);
              const dist = Matter.Vector.magnitude(force);
              if (dist < magnetRadius) {
@@ -585,12 +601,14 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private spawnLavaBlob(isLeft: boolean) {
-      const x = isLeft ? -50 : window.innerWidth + 50;
+      const x = isLeft ? window.innerWidth * 0.1 : window.innerWidth * 0.9;
       const y = window.innerHeight * 0.2 + Math.random() * (window.innerHeight * 0.6); // Spawns along the middle chunk of the wall
       
       const lava = Matter.Bodies.circle(x, y, 20, {
           label: 'item',
-          isSensor: true,
+          isSensor: false, // NOT a sensor, so it bounces off the physical walls
+          restitution: 0.6, // Bouncy
+          friction: 0.1,
           plugin: {
               data: {
                   id: Math.random().toString(36).substr(2, 9),
@@ -600,8 +618,8 @@ export class GameComponent implements OnInit, OnDestroy {
       });
       
       // Volcano explosion velocity (arcs inwards and upwards)
-      const vx = (isLeft ? 1 : -1) * (15 + Math.random() * 10);
-      const vy = -(10 + Math.random() * 15);
+      const vx = (isLeft ? 1 : -1) * (10 + Math.random() * 10);
+      const vy = -(15 + Math.random() * 15);
       Matter.Body.setVelocity(lava, { x: vx, y: vy });
       
       Matter.Composite.add(this.engine.world, lava);
