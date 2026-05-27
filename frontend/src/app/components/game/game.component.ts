@@ -342,11 +342,11 @@ export class GameComponent implements OnInit, OnDestroy {
                 let val = data.value || 0;
                 if (this.gameState.hasGoldenAura() && Math.random() < 0.1) val *= 5;
                 const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
-                this.gameState.coins.update(c => c + Math.max(1, Math.floor(val * scale * this.gameState.coinMultiplier())));
+                this.gameState.coins.update(c => c + (val * scale * this.gameState.coinMultiplier()));
             }
             if (data.type === 'gem') {
                 const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
-                this.gameState.gems.update(g => g + Math.max(1, Math.floor((data.value || 0) * scale)));
+                this.gameState.gems.update(g => g + ((data.value || 0) * scale));
                 if (this.inBossDefeatSequence()) {
                     this.bossGemsCollected++;
                     if (this.bossGemsCollected >= this.bossGemsDropped && !this.animatingAscension()) {
@@ -1334,8 +1334,7 @@ export class GameComponent implements OnInit, OnDestroy {
     this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 });
     this.gameState.syncProgressToServer();
 
-    if (this.runner) Matter.Runner.stop(this.runner);    this.gameState.coins.update(c => Math.floor(c));
-    this.gameState.gems.update(g => Math.floor(g));
+    if (this.runner) Matter.Runner.stop(this.runner);
     
     // Revive mechanic logic
     this.reviveCountdown.set(10);
@@ -1380,9 +1379,6 @@ export class GameComponent implements OnInit, OnDestroy {
   private winGame() {
     this.gameEnded.set(true);
     this.gameWon.set(true);
-    
-    this.gameState.coins.update(c => Math.floor(c));
-    this.gameState.gems.update(g => Math.floor(g));
     
     this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight / 2 }); 
 
@@ -1450,8 +1446,6 @@ export class GameComponent implements OnInit, OnDestroy {
           return;
       }
       
-      this.gameState.coins.update(c => Math.floor(c));
-      this.gameState.gems.update(g => Math.floor(g));
       this.gameState.syncProgressToServer();
       
       // 2. Reset Sequence States
@@ -1508,6 +1502,8 @@ export class GameComponent implements OnInit, OnDestroy {
   private onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') this.togglePause(); }
   private onVisibilityChange() { if (document.hidden && !this.gameState.isPaused() && !this.gameEnded() && !this.isDead()) this.togglePause(); }
   public quitGame() { 
+      this.gameState.coins.update(c => Math.floor(c));
+      this.gameState.gems.update(g => Math.floor(g));
       this.gameState.isPaused.set(false);
       this.gameState.activeScreen.set('menu'); 
   }
