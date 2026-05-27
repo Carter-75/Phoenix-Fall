@@ -190,25 +190,25 @@ export class GameComponent implements OnInit, OnDestroy {
   public hasRebirthed = false;
   private lastClickTime = 0;
   private pauseClickCount = 0;
+  
+  private lastUpdateTime = Date.now();
+  private tapAbilityEndTime = 0;
+  private holdAbilityEndTime = 0;
 
   getTapIcon() { return ABILITIES[this.gameState.currentStats().activeTapAbility || 'burst']?.icon || '💥'; }
   getHoldIcon() { return ABILITIES[this.gameState.currentStats().activeHoldAbility || 'aura']?.icon || '🌀'; }
 
   getTapMaxCooldown() {
       const id = this.gameState.currentStats().activeTapAbility || 'burst';
-      if (id === 'drill_attack') return 3.6; // 3s cooldown + 0.6s duration
-      if (id === 'fire_breath') return 9.0;  // 8s cooldown + 1s duration
-      return 5.0; // burst
+      if (id === 'drill_attack') return 3; 
+      if (id === 'fire_breath') return 8;  
+      return 5; // burst
   }
 
   getHoldMaxCooldown() {
       const id = this.gameState.currentStats().activeHoldAbility || 'aura';
       if (id === 'phoenix_turret') {
-          const level = this.gameState.currentStats().unlockedAbilities['phoenix_turret']?.level || 1;
-          const duration = 6 + level; // active duration in seconds
-          const returnTime = 2; // return duration in seconds
-          const cooldown = Math.max(6, 12 - (level * 0.5));
-          return duration + returnTime + cooldown;
+          return 10;
       }
       if (id === 'rebirth') return 60; // 60s cooldown for Rebirth
       return 15; // aura
@@ -424,11 +424,16 @@ export class GameComponent implements OnInit, OnDestroy {
     // Update Loop
     Matter.Events.on(this.engine, 'beforeUpdate', () => {
       const now = Date.now();
-      const delta = 1 / 60; // Matter runs approx 60 ticks per sec
+      const delta = Math.min(0.1, (now - this.lastUpdateTime) / 1000); // exact real-time delta
+      this.lastUpdateTime = now;
       
       // Cooldowns
-      this.tapCooldown.update(c => Math.max(0, c - delta));
-      this.holdCooldown.update(c => Math.max(0, c - delta));
+      if (now > this.tapAbilityEndTime) {
+          this.tapCooldown.update(c => Math.max(0, c - delta));
+      }
+      if (now > this.holdAbilityEndTime) {
+          this.holdCooldown.update(c => Math.max(0, c - delta));
+      }
 
       // 1. Sync hitbox to EXACT visual 3D position of Phoenix
       if (!this.isDead()) {
@@ -611,7 +616,8 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private triggerDrillAttack() {
       if (this.gameState.isRebirthing()) return;
-      this.tapCooldown.set(3.6);
+      this.tapCooldown.set(3);
+      this.tapAbilityEndTime = Date.now() + 600;
       this.audioService.playSFX('shoot');
       
       const level = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['drill_attack']?.level || 1;
@@ -632,7 +638,8 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private triggerFireBreath() {
       if (this.gameState.isRebirthing()) return;
-      this.tapCooldown.set(9.0);
+      this.tapCooldown.set(8);
+      this.tapAbilityEndTime = Date.now() + 1000;
       const damage = this.gameState.currentStats().damage * 0.5;
       this.audioService.playSFX('shoot');
       
@@ -673,15 +680,15 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private triggerPhoenixTurret() {
       const level = this.gameState.currentStats().unlockedAbilities['phoenix_turret']?.level || 1;
-      const cooldown = Math.max(6, 12 - (level * 0.5));
       const seekRange = 500 + (level * 100);
       const tetherRange = 100 + (level * 25);
       const duration = 6000 + (level * 1000);
       const damageMult = 1 + (level * 0.5);
       const baseDamage = this.gameState.currentStats().damage * damageMult;
       
-      const totalCooldown = (duration / 1000) + 2 + cooldown;
-      this.holdCooldown.set(totalCooldown);
+      this.holdCooldown.set(10);
+      this.holdAbilityEndTime = Date.now() + duration + 2000; // Freeze CD during duration + return
+      
       const egg = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 20, {
           isStatic: true, isSensor: true, label: 'projectile',
           plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1, maxHealth: 1, size: 20 } as EnemyData }
