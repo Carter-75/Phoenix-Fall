@@ -59,13 +59,13 @@ export class PoliciesComponent implements OnInit {
 
   getContent(): string {
       if (this.type === 'tos') {
-          return "By accessing or using Phoenix Fall, you agree to be bound by these Terms of Service. You may not cheat, hack, or exploit bugs. We reserve the right to ban accounts without notice for any violation. All virtual items remain the property of the developer. We are not responsible for any emotional distress caused by our highly addictive gameplay loop.";
+          return "By accessing or using Phoenix Fall, you agree to be bound by these Terms of Service. Phoenix Fall is provided 'as-is' without warranties of any kind. You may not cheat, hack, exploit bugs, or use unauthorized third-party software. All virtual items, currencies, and accounts remain the property of the developer. We reserve the right to ban accounts without notice for violating these terms. If your account is banned, you will permanently lose access to all purchased virtual items and currency, and no refunds will be provided. We are not responsible for any emotional distress caused by our highly addictive gameplay loop.";
       }
       if (this.type === 'privacy') {
-          return "We collect your email, username, and gameplay analytics. We use this data to optimize monetization, track your engagement, and serve targeted offers. By agreeing, you consent to our use of third-party analytics trackers to monitor your session times and in-game currency balances. If you are under 13, you must have parental consent to play.";
+          return "Phoenix Fall respects your privacy. When you register, we securely store your email, username, and encrypted password (or Google OAuth identifier), along with your gameplay progress and virtual currency balances. We DO NOT sell your personal data to third parties. We use the Google Ads network to serve automated, dynamic advertisements, which may use device identifiers and gameplay context for targeted ad delivery. We also collect basic gameplay analytics to improve the game. You may permanently delete your account and all associated data at any time from your profile.";
       }
       if (this.type === 'refunds') {
-          return "ALL SALES ARE FINAL. Virtual currency (Gems) and in-game upgrades hold no real-world value and cannot be exchanged for fiat currency. We do not offer refunds for accidental purchases, account bans, or buyer's remorse, except where expressly mandated by statutory consumer rights in your jurisdiction. Please contact Google Play or Apple App Store for billing inquiries.";
+          return "All in-app purchases made in Phoenix Fall are processed securely through the Google Play Store. ALL SALES ARE FINAL. Virtual currency (Gems) and premium upgrades hold no real-world fiat value and cannot be exchanged for cash. We do not offer direct refunds for accidental purchases, account bans, or buyer's remorse. All refund requests must be directed to and handled by Google Play Customer Support in accordance with their standard refund policies.";
       }
       return "Policy not found.";
   }
