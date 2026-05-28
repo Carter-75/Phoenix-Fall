@@ -576,7 +576,7 @@ export interface ActiveDeal {
                        -1 <img src="assets/gem_icon.png" class="w-5 h-5"/>
                     </p>
                     <p class="text-orange-400 font-bold text-xl flex items-center gap-2 justify-end mt-1">
-                       +850 <img src="assets/coin_icon.png" class="w-5 h-5"/>
+                       +1500 <img src="assets/coin_icon.png" class="w-5 h-5"/>
                     </p>
                   </div>
                   <button (click)="exchangeGem()" class="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-xl hover:brightness-110 active:scale-95 transition disabled:opacity-50 disabled:grayscale shrink-0 relative overflow-hidden group" [disabled]="gameState.gems() < 1 || isGachaSpinning()">
@@ -1379,7 +1379,7 @@ export class ShopComponent implements OnInit, OnDestroy {
           spins++;
           if (spins > 10) {
               clearInterval(spinInterval);
-              this.gameState.coins.update(c => c + 850);
+              this.gameState.coins.update(c => c + 1500);
               this.isGachaSpinning.set(false);
           }
       }, 100);

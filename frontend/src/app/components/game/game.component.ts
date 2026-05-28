@@ -384,11 +384,11 @@ export class GameComponent implements OnInit, OnDestroy {
             if (data.type === 'coin') {
                 let val = data.value || 0;
                 if (this.gameState.hasGoldenAura() && Math.random() < 0.1) val *= 5;
-                const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
+                const scale = 3 * Math.max(0.2, 1 - (this.progressPercent() / 100));
                 this.gameState.coins.update(c => c + (val * scale * this.gameState.coinMultiplier()));
             }
             if (data.type === 'gem') {
-                const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
+                const scale = 3 * Math.max(0.2, 1 - (this.progressPercent() / 100));
                 this.gameState.gems.update(g => g + ((data.value || 0) * scale));
                 if (this.inBossDefeatSequence()) {
                     this.bossGemsCollected++;
@@ -399,7 +399,7 @@ export class GameComponent implements OnInit, OnDestroy {
             }
             if (data.type === 'heart') {
                 this.audioService.playSFX('heal');
-                const scale = Math.max(0.2, 1 - (this.progressPercent() / 100));
+                const scale = 3 * Math.max(0.2, 1 - (this.progressPercent() / 100));
                 
                 const healAmt = Math.floor((data.value || 0) * scale);
                 
