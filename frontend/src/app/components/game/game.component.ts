@@ -801,7 +801,7 @@ export class GameComponent implements OnInit, OnDestroy {
                   return;
               }
               
-              const speed = isReturning ? 8 : (eggData.aggroTarget ? 6 : 4);
+              const speed = isReturning ? 4 : (eggData.aggroTarget ? 3 : 2);
               const maxTurnForce = 0.5;
               let combinedForce = { x: 0, y: 0 };
               
