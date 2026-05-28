@@ -1238,10 +1238,10 @@ export class GameComponent implements OnInit, OnDestroy {
       } else {
         // Massive Coin Nerf to encourage P2W Gem Exchange
         if (data.type === 'golem') {
-            this.dropItem(enemy.position.x, enemy.position.y, 'coin', 5);
+            this.dropItem(enemy.position.x, enemy.position.y, 'coin', 50);
         } else {
-            if (Math.random() < 0.2) { // Only 20% chance to drop 1 coin
-                this.dropItem(enemy.position.x, enemy.position.y, 'coin', 1);
+            if (Math.random() < 0.5) { // Increased chance
+                this.dropItem(enemy.position.x, enemy.position.y, 'coin', 10);
             }
         }
         if (Math.random() < 0.1) { // 10% chance for a heart

@@ -28,6 +28,16 @@ export class AudioService {
 
     this.loadSettings();
     this.updateVolumes();
+
+    const startAudioContext = () => {
+        if (this.currentBgm && this.currentBgm.paused) {
+            this.currentBgm.play().catch(() => {});
+        }
+        document.removeEventListener('click', startAudioContext);
+        document.removeEventListener('touchstart', startAudioContext);
+    };
+    document.addEventListener('click', startAudioContext);
+    document.addEventListener('touchstart', startAudioContext);
   }
 
   private loadSettings() {
@@ -86,21 +96,17 @@ export class AudioService {
   playMenuBgm() {
     this.stopBgm();
     this.currentBgm = this.menuBgm;
-    if (!this.isMuted() && this.menuVolume() > 0) {
-        this.currentBgm.play().catch(e => console.log('BGM play prevented', e));
-    }
+    this.currentBgm.play().catch(e => console.log('BGM play prevented', e));
   }
   
   playWorldBgm(worldId: number = 0) {
       this.stopBgm();
       this.currentBgm = this.world1Bgm;
-      if (!this.isMuted() && this.menuVolume() > 0) {
-          this.currentBgm.play().catch(e => console.log('BGM play prevented', e));
-      }
+      this.currentBgm.play().catch(e => console.log('BGM play prevented', e));
   }
   
   playIntenseBgm() {
-      if (this.intenseBgm.paused && !this.isMuted() && this.intenseVolume() > 0) {
+      if (this.intenseBgm.paused) {
           this.intenseBgm.play().catch(e => console.log('Intense BGM play prevented', e));
       }
   }
