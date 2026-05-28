@@ -1236,12 +1236,16 @@ export class GameComponent implements OnInit, OnDestroy {
         
         // We do NOT call winGame() instantly here anymore!
       } else {
-        // Massive Coin Nerf to encourage P2W Gem Exchange
         if (data.type === 'golem') {
-            this.dropItem(enemy.position.x, enemy.position.y, 'coin', 50);
+            for (let i = 0; i < 5; i++) {
+                this.dropItem(enemy.position.x + (Math.random()-0.5)*20, enemy.position.y + (Math.random()-0.5)*20, 'coin', 10);
+            }
         } else {
-            if (Math.random() < 0.5) { // Increased chance
-                this.dropItem(enemy.position.x, enemy.position.y, 'coin', 10);
+            if (Math.random() < 0.6) { // 60% chance to drop coins
+                const amount = Math.floor(Math.random() * 3) + 1; // 1 to 3 coins visually
+                for (let i = 0; i < amount; i++) {
+                    this.dropItem(enemy.position.x + (Math.random()-0.5)*15, enemy.position.y + (Math.random()-0.5)*15, 'coin', 5);
+                }
             }
         }
         if (Math.random() < 0.1) { // 10% chance for a heart
