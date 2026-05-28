@@ -431,14 +431,23 @@ export interface ActiveDeal {
                         <!-- Locked -->
                         <div class="w-full">
                            @if (canAffordWithGemsButNotCoins(ability.unlockCost)) {
-                              <button (click)="unlockAbility(ability.id, ability.unlockCost, true)" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-sm flex items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition disabled:opacity-50">
-                                 Unlock <img src="assets/gem_icon.png" class="w-4 h-4"/> {{ getGemCost(ability.unlockCost) }}
+                              <div class="flex gap-2 w-full">
+                                 <button (click)="unlockAbility(ability.id, ability.unlockCost, true)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(200,0,255,0.3)]">
+                                    <img src="assets/gem_icon.png" class="w-7 h-7"/>
+                                 </button>
+                                 <button (click)="buyWithAd('unlock_' + ability.id)" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                                    <span class="text-2xl">📺</span>
+                                 </button>
+                              </div>
+                           } @else if (gameState.coins() < ability.unlockCost) {
+                              <button (click)="buyWithAd('unlock_' + ability.id)" class="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,200,255,0.3)]">
+                                 <span class="text-xl">📺</span> Unlock
                               </button>
-             } @else {
+                           } @else {
                               <button (click)="unlockAbility(ability.id, ability.unlockCost)" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-sm flex items-center justify-center gap-1 hover:brightness-110 active:scale-95 transition disabled:opacity-50" [disabled]="gameState.coins() < ability.unlockCost">
                                  Unlock <img src="assets/coin_icon.png" class="w-4 h-4"/> {{ ability.unlockCost }}
                               </button>
-                                         }
+                           }
                         </div>
                      } @else {
                         <!-- Unlocked -->
@@ -461,14 +470,23 @@ export interface ActiveDeal {
                                  Equip
                               </button>
                               @if (canAffordWithGemsButNotCoins(getAbilityCost(ability.id, ability.upgradeCost))) {
-                                 <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost), true)" class="flex-1 py-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-1 hover:brightness-110 transition disabled:opacity-50">
-                                    <img src="assets/gem_icon.png" class="w-3 h-3"/> {{ getGemCost(getAbilityCost(ability.id, ability.upgradeCost)) }}
+                                 <div class="flex-1 flex gap-1">
+                                    <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost), true)" class="flex-1 py-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center hover:brightness-110 transition disabled:opacity-50">
+                                       <img src="assets/gem_icon.png" class="w-4 h-4"/>
+                                    </button>
+                                    <button (click)="buyWithAd('upgrade_' + ability.id)" class="flex-1 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center hover:brightness-110 transition disabled:opacity-50">
+                                       <span class="text-lg">📺</span>
+                                    </button>
+                                 </div>
+                              } @else if (gameState.coins() < getAbilityCost(ability.id, ability.upgradeCost)) {
+                                 <button (click)="buyWithAd('upgrade_' + ability.id)" class="flex-1 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center gap-1 hover:brightness-110 transition disabled:opacity-50">
+                                    <span class="text-lg">📺</span> Upgrade
                                  </button>
-                } @else {
+                              } @else {
                                  <button (click)="upgradeAbility(ability.id, getAbilityCost(ability.id, ability.upgradeCost))" class="flex-1 py-2 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-1 hover:brightness-110 transition disabled:opacity-50" [disabled]="gameState.coins() < getAbilityCost(ability.id, ability.upgradeCost)">
                                     <img src="assets/coin_icon.png" class="w-3 h-3"/> {{ getAbilityCost(ability.id, ability.upgradeCost) }}
                                  </button>
-                                            }
+                              }
                            </div>
                         </div>
                      }
@@ -905,6 +923,17 @@ export class ShopComponent implements OnInit, OnDestroy {
   buyWithAd(type: string) {
     const win = window as any;
     const executeUpgrade = () => {
+        if (type.startsWith('unlock_')) {
+            const id = type.replace('unlock_', '');
+            this.unlockAbility(id, 0, false, true);
+            return;
+        }
+        if (type.startsWith('upgrade_')) {
+            const id = type.replace('upgrade_', '');
+            this.upgradeAbility(id, 0, false, true);
+            return;
+        }
+
         switch(type) {
             case 'maxHealth': this.buyHealth(false, true); break;
             case 'speed': this.buySpeed(false, true); break;
@@ -949,7 +978,20 @@ export class ShopComponent implements OnInit, OnDestroy {
     this.gameState.activeScreen.set('menu');
   }
 
-  unlockAbility(id: string, cost: number, useGems: boolean = false) {
+  unlockAbility(id: string, cost: number, useGems: boolean = false, fromAd: boolean = false) {
+    if (fromAd) {
+         if (!this.gameState.currentStats().unlockedAbilities[id]) {
+             this.gameState.worldUpgrades.update(upgrades => {
+                 const worldId = this.gameState.selectedWorldIndex();
+                 const stats = upgrades[worldId];
+                 return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: 1, modifiers: { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 } } } } };
+             });
+             this.gameState.awardTrophy("Ability Unlocked");
+             this.gameState.audio.playSFX('buy');
+         }
+         return;
+    }
+
     if (useGems) {
         const gemCost = this.getGemCost(cost);
         if (this.gameState.gems() >= gemCost && !this.gameState.currentStats().unlockedAbilities[id]) {
@@ -974,7 +1016,22 @@ export class ShopComponent implements OnInit, OnDestroy {
     }
   }
 
-  upgradeAbility(id: string, cost: number, useGems: boolean = false) {
+  upgradeAbility(id: string, cost: number, useGems: boolean = false, fromAd: boolean = false) {
+     if (fromAd) {
+         if (this.gameState.currentStats().unlockedAbilities[id]) {
+             this.gameState.worldUpgrades.update(upgrades => {
+                 const worldId = this.gameState.selectedWorldIndex();
+                 const stats = upgrades[worldId];
+                 const currentLvl = stats.unlockedAbilities[id]?.level || 1;
+                 const currentModifiers = stats.unlockedAbilities[id]?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+                 const newModifiers = this.gameState.generateAbilityUpgrade(id, currentLvl + 1, currentModifiers);
+                 return { ...upgrades, [worldId]: { ...stats, unlockedAbilities: { ...stats.unlockedAbilities, [id]: { level: currentLvl + 1, modifiers: newModifiers } } } };
+             });
+             this.gameState.audio.playSFX('buy');
+         }
+         return;
+     }
+
      if (useGems) {
          const gemCost = this.getGemCost(cost);
          if (this.gameState.gems() >= gemCost && this.gameState.currentStats().unlockedAbilities[id]) {
