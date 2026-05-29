@@ -131,7 +131,11 @@ interface EnemyData {
           <p class="text-white text-xl font-bold mb-8">Revive in: <span class="text-orange-400 font-mono">{{ reviveCountdown() }}s</span></p>
           
           <div class="flex flex-col gap-4 w-full max-w-sm">
-            <button (click)="reviveWithGems()" class="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:brightness-125 border border-fuchsia-400/50 rounded-2xl flex justify-center items-center gap-3 transition shadow-[0_0_20px_rgba(200,0,255,0.3)]">
+            <button (click)="reviveWithGems()" 
+                    [disabled]="gameState.gems() < getReviveCost()"
+                    [class.opacity-50]="gameState.gems() < getReviveCost()"
+                    [class.cursor-not-allowed]="gameState.gems() < getReviveCost()"
+                    class="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:brightness-125 border border-fuchsia-400/50 rounded-2xl flex justify-center items-center gap-3 transition shadow-[0_0_20px_rgba(200,0,255,0.3)]">
               <span class="text-white font-bold text-xl">Instant Revive</span>
               <img src="assets/gem_icon.png" class="w-6 h-6"/>
               <span class="text-white font-bold text-xl">{{ getReviveCost() }}</span>
@@ -1604,11 +1608,25 @@ export class GameComponent implements OnInit, OnDestroy {
     this.gameState.phoenixOverridePosition.set(null);
     this.clearEnemies();
     if (this.runner && this.engine) Matter.Runner.run(this.runner, this.engine); // Unfreeze physics
+    if (this.bossSpawned()) {
+        // Boss fight continues: reset timer so rage mode doesn't trigger instantly
+        this.timeRemaining.set(this.totalTimeSignal());
+        // Restart the intense BGM if it ended
+        if (this.audioService.onIntenseBgmEnded() || this.audioService.getBgmDuration() === 0) {
+            this.audioService.playIntenseBgm(this.gameState.selectedWorldIndex());
+        } else {
+            this.audioService.resumeCurrentBgm();
+        }
+    }
   }
 
   private clearEnemies() {
-    this.enemies.forEach(e => Matter.Composite.remove(this.engine.world, e));
-    this.enemies = [];
+    this.enemies.forEach(e => {
+        if (e.plugin['data']?.type !== 'boss') {
+            Matter.Composite.remove(this.engine.world, e);
+        }
+    });
+    this.enemies = this.enemies.filter(e => e.plugin['data']?.type === 'boss');
     this.items.forEach(i => Matter.Composite.remove(this.engine.world, i));
     this.items = [];
   }
@@ -1755,6 +1773,7 @@ export class GameComponent implements OnInit, OnDestroy {
       this.cheatPrepared.set(false);
       this.gameState.coins.update(c => Math.floor(c));
       this.gameState.gems.update(g => Math.floor(g));
+      this.audioService.playMenuBgm();
       this.gameState.activeScreen.set('menu'); 
   }
 
