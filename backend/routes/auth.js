@@ -98,6 +98,47 @@ router.get('/google/callback', (req, res, next) => {
   })(req, res, next);
 });
 
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+router.post('/google/native', async (req, res) => {
+    try {
+        const { idToken } = req.body;
+        if (!idToken) return res.status(400).json({ message: 'No ID token provided' });
+
+        const ticket = await client.verifyIdToken({
+            idToken: idToken,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        
+        let user = await User.findOne({ googleId: payload.sub });
+        if (!user) {
+            user = await User.findOne({ email: payload.email });
+        }
+        
+        if (!user) {
+            const tempUser = {
+                isTemp: true,
+                googleId: payload.sub,
+                email: payload.email,
+            };
+            req.login(tempUser, (err) => {
+                if (err) return res.status(500).json({ error: err.message });
+                return res.json(tempUser);
+            });
+        } else {
+            req.login(user, (err) => {
+                if (err) return res.status(500).json({ error: err.message });
+                return res.json(user);
+            });
+        }
+    } catch (err) {
+        console.error('Native Google Auth Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 // --- Common ---
 router.get('/user', (req, res) => {

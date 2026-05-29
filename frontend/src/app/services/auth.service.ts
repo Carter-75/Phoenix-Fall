@@ -2,6 +2,8 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
 export interface User {
   _id: string;
@@ -23,6 +25,12 @@ export interface User {
 export class AuthService {
   private http = inject(HttpClient);
   public currentUser = signal<User | null>(null);
+
+  constructor() {
+    if (Capacitor.isNativePlatform()) {
+      GoogleAuth.initialize();
+    }
+  }
 
   private apiUrl = environment.apiUrl + '/auth';
 
@@ -67,8 +75,23 @@ export class AuthService {
     );
   }
 
-  loginWithGoogle(): void {
-    window.location.href = `${this.apiUrl}/google`;
+  async loginWithGoogle(): Promise<User | void> {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const googleUser = await GoogleAuth.signIn();
+        const idToken = googleUser.authentication.idToken;
+        
+        const req$ = this.http.post<User>(`${this.apiUrl}/google/native`, { idToken }).pipe(
+          tap(user => this.currentUser.set(user))
+        );
+        return await import('rxjs').then(m => m.firstValueFrom(req$));
+      } catch (err) {
+        console.error('Google Sign In Error:', err);
+        throw err;
+      }
+    } else {
+      window.location.href = `${this.apiUrl}/google`;
+    }
   }
 
   checkStatus(): Observable<User> {

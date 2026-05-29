@@ -145,8 +145,19 @@ export class LoginComponent implements OnInit {
     }
   }
 
-  loginWithGoogle() {
+  async loginWithGoogle() {
     this.audioService.playSFX('buy');
-    this.authService.loginWithGoogle();
+    try {
+        const user = await this.authService.loginWithGoogle();
+        if (user && user.isTemp) {
+            this.mode = 'set-username';
+        } else if (user) {
+            await this.gameState.migrateGuestData();
+            this.gameState.syncWithUser(user);
+            this.goBack();
+        }
+    } catch(err) {
+        this.error = 'Native Google Authentication Failed.';
+    }
   }
 }

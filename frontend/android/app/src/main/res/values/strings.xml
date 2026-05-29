@@ -4,4 +4,5 @@
     <string name="title_activity_main">PhoenixFall</string>
     <string name="package_name">com.carter75.phoenixfall</string>
     <string name="custom_url_scheme">com.carter75.phoenixfall</string>
+    <string name="server_client_id">108585498879-v35d0d196d4djglodbbjok452pr1e04r.apps.googleusercontent.com</string>
 </resources>
