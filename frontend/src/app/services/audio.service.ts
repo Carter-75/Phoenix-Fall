@@ -8,6 +8,7 @@ export class AudioService {
   public menuVolume = signal<number>(1.0);
   public attackVolume = signal<number>(1.0);
   public intenseVolume = signal<number>(1.0);
+  public sfxVolume = signal<number>(1.0);
   
   public onWorldBgmEnded = signal<boolean>(false);
   public onIntenseBgmEnded = signal<boolean>(false);
@@ -174,6 +175,9 @@ export class AudioService {
       
       const savedIntense = localStorage.getItem('phoenix_vol_intense');
       if (savedIntense !== null) this.intenseVolume.set(parseFloat(savedIntense));
+      
+      const savedSfx = localStorage.getItem('phoenix_vol_sfx');
+      if (savedSfx !== null) this.sfxVolume.set(parseFloat(savedSfx));
   }
 
   public saveSettings() {
@@ -181,6 +185,7 @@ export class AudioService {
       localStorage.setItem('phoenix_vol_menu', this.menuVolume().toString());
       localStorage.setItem('phoenix_vol_attack', this.attackVolume().toString());
       localStorage.setItem('phoenix_vol_intense', this.intenseVolume().toString());
+      localStorage.setItem('phoenix_vol_sfx', this.sfxVolume().toString());
       this.updateVolumes();
   }
 
@@ -342,7 +347,8 @@ export class AudioService {
     if (audio) {
         const clone = audio.cloneNode() as HTMLAudioElement;
         const isMenuSfx = (type === 'buy' || type === 'click');
-        const channelVol = isMenuSfx ? this.menuVolume() : this.attackVolume();
+        const isCombatSfx = (type === 'shoot' || type === 'hit' || type === 'explosion' || type === 'boss');
+        const channelVol = isMenuSfx ? this.sfxVolume() : (isCombatSfx ? this.attackVolume() : this.sfxVolume());
         clone.volume = 0.4 * this.masterVolume() * channelVol;
         
         if (clone.volume > 0) {

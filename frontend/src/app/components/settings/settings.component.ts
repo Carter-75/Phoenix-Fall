@@ -47,6 +47,17 @@ import { AudioService } from '../../services/audio.service';
                 
                 <div class="slider-group">
                     <div class="flex justify-between">
+                        <label>SFX / Clicks Volume</label>
+                        <span>{{(audio.sfxVolume() * 100).toFixed(0)}}%</span>
+                    </div>
+                    <input type="range" min="0" max="1" step="0.05" 
+                           [value]="audio.sfxVolume()" 
+                           (input)="updateVolume('sfxVolume', $event)" 
+                           class="w-full">
+                </div>
+                
+                <div class="slider-group">
+                    <div class="flex justify-between">
                         <label class="text-red-400">Intense (Low HP) Volume</label>
                         <span class="text-red-400">{{(audio.intenseVolume() * 100).toFixed(0)}}%</span>
                     </div>
@@ -129,7 +140,7 @@ export class SettingsComponent {
   public audio = inject(AudioService);
   @Output() close = new EventEmitter<void>();
 
-  updateVolume(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume', event: any) {
+  updateVolume(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume', event: any) {
       const val = parseFloat(event.target.value);
       this.audio[channel].set(val);
       this.audio.saveSettings();
