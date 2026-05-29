@@ -79,7 +79,9 @@ export class AudioService {
     const startAudioContext = () => {
         this.initAudioContext();
         if (this.currentBgm && this.currentBgm.paused) {
-            this.currentBgm.play().catch(() => {});
+            this.currentBgm.play().then(() => this.fadeAudio(false)).catch(() => {});
+        } else if (this.currentBgm && this.currentBgm.volume === 0) {
+            this.fadeAudio(false);
         }
         document.removeEventListener('click', startAudioContext);
         document.removeEventListener('touchstart', startAudioContext);
