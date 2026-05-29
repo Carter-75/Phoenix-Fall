@@ -90,7 +90,12 @@ interface EnemyData {
       <!-- Pause Screen -->
       @if (gameState.isPaused()) {
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto z-40">
-          <h2 class="text-6xl font-black text-white mb-8 drop-shadow-lg tracking-widest">PAUSED</h2>
+          <h2 (click)="onPauseTextClick()" 
+              class="text-6xl font-black mb-8 tracking-widest cursor-pointer select-none transition-all duration-300"
+              [class.text-red-500]="cheatPrepared()"
+              [class.drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]]="cheatPrepared()"
+              [class.text-white]="!cheatPrepared()"
+              [class.drop-shadow-lg]="!cheatPrepared()">PAUSED</h2>
           
           <div class="flex flex-col gap-4 w-full max-w-xs">
             <button (click)="togglePause()" class="w-full py-4 bg-white/10 hover:bg-white/20 border border-white/30 rounded-2xl text-white font-bold text-xl transition">
@@ -215,6 +220,7 @@ export class GameComponent implements OnInit, OnDestroy {
   public hasRebirthed = false;
   private lastClickTime = 0;
   private pauseClickCount = 0;
+  public cheatPrepared = signal<boolean>(false);
   
   private lastUpdateTime = Date.now();
   private tapAbilityEndTime = 0;
@@ -1716,13 +1722,11 @@ export class GameComponent implements OnInit, OnDestroy {
   public togglePause() {
     if (this.gameEnded() || this.isDead()) return;
     
-    // Cheat code: 5 clicks to summon boss and heal
-    this.pauseClickCount++;
-    if (this.pauseClickCount >= 5) {
-        // Fast forward song to boss fight
-        this.audioService.worldBgm.currentTime = Math.max(0, this.audioService.worldBgm.duration - 2);
-        this.currentHealth.set(this.maxHealth());
-        this.pauseClickCount = 0;
+    // If cheat was prepared and we are resuming, trigger it
+    if (this.gameState.isPaused() && this.cheatPrepared()) {
+        // Fast forward song to 60 seconds before it ends
+        this.audioService.worldBgm.currentTime = Math.max(0, this.audioService.worldBgm.duration - 60);
+        this.cheatPrepared.set(false);
     }
 
     this.gameState.isPaused.set(!this.gameState.isPaused());
@@ -1738,10 +1742,19 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') this.togglePause(); }
   private onVisibilityChange() { if (document.hidden && !this.gameState.isPaused() && !this.gameEnded() && !this.isDead()) this.togglePause(); }
+  public onPauseTextClick() {
+      this.pauseClickCount++;
+      if (this.pauseClickCount >= 5) {
+          this.cheatPrepared.set(true);
+          this.pauseClickCount = 0;
+      }
+  }
+
   public quitGame() { 
+      this.gameState.isPaused.set(false);
+      this.cheatPrepared.set(false);
       this.gameState.coins.update(c => Math.floor(c));
       this.gameState.gems.update(g => Math.floor(g));
-      this.gameState.isPaused.set(false);
       this.gameState.activeScreen.set('menu'); 
   }
 
