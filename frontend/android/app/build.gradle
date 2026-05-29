@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.carter75.phoenixfall"
+    namespace = "com.phoenix.fall"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.carter75.phoenixfall"
+        applicationId "com.phoenix.fall"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

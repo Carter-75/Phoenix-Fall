@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.carter75.phoenixfall',
+  appId: 'com.phoenix.fall',
   appName: 'PhoenixFall',
   webDir: 'dist/frontend',
   plugins: {

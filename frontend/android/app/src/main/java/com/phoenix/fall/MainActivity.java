@@ -1,4 +1,4 @@
-package com.carter75.phoenixfall;
+package com.phoenix.fall;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
