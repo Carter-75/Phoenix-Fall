@@ -13,8 +13,8 @@ import { SettingsComponent } from '../settings/settings.component';
     <div class="flex flex-col items-center justify-center w-full h-screen text-white pointer-events-none">
       
       <!-- Top Left Header (Currencies) -->
-      <div class="absolute top-0 left-0 w-full p-6 flex justify-between items-start pointer-events-auto">
-        <div class="flex items-center gap-4">
+      <div class="absolute top-0 left-0 w-full p-4 md:p-6 flex flex-col md:flex-row justify-between items-start gap-4 pointer-events-auto">
+        <div class="flex items-center gap-2 md:gap-4 w-full md:w-auto justify-center md:justify-start">
           <!-- Coins -->
           <div class="flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
             <img src="assets/coin_icon.png" alt="Coins" class="w-6 h-6 object-contain" />
@@ -28,28 +28,28 @@ import { SettingsComponent } from '../settings/settings.component';
         </div>
         
         <!-- Top Right Header (Navigation) -->
-        <div class="flex items-center gap-4">
-          <button (click)="openCodex()" class="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md text-amber-400">
+        <div class="flex flex-wrap items-center justify-center md:justify-end gap-2 md:gap-4 w-full md:w-auto">
+          <button (click)="openCodex()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md text-amber-400">
             Codex
           </button>
           
-          <button (click)="openLeaderboard()" class="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
+          <button (click)="openLeaderboard()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
             Leaderboard
           </button>
           
-          <button (click)="openProfile()" class="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
+          <button (click)="openProfile()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
             {{ auth.currentUser() ? auth.currentUser()!.username : 'Sign In' }}
           </button>
           
           <button (click)="openShop()" class="transition hover:scale-110 active:scale-95">
-            <img src="assets/shop_icon.png" alt="Shop" class="w-16 h-16 drop-shadow-xl" />
+            <img src="assets/shop_icon.png" alt="Shop" class="w-12 h-12 md:w-16 md:h-16 drop-shadow-xl" />
           </button>
         </div>
       </div>
 
       <!-- Center Content -->
-      <div class="flex flex-col items-center gap-4 pointer-events-auto transform -translate-y-8">
-        <h1 class="text-7xl md:text-9xl font-black tracking-tighter bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(255,100,0,0.5)] transition-all duration-500 bg-gradient-to-b"
+      <div class="flex flex-col items-center gap-4 pointer-events-auto transform mt-24 md:-translate-y-8 md:mt-0">
+        <h1 class="text-6xl md:text-9xl font-black tracking-tighter bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(255,100,0,0.5)] transition-all duration-500 bg-gradient-to-b text-center"
             [ngClass]="currentWorld().textColorClass">
           PHOENIX<br/>FALL
         </h1>

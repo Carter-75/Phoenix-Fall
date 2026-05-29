@@ -40,7 +40,7 @@ interface EnemyData {
       </div>
       
       <!-- Health Bar -->
-      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-64 flex flex-col items-center gap-2 pointer-events-auto">
+      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-48 md:w-64 flex flex-col items-center gap-2 pointer-events-auto">
         <div class="w-full h-4 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,0,0,0.2)]">
            <div class="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
                 [style.width]="(currentHealth() / maxHealth()) * 100 + '%'"></div>
@@ -49,9 +49,9 @@ interface EnemyData {
       </div>
 
       <!-- Cooldown UI -->
-      <div class="absolute bottom-8 right-8 flex gap-4 pointer-events-auto">
+      <div class="absolute bottom-8 right-4 md:right-8 flex gap-2 md:gap-4 pointer-events-auto">
         <!-- Tap Ability -->
-        <div class="relative w-16 h-16 bg-black/50 border border-white/20 rounded-2xl overflow-hidden flex items-center justify-center backdrop-blur-sm shadow-[0_0_15px_rgba(255,100,200,0.2)]">
+        <div class="relative w-14 h-14 md:w-16 md:h-16 bg-black/50 border border-white/20 rounded-2xl overflow-hidden flex items-center justify-center backdrop-blur-sm shadow-[0_0_15px_rgba(255,100,200,0.2)]">
           <span class="text-3xl z-10" [class.opacity-50]="tapCooldown() > 0">{{ getTapIcon() }}</span>
           @if (tapCooldown() > 0) {
             <div class="absolute bottom-0 left-0 w-full bg-pink-600/50 transition-all" [style.height]="(tapCooldown() / getTapMaxCooldown()) * 100 + '%'"></div>
@@ -59,7 +59,7 @@ interface EnemyData {
           }
         </div>
         <!-- Hold Ability -->
-        <div class="relative w-16 h-16 bg-black/50 border border-white/20 rounded-2xl overflow-hidden flex items-center justify-center backdrop-blur-sm shadow-[0_0_15px_rgba(0,255,255,0.2)]">
+        <div class="relative w-14 h-14 md:w-16 md:h-16 bg-black/50 border border-white/20 rounded-2xl overflow-hidden flex items-center justify-center backdrop-blur-sm shadow-[0_0_15px_rgba(0,255,255,0.2)]">
           <span class="text-3xl z-10" [class.opacity-50]="holdCooldown() > 0">{{ getHoldIcon() }}</span>
           @if (holdCooldown() > 0) {
             <div class="absolute bottom-0 left-0 w-full bg-cyan-600/50 transition-all" [style.height]="(holdCooldown() / getHoldMaxCooldown()) * 100 + '%'"></div>
@@ -83,7 +83,7 @@ interface EnemyData {
       }
 
       <!-- Pause Button -->
-      <button (click)="togglePause()" class="absolute top-8 right-8 w-12 h-12 bg-black/50 border border-white/20 rounded-full flex items-center justify-center pointer-events-auto hover:bg-white/10 transition z-20">
+      <button (click)="togglePause()" class="absolute top-8 right-4 md:right-8 w-10 h-10 md:w-12 md:h-12 bg-black/50 border border-white/20 rounded-full flex items-center justify-center pointer-events-auto hover:bg-white/10 transition z-20">
         <span class="text-white font-bold text-xl">||</span>
       </button>
 
@@ -1778,7 +1778,10 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private onMouseMove(event: MouseEvent) { this.updateMouseInput(event.clientX, event.clientY); }
-  private onTouchMove(event: TouchEvent) { if (event.touches.length > 0) this.updateMouseInput(event.touches[0].clientX, event.touches[0].clientY); }
+  private onTouchMove(event: TouchEvent) { 
+      event.preventDefault(); 
+      if (event.touches.length > 0) this.updateMouseInput(event.touches[0].clientX, event.touches[0].clientY); 
+  }
   
   private updateMouseInput(x: number, y: number) {
       this.mouseX = x;
@@ -1786,7 +1789,10 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private onMouseDown(event: MouseEvent) { this.handleInputStart(event.clientX, event.clientY); }
-  private onTouchStart(event: TouchEvent) { if (event.touches.length > 0) this.handleInputStart(event.touches[0].clientX, event.touches[0].clientY); }
+  private onTouchStart(event: TouchEvent) { 
+      event.preventDefault();
+      if (event.touches.length > 0) this.handleInputStart(event.touches[0].clientX, event.touches[0].clientY); 
+  }
   
   private handleInputStart(x: number, y: number) {
       this.isMouseHeld = true;

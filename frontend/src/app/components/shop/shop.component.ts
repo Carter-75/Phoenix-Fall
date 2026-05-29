@@ -18,8 +18,8 @@ export interface ActiveDeal {
   template: `
     <div class="fixed inset-0 flex flex-col items-center justify-start w-full min-h-screen text-white bg-black/80 backdrop-blur-md p-6 overflow-y-auto">
       <!-- Header -->
-      <div class="w-full max-w-5xl flex justify-between items-center mb-8 mt-4">
-        <button (click)="closeShop()" class="text-white/70 hover:text-white flex items-center gap-2 transition px-4 py-2 bg-white/5 rounded-full border border-white/10 hover:bg-white/10">
+      <div class="w-full max-w-5xl flex flex-col md:flex-row justify-between items-center gap-4 md:gap-0 mb-8 mt-4">
+        <button (click)="closeShop()" class="text-white/70 hover:text-white flex items-center gap-2 transition px-4 py-2 bg-white/5 rounded-full border border-white/10 hover:bg-white/10 self-start md:self-auto">
           <span class="text-xl">&larr;</span> Back
         </button>
         
@@ -29,14 +29,14 @@ export interface ActiveDeal {
           <span class="font-bold text-lg" [ngClass]="currentWorld().textColorClass">{{ currentWorld().name }}</span>
         </div>
 
-        <div class="flex gap-4">
-          <div class="flex items-center gap-2 bg-black/60 px-4 py-2 rounded-full border border-white/10 shadow-[0_0_15px_rgba(255,100,0,0.2)]">
-            <img src="assets/coin_icon.png" alt="Coins" class="w-6 h-6 object-contain" />
-            <span class="text-xl font-bold text-orange-400">{{ gameState.coins() }}</span>
+        <div class="flex gap-2 md:gap-4 self-end md:self-auto">
+          <div class="flex items-center gap-2 bg-black/60 px-3 py-1.5 md:px-4 md:py-2 rounded-full border border-white/10 shadow-[0_0_15px_rgba(255,100,0,0.2)]">
+            <img src="assets/coin_icon.png" alt="Coins" class="w-5 h-5 md:w-6 md:h-6 object-contain" />
+            <span class="text-lg md:text-xl font-bold text-orange-400">{{ gameState.coins() }}</span>
           </div>
-          <div class="flex items-center gap-2 bg-black/60 px-4 py-2 rounded-full border border-white/10 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-            <img src="assets/gem_icon.png" alt="Gems" class="w-6 h-6 object-contain" />
-            <span class="text-xl font-bold text-purple-400">{{ gameState.gems() }}</span>
+          <div class="flex items-center gap-2 bg-black/60 px-3 py-1.5 md:px-4 md:py-2 rounded-full border border-white/10 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+            <img src="assets/gem_icon.png" alt="Gems" class="w-5 h-5 md:w-6 md:h-6 object-contain" />
+            <span class="text-lg md:text-xl font-bold text-purple-400">{{ gameState.gems() }}</span>
           </div>
         </div>
       </div>

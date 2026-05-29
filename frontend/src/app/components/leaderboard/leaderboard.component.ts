@@ -7,23 +7,23 @@ import { AudioService } from '../../services/audio.service';
   selector: 'app-leaderboard',
   standalone: true,
   template: `
-    <div class="fixed inset-0 flex flex-col items-center p-8 z-50 overflow-y-auto">
-      <button (click)="goBack()" class="absolute top-6 left-6 text-white/50 hover:text-white transition flex items-center gap-2">
+    <div class="fixed inset-0 flex flex-col items-center p-4 md:p-8 z-50 overflow-y-auto">
+      <button (click)="goBack()" class="absolute top-4 left-4 md:top-6 md:left-6 text-white/50 hover:text-white transition flex items-center gap-2">
         <span class="text-2xl">←</span> Back
       </button>
 
-      <div class="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 w-full max-w-3xl mt-12 shadow-[0_0_50px_rgba(255,100,0,0.1)]">
-        <h2 class="text-4xl font-black text-center mb-8 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-500">
+      <div class="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-4 md:p-8 w-full max-w-3xl mt-16 md:mt-12 shadow-[0_0_50px_rgba(255,100,0,0.1)]">
+        <h2 class="text-3xl md:text-4xl font-black text-center mb-6 md:mb-8 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-500">
           GLOBAL LEADERBOARD
         </h2>
         
         @if (loading()) {
             <div class="text-center text-white/50 py-12 text-xl animate-pulse">Loading Rankings...</div>
         } @else {
-            <div class="space-y-3">
+            <div class="space-y-3 overflow-x-auto">
                 @for (player of players(); track player.username; let i = $index) {
-                    <div class="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-xl hover:bg-white/10 transition">
-                        <div class="w-12 text-center font-black text-2xl"
+                    <div class="flex items-center gap-2 md:gap-4 bg-white/5 border border-white/5 p-3 md:p-4 rounded-xl hover:bg-white/10 transition min-w-[300px]">
+                        <div class="w-8 md:w-12 text-center font-black text-xl md:text-2xl"
                              [class.text-yellow-400]="i === 0"
                              [class.text-gray-300]="i === 1"
                              [class.text-orange-600]="i === 2"
