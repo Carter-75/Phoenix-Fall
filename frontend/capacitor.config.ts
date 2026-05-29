@@ -5,6 +5,12 @@ const config: CapacitorConfig = {
   appName: 'PhoenixFall',
   webDir: 'dist/frontend',
   plugins: {
+    CapacitorCookies: {
+      enabled: true,
+    },
+    CapacitorHttp: {
+      enabled: true,
+    },
     GoogleAuth: {
       scopes: ['profile', 'email'],
       serverClientId: '108585498879-v35d0d196d4djglodbbjok452pr1e04r.apps.googleusercontent.com',
