@@ -1,6 +1,7 @@
 import { Component, ElementRef, OnInit, OnDestroy, ViewChild, inject, NgZone, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GameStateService, PhysicsEntity, ABILITIES } from '../../services/game-state.service';
+import { Capacitor } from '@capacitor/core';
 import { AudioService } from '../../services/audio.service';
 import { SettingsComponent } from '../settings/settings.component';
 import * as Matter from 'matter-js';
@@ -401,6 +402,11 @@ export class GameComponent implements OnInit, OnDestroy {
           Composite = Matter.Composite;
 
     this.engine = Engine.create({ gravity: { x: 0, y: 0 } });
+    
+    // Speed up physics engine if running natively on a mobile device
+    if (Capacitor.isNativePlatform()) {
+        this.engine.timing.timeScale = 1.35;
+    }
 
     // Invisible player hitbox (Compound Body for Bird Shape)
     const birdCore = Bodies.rectangle(window.innerWidth / 2, window.innerHeight / 2, 10, 20, { label: 'player' });

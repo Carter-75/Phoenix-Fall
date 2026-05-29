@@ -1,6 +1,7 @@
 import { Injectable, signal, computed, effect, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { environment } from '../environments/environment';
 import { AudioService } from './audio.service';
 import { AuthService } from './auth.service';
 import { Capacitor } from '@capacitor/core';
@@ -306,6 +307,7 @@ export class GameStateService {
               // Schedule new reminders on backgrounding
               App.addListener('appStateChange', async ({ isActive }) => {
                   if (!isActive) {
+                      this.audio.pauseAudioForAd();
                       const notificationsToSchedule: any[] = [
                           {
                               title: "We miss you!",
@@ -337,6 +339,7 @@ export class GameStateService {
 
                       await LocalNotifications.schedule({ notifications: notificationsToSchedule });
                   } else {
+                      this.audio.resumeAudioAfterAd();
                       // Cancel when active
                       await LocalNotifications.cancel({ notifications: [{ id: 1 }, { id: 2 }, { id: 3 }] });
                   }
@@ -347,7 +350,7 @@ export class GameStateService {
           try {
               const registration = await navigator.serviceWorker.register('/service-worker.js');
               
-              const res = await firstValueFrom(this.http.get<any>('/api/notifications/vapidPublicKey'));
+              const res = await firstValueFrom(this.http.get<any>(environment.apiUrl + '/notifications/vapidPublicKey'));
               const vapidPublicKey = res.publicKey;
               
               if (!vapidPublicKey) return;
@@ -361,7 +364,7 @@ export class GameStateService {
               });
 
               if (this.auth.currentUser() && !this.auth.currentUser()?.isTemp) {
-                  await firstValueFrom(this.http.post('/api/notifications/subscribe', subscription));
+                  await firstValueFrom(this.http.post(environment.apiUrl + '/notifications/subscribe', subscription));
               }
           } catch (e) {
               console.log('Web Push error', e);
@@ -599,7 +602,7 @@ export class GameStateService {
       };
       
       try {
-          await firstValueFrom(this.http.post('/api/auth/sync', payload));
+          await firstValueFrom(this.http.post(environment.apiUrl + '/auth/sync', payload));
       } catch (e) {
           console.error("Failed to sync progress", e);
       }
@@ -611,7 +614,7 @@ export class GameStateService {
       
       try {
           const parsed = JSON.parse(localData);
-          await firstValueFrom(this.http.post('/api/auth/sync', parsed));
+          await firstValueFrom(this.http.post(environment.apiUrl + '/auth/sync', parsed));
           localStorage.removeItem('phoenix_guest_data');
       } catch (e) {
           console.error("Failed to migrate guest data", e);

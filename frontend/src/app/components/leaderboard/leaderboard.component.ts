@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { GameStateService } from '../../services/game-state.service';
 import { AudioService } from '../../services/audio.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-leaderboard',
@@ -60,7 +61,7 @@ export class LeaderboardComponent implements OnInit {
   loading = signal(true);
 
   ngOnInit() {
-      this.http.get<any[]>('/api/leaderboard').subscribe({
+      this.http.get<any[]>(environment.apiUrl + '/leaderboard').subscribe({
           next: (data) => {
               this.players.set(data);
               this.loading.set(false);

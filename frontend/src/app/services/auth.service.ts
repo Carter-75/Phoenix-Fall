@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
+import { environment } from '../environments/environment';
 
 export interface User {
   _id: string;
@@ -23,7 +24,7 @@ export class AuthService {
   private http = inject(HttpClient);
   public currentUser = signal<User | null>(null);
 
-  private apiUrl = '/api/auth';
+  private apiUrl = environment.apiUrl + '/auth';
 
   login(credentials: any): Observable<User> {
     return this.http.post<User>(`${this.apiUrl}/login`, credentials).pipe(
