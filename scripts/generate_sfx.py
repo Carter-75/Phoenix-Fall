@@ -26,23 +26,26 @@ def generate_click():
     return samples
 
 def generate_buy():
-    # A pleasant C major arpeggio (C5, E5, G5, C6)
+    # A soft, upgraded "purchase" double chime (G5 -> E6)
     samples = []
-    notes = [523.25, 659.25, 783.99, 1046.50] # C5, E5, G5, C6
-    duration_per_note = 0.1
-    for note in notes:
-        for i in range(int(SAMPLE_RATE * duration_per_note)):
-            t = i / SAMPLE_RATE
-            envelope = math.exp(-t * 10)
-            s = math.sin(2 * math.pi * note * t) * envelope * 0.4
-            # add a bit of harmonics
-            s += math.sin(2 * math.pi * note * 2 * t) * envelope * 0.1
+    notes = [783.99, 1318.51] # G5, E6
+    duration_per_note = 0.08
+    for i, note in enumerate(notes):
+        for frame in range(int(SAMPLE_RATE * duration_per_note)):
+            t = frame / SAMPLE_RATE
+            # Softer, faster envelope
+            envelope = math.exp(-t * 15)
+            # Volume reduced drastically to 0.15
+            s = math.sin(2 * math.pi * note * t) * envelope * 0.15
+            # Softer harmonics
+            s += math.sin(2 * math.pi * note * 2 * t) * envelope * 0.05
             samples.append(s)
-    # let the last note ring out
-    for i in range(int(SAMPLE_RATE * 0.3)):
-        t = i / SAMPLE_RATE
-        envelope = math.exp(-t * 15) * math.exp(-duration_per_note * 10)
-        s = math.sin(2 * math.pi * notes[-1] * (t + duration_per_note)) * envelope * 0.4
+    # let the last note ring out softly
+    ring_duration = 0.25
+    for frame in range(int(SAMPLE_RATE * ring_duration)):
+        t = frame / SAMPLE_RATE
+        envelope = math.exp(-t * 10) * math.exp(-duration_per_note * 15)
+        s = math.sin(2 * math.pi * notes[-1] * (t + duration_per_note)) * envelope * 0.15
         samples.append(s)
     return samples
 
