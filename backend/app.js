@@ -142,7 +142,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     store: mongoURI ? MongoStore.create({
-      clientPromise: mongoose.connection.asPromise().then(m => m.connection.getClient()),
+      clientPromise: mongoose.connection.asPromise().then(m => m.getClient()),
       collectionName: 'sessions',
       autoRemove: 'native'
     }) : undefined,
