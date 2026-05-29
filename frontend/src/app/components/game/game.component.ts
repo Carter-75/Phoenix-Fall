@@ -68,11 +68,18 @@ interface EnemyData {
         </div>
       </div>
 
-      <!-- Boss Warning -->
-      @if (bossSpawned()) {
-        <div class="absolute top-24 left-1/2 -translate-x-1/2 animate-pulse pointer-events-none">
+      <!-- Boss Warning & Rage Mode -->
+      @if (bossSpawned() && !rageModeActive()) {
+        <div class="absolute top-24 left-1/2 -translate-x-1/2 animate-pulse pointer-events-none z-20">
            <h2 class="text-4xl font-black text-red-600 drop-shadow-[0_0_20px_rgba(255,0,0,0.8)] tracking-widest uppercase">World Boss Approaching</h2>
         </div>
+      }
+      @if (rageModeActive() && !isDead() && !gameEnded()) {
+        <div class="absolute top-24 left-1/2 -translate-x-1/2 pointer-events-none z-20 flex flex-col items-center">
+           <h2 class="text-5xl font-black text-red-600 drop-shadow-[0_0_30px_rgba(255,0,0,1)] tracking-widest uppercase animate-ping">RAGE MODE</h2>
+           <span class="text-2xl text-white font-mono mt-2 bg-black/50 px-4 py-1 rounded">Death in: {{ killScreenTimer() }}s</span>
+        </div>
+        <div class="absolute inset-0 bg-red-900/20 pointer-events-none z-10 animate-pulse"></div>
       }
 
       <!-- Pause Button -->
@@ -173,9 +180,13 @@ export class GameComponent implements OnInit, OnDestroy {
   public reviveCount = 0;
   public celestialShieldActive = signal<boolean>(true);
   
-  private totalTime = 300; 
-  public timeRemaining = signal<number>(this.totalTime);
-  public progressPercent = computed(() => ((this.totalTime - this.timeRemaining()) / this.totalTime) * 100);
+  public totalTimeSignal = signal<number>(300);
+  public timeRemaining = signal<number>(300);
+  public progressPercent = computed(() => {
+      const tot = this.totalTimeSignal();
+      if (tot <= 0) return 0;
+      return ((tot - this.timeRemaining()) / tot) * 100;
+  });
   
   public gameEnded = signal<boolean>(false);
   public gameWon = signal<boolean>(false);
@@ -259,15 +270,68 @@ export class GameComponent implements OnInit, OnDestroy {
   private boundTouchMove = this.onTouchMove.bind(this);
   private boundTouchEnd = this.onTouchEnd.bind(this);
 
+  public rageModeActive = signal<boolean>(false);
+  public killScreenTimer = signal<number>(10);
+
   constructor(private ngZone: NgZone) {
+      // Remove old health-based intense BGM effect because intense BGM is now for the boss
       effect(() => {
-          const hpRatio = this.currentHealth() / this.maxHealth();
-          if (hpRatio < 0.3 && hpRatio > 0 && !this.gameState.isPaused() && !this.gameEnded()) {
-              this.audioService.playIntenseBgm();
-          } else {
-              this.audioService.stopIntenseBgm();
+          if (this.audioService.onWorldBgmEnded() && !this.bossSpawned() && !this.gameEnded()) {
+              // Untracked to avoid infinite loops, but using setTimeout is safer in Angular
+              setTimeout(() => {
+                  this.spawnBoss();
+                  this.audioService.playIntenseBgm(this.gameState.selectedWorldIndex());
+              }, 0);
           }
       });
+
+      effect(() => {
+          if (this.audioService.onIntenseBgmEnded() && this.bossSpawned() && !this.inBossDefeatSequence() && !this.isDead()) {
+              setTimeout(() => {
+                  if (!this.rageModeActive()) {
+                      this.triggerRageMode();
+                  }
+              }, 0);
+          }
+      });
+  }
+
+  private triggerRageMode() {
+      this.rageModeActive.set(true);
+      const kInt = setInterval(() => {
+          if (this.gameEnded() || this.isDead() || this.inBossDefeatSequence()) {
+              clearInterval(kInt);
+              return;
+          }
+          if (!this.gameState.isPaused()) {
+              this.killScreenTimer.update(t => t - 1);
+              if (this.killScreenTimer() <= 0) {
+                  clearInterval(kInt);
+                  this.executeKillScreen();
+              }
+          }
+      }, 1000);
+  }
+
+  private executeKillScreen() {
+      const boss = this.enemies.find(e => e.plugin['data']?.type === 'boss');
+      if (!boss) return;
+      for (let i = 0; i < 60; i++) {
+          setTimeout(() => {
+              if (this.isDead()) return;
+              const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, boss.position));
+              const spreadAngle = (Math.random() - 0.5) * 1.5;
+              const angle = Math.atan2(dir.y, dir.x) + spreadAngle;
+              const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+              const proj = Matter.Bodies.circle(boss.position.x, boss.position.y, 20, {
+                  label: 'projectile', isSensor: true,
+                  plugin: { data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1 } as EnemyData }
+              });
+              Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
+              Matter.Composite.add(this.engine.world, proj);
+          }, i * 50);
+      }
+      setTimeout(() => this.takeDamage(9999), 2000);
   }
 
   ngOnInit() {
@@ -512,18 +576,28 @@ export class GameComponent implements OnInit, OnDestroy {
             }
         }
         if (data.type === 'boss') {
-            moveSpeed = 0.0001; // Much faster
+            moveSpeed = this.rageModeActive() ? 0.0003 : 0.0001; // Much faster
             
-            if (now - (data.lastAttackTime || 0) > 8000) {
+            const intensity = this.audioService.getAudioIntensity();
+            
+            // Audio reactive boss attacks
+            // Threshold varies if rage mode is active
+            const attackThreshold = this.rageModeActive() ? 0.25 : 0.35;
+            
+            if (intensity > attackThreshold && now - (data.lastAttackTime || 0) > (this.rageModeActive() ? 3000 : 6000)) {
                 data.lastAttackTime = now;
                 this.fireBossWaveAttack(enemy.position);
             }
-            if (now - (data.lastMinionTime || 0) > 5000) {
+            
+            if (intensity > attackThreshold - 0.1 && now - (data.lastMinionTime || 0) > (this.rageModeActive() ? 2000 : 4000)) {
                 data.lastMinionTime = now;
                 for(let i=0; i<3; i++) {
                    this.spawnMinion(enemy.position.x, enemy.position.y);
                 }
             }
+            
+            // If the song is quiet, slowly creep. If loud, move faster
+            moveSpeed *= (1 + intensity);
 
             // Strict Bounds Checking for Boss
             if (enemy.position.x < 100) Matter.Body.setPosition(enemy, { x: 100, y: enemy.position.y });
@@ -631,17 +705,19 @@ export class GameComponent implements OnInit, OnDestroy {
     this.timerInterval = setInterval(() => {
       if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
       
-      this.timeRemaining.update(t => Math.max(0, t - 1));
-      this.gameState.sessionPlayTime.update(t => t + 1);
+      const duration = this.audioService.getBgmDuration();
+      const current = this.audioService.getBgmCurrentTime();
+      if (duration > 0 && !this.bossSpawned()) {
+          this.totalTimeSignal.set(duration);
+          this.timeRemaining.set(Math.max(0, duration - current));
+      } else {
+          this.gameState.sessionPlayTime.update(t => t + 1);
+      }
       
       if (this.gameState.sessionPlayTime() >= 60) this.gameState.awardTrophy("Survivor");
       
       if (this.gameState.hasCosmicTrail()) {
           this.gameState.xp.update(x => x + 5 * this.gameState.xpMultiplier());
-      }
-      
-      if (this.timeRemaining() === 0 && !this.bossSpawned()) {
-        this.spawnBoss();
       }
     }, 1000);
 
@@ -1016,12 +1092,20 @@ export class GameComponent implements OnInit, OnDestroy {
   private scheduleNextSpawn() {
     if (this.spawnInterval) clearTimeout(this.spawnInterval);
     if (!this.gameEnded() && !this.isDead() && !this.bossSpawned() && !this.gameState.isPaused()) {
-        this.spawnEnemy();
+        // Only spawn if intensity is high enough, giving breathing room on quiet parts
+        const intensity = this.audioService.getAudioIntensity();
+        if (intensity > 0.1 || Math.random() < 0.2) { 
+            this.spawnEnemy();
+        }
     }
     
-    // Calculate next delay based on progress (from 2000ms down to 300ms)
+    // Delay driven by audio intensity: lower intensity = longer delay
     const progress = this.progressPercent();
-    const delay = Math.max(300, 2000 - (progress * 17));
+    const intensity = this.audioService.getAudioIntensity(); // 0.0 to ~0.5 usually
+    const baseDelay = Math.max(300, 2000 - (progress * 17));
+    const intensityModifier = Math.max(0.2, 1.0 - (intensity * 2));
+    const delay = baseDelay * intensityModifier;
+    
     this.spawnInterval = setTimeout(() => this.scheduleNextSpawn(), delay);
   }
 
@@ -1623,7 +1707,7 @@ export class GameComponent implements OnInit, OnDestroy {
               this.gameState.phoenixOverridePosition.set(null); // Return to mouse control
               
               // 4. Restart Level fully
-              this.timeRemaining.set(this.totalTime);
+              this.timeRemaining.set(this.totalTimeSignal());
               this.startGameLoop();
           }
       };
@@ -1637,15 +1721,21 @@ export class GameComponent implements OnInit, OnDestroy {
     // Cheat code: 5 clicks to summon boss and heal
     this.pauseClickCount++;
     if (this.pauseClickCount >= 5) {
-        this.timeRemaining.set(1);
+        // Fast forward song to boss fight
+        this.audioService.worldBgm.currentTime = Math.max(0, this.audioService.worldBgm.duration - 2);
         this.currentHealth.set(this.maxHealth());
         this.pauseClickCount = 0;
     }
 
     this.gameState.isPaused.set(!this.gameState.isPaused());
     
-    if (this.gameState.isPaused()) Matter.Runner.stop(this.runner);
-    else Matter.Runner.run(this.runner, this.engine);
+    if (this.gameState.isPaused()) {
+        Matter.Runner.stop(this.runner);
+        this.audioService.pauseCurrentBgm();
+    } else {
+        Matter.Runner.run(this.runner, this.engine);
+        this.audioService.resumeCurrentBgm();
+    }
   }
 
   private onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') this.togglePause(); }

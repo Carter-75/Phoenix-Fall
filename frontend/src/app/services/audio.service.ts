@@ -9,10 +9,13 @@ export class AudioService {
   public attackVolume = signal<number>(1.0);
   public intenseVolume = signal<number>(1.0);
   
+  public onWorldBgmEnded = signal<boolean>(false);
+  public onIntenseBgmEnded = signal<boolean>(false);
+
   private currentBgm: HTMLAudioElement | null = null;
-  private menuBgm = new Audio('assets/audio/menu_bgm.wav');
-  private world1Bgm = new Audio('assets/audio/world_1_bgm.wav');
-  private intenseBgm = new Audio('assets/audio/intense_bgm.wav');
+  public menuBgm = new Audio('assets/audio/menu_bgm.wav');
+  public worldBgm = new Audio('assets/audio/world_1_bgm.wav');
+  public intenseBgm = new Audio('assets/audio/world_1_intense_bgm.wav');
   
   private sfxShoot = new Audio('assets/audio/shoot.wav');
   private sfxHit = new Audio('assets/audio/hit.wav');
@@ -21,15 +24,60 @@ export class AudioService {
   private sfxBuy = new Audio('assets/audio/buy.wav');
   private sfxClick = new Audio('assets/audio/click.wav');
 
+  private audioCtx: AudioContext | null = null;
+  private analyser: AnalyserNode | null = null;
+  private dataArray: Uint8Array | null = null;
+  private sourceMap = new Map<HTMLAudioElement, MediaElementAudioSourceNode>();
+
   constructor() {
-    this.menuBgm.loop = true;
-    this.world1Bgm.loop = true;
-    this.intenseBgm.loop = true;
+    this.menuBgm.loop = false;
+    this.worldBgm.loop = false;
+    this.intenseBgm.loop = false;
+
+    const setupLoop = (audio: HTMLAudioElement) => {
+        let isFadingOutForLoop = false;
+        audio.addEventListener('play', () => isFadingOutForLoop = false);
+        audio.addEventListener('timeupdate', () => {
+            if (audio.duration && audio.currentTime >= audio.duration - 0.6 && !isFadingOutForLoop && this.currentBgm === audio) {
+                isFadingOutForLoop = true;
+                this.fadeAudio(true, 500, false); // Fade out but don't pause so 'ended' fires
+            }
+        });
+        audio.addEventListener('ended', () => {
+            isFadingOutForLoop = false;
+            if (this.currentBgm === audio) {
+                audio.currentTime = 0;
+                audio.volume = 0;
+                audio.play().then(() => this.fadeAudio(false, 500)).catch(() => {});
+            }
+        });
+    };
+
+    setupLoop(this.menuBgm);
+    setupLoop(this.intenseBgm);
+
+    let worldFading = false;
+    this.worldBgm.addEventListener('play', () => worldFading = false);
+    this.worldBgm.addEventListener('timeupdate', () => {
+        if (this.worldBgm.duration && this.worldBgm.currentTime >= this.worldBgm.duration - 0.6 && !worldFading && this.currentBgm === this.worldBgm) {
+            worldFading = true;
+            this.fadeAudio(true, 500, false);
+        }
+    });
+
+    this.worldBgm.addEventListener('ended', () => {
+        this.onWorldBgmEnded.set(true);
+    });
+
+    this.intenseBgm.addEventListener('ended', () => {
+        this.onIntenseBgmEnded.set(true);
+    });
 
     this.loadSettings();
     this.updateVolumes();
 
     const startAudioContext = () => {
+        this.initAudioContext();
         if (this.currentBgm && this.currentBgm.paused) {
             this.currentBgm.play().catch(() => {});
         }
@@ -38,6 +86,53 @@ export class AudioService {
     };
     document.addEventListener('click', startAudioContext);
     document.addEventListener('touchstart', startAudioContext);
+  }
+
+  private initAudioContext() {
+      if (this.audioCtx) return;
+      // @ts-ignore
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      this.audioCtx = new AudioContextClass();
+      this.analyser = this.audioCtx.createAnalyser();
+      this.analyser.fftSize = 256;
+      const bufferLength = this.analyser.frequencyBinCount;
+      this.dataArray = new Uint8Array(bufferLength);
+
+      this.connectSource(this.menuBgm);
+      this.connectSource(this.worldBgm);
+      this.connectSource(this.intenseBgm);
+  }
+
+  private connectSource(audioElement: HTMLAudioElement) {
+      if (!this.audioCtx || !this.analyser) return;
+      if (this.sourceMap.has(audioElement)) return;
+      try {
+          const source = this.audioCtx.createMediaElementSource(audioElement);
+          source.connect(this.analyser);
+          this.analyser.connect(this.audioCtx.destination);
+          this.sourceMap.set(audioElement, source);
+      } catch (e) {
+          console.error("Failed to connect audio element to analyzer", e);
+      }
+  }
+
+  public getAudioIntensity(): number {
+      if (!this.analyser || !this.dataArray) return 0;
+      this.analyser.getByteFrequencyData(this.dataArray);
+      let sum = 0;
+      for (let i = 0; i < this.dataArray.length; i++) {
+          sum += this.dataArray[i];
+      }
+      const average = sum / this.dataArray.length;
+      return average / 255.0; // Return 0.0 to 1.0
+  }
+
+  public getBgmDuration(): number {
+      return this.currentBgm ? this.currentBgm.duration || 0 : 0;
+  }
+
+  public getBgmCurrentTime(): number {
+      return this.currentBgm ? this.currentBgm.currentTime || 0 : 0;
   }
 
   private loadSettings() {
@@ -65,11 +160,10 @@ export class AudioService {
   private updateVolumes() {
       const mVol = this.masterVolume();
       this.menuBgm.volume = 0.3 * mVol * this.menuVolume();
-      this.world1Bgm.volume = 0.3 * mVol * this.menuVolume(); // Game bgm uses menu/music volume channel
+      this.worldBgm.volume = 0.3 * mVol * this.menuVolume(); 
       this.intenseBgm.volume = 0.5 * mVol * this.intenseVolume();
   }
 
-  // Helper to check if effectively muted
   public isMuted() {
       return this.masterVolume() === 0;
   }
@@ -79,7 +173,7 @@ export class AudioService {
   public pauseAudioForAd() {
       this.preAdMasterVolume = this.masterVolume();
       this.masterVolume.set(0);
-      this.updateVolumes(); // Update active audio elements without saving 0 to localStorage
+      this.updateVolumes();
   }
 
   public resumeAudioAfterAd() {
@@ -93,40 +187,115 @@ export class AudioService {
       this.updateVolumes();
   }
 
+  private fadeInterval: any = null;
+
+  public fadeAudio(out: boolean, duration: number = 500, pauseOnComplete: boolean = true) {
+      if (!this.currentBgm) return;
+      if (this.fadeInterval) clearInterval(this.fadeInterval);
+
+      const targetVolume = out ? 0 : this.getTargetVolumeFor(this.currentBgm);
+      const startVolume = this.currentBgm.volume;
+      const steps = 20;
+      const stepTime = duration / steps;
+      const stepVol = (targetVolume - startVolume) / steps;
+
+      let currentStep = 0;
+      this.fadeInterval = setInterval(() => {
+          currentStep++;
+          if (!this.currentBgm) {
+              clearInterval(this.fadeInterval);
+              return;
+          }
+          
+          let nextVol = startVolume + (stepVol * currentStep);
+          // Clamp
+          if (nextVol < 0) nextVol = 0;
+          if (nextVol > 1) nextVol = 1;
+          
+          this.currentBgm.volume = nextVol;
+
+          if (currentStep >= steps) {
+              this.currentBgm.volume = targetVolume;
+              clearInterval(this.fadeInterval);
+              if (out && this.currentBgm && pauseOnComplete) {
+                  this.currentBgm.pause();
+              }
+          }
+      }, stepTime);
+  }
+
+  private getTargetVolumeFor(bgm: HTMLAudioElement): number {
+      const mVol = this.masterVolume();
+      if (bgm === this.intenseBgm) return 0.5 * mVol * this.intenseVolume();
+      return 0.3 * mVol * this.menuVolume();
+  }
+
   playMenuBgm() {
-    this.stopBgm();
+    this.stopBgm(true);
     this.currentBgm = this.menuBgm;
-    this.currentBgm.play().catch(e => console.log('BGM play prevented', e));
+    this.currentBgm.volume = 0; // Prepare for fade
+    this.currentBgm.play().then(() => this.fadeAudio(false)).catch(e => console.log('BGM play prevented', e));
   }
   
   playWorldBgm(worldId: number = 0) {
-      this.stopBgm();
-      this.currentBgm = this.world1Bgm;
-      this.currentBgm.play().catch(e => console.log('BGM play prevented', e));
+      this.stopBgm(true);
+      this.currentBgm = this.worldBgm;
+      this.worldBgm.src = `assets/audio/world_${worldId + 1}_bgm.wav`;
+      this.onWorldBgmEnded.set(false);
+      this.currentBgm.currentTime = 0;
+      this.currentBgm.volume = 0;
+      this.currentBgm.play().then(() => this.fadeAudio(false)).catch(e => console.log('BGM play prevented', e));
   }
   
-  playIntenseBgm() {
-      if (this.intenseBgm.paused) {
-          this.intenseBgm.play().catch(e => console.log('Intense BGM play prevented', e));
+  playIntenseBgm(worldId: number = 0) {
+      this.stopBgm(true);
+      this.currentBgm = this.intenseBgm;
+      this.intenseBgm.src = `assets/audio/world_${worldId + 1}_intense_bgm.wav`;
+      this.onIntenseBgmEnded.set(false);
+      this.currentBgm.currentTime = 0;
+      this.currentBgm.volume = 0;
+      if (this.currentBgm.paused) {
+          this.currentBgm.play().then(() => this.fadeAudio(false)).catch(e => console.log('Intense BGM play prevented', e));
       }
   }
   
   stopIntenseBgm() {
       if (!this.intenseBgm.paused) {
-          this.intenseBgm.pause();
+          if (this.currentBgm === this.intenseBgm) {
+              this.fadeAudio(true, 500, true);
+          } else {
+              this.intenseBgm.pause();
+          }
       }
   }
 
   playBgm() {
-      // Backwards compatibility if called directly
       this.playWorldBgm();
   }
 
-  stopBgm() {
+  stopBgm(immediate: boolean = false) {
     if (this.currentBgm) {
-        this.currentBgm.pause();
-        this.currentBgm.currentTime = 0;
+        if (immediate) {
+            this.currentBgm.pause();
+            this.currentBgm.currentTime = 0;
+        } else {
+            this.fadeAudio(true, 500, true);
+            const bgmToReset = this.currentBgm;
+            setTimeout(() => {
+                if (bgmToReset.paused) bgmToReset.currentTime = 0;
+            }, 600); // After fade
+        }
     }
+  }
+
+  public pauseCurrentBgm() {
+      this.fadeAudio(true, 300, true);
+  }
+
+  public resumeCurrentBgm() {
+      if (this.currentBgm && this.currentBgm.paused) {
+          this.currentBgm.play().then(() => this.fadeAudio(false, 300)).catch(() => {});
+      }
   }
 
   playSFX(type: 'shoot' | 'hit' | 'explosion' | 'heal' | 'buy' | 'click' | 'boss') {
