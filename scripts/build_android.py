@@ -133,7 +133,7 @@ def main():
         print(f"      [OK] AAB exported to: {aab_dest}")
         
     print("\n========================================")
-    print("   ALL DONE! BUILD SUCCESSFUL 🎉")
+    print("   ALL DONE! BUILD SUCCESSFUL")
     print("========================================")
 
 if __name__ == "__main__":
