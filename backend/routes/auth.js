@@ -108,7 +108,10 @@ router.post('/google/native', async (req, res) => {
 
         const ticket = await client.verifyIdToken({
             idToken: idToken,
-            audience: process.env.GOOGLE_CLIENT_ID,
+            audience: [
+                process.env.GOOGLE_CLIENT_ID,
+                '108585498879-o171u9a80ssqfkojpd8hohgq6dumk0iu.apps.googleusercontent.com'
+            ],
         });
         const payload = ticket.getPayload();
         

@@ -146,7 +146,7 @@ export class LoginComponent implements OnInit {
   }
 
   async loginWithGoogle() {
-    this.audioService.playSFX('buy');
+    this.audioService.playSFX('click');
     try {
         const user = await this.authService.loginWithGoogle();
         if (user && user.isTemp) {
