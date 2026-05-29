@@ -1724,8 +1724,8 @@ export class GameComponent implements OnInit, OnDestroy {
     
     // If cheat was prepared and we are resuming, trigger it
     if (this.gameState.isPaused() && this.cheatPrepared()) {
-        // Fast forward song to 60 seconds before it ends
-        this.audioService.worldBgm.currentTime = Math.max(0, this.audioService.worldBgm.duration - 60);
+        // Fast forward song to 1 second before it ends
+        this.audioService.worldBgm.currentTime = Math.max(0, this.audioService.worldBgm.duration - 1);
         this.cheatPrepared.set(false);
     }
 
