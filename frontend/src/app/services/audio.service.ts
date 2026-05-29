@@ -57,20 +57,42 @@ export class AudioService {
     setupLoop(this.worldBgm);
     setupLoop(this.intenseBgm);
 
-    // Mobile browsers block autoplay until a user interaction occurs.
-    // We add a one-time global event listener to unlock the audio context.
-    const unlockAudio = () => {
+    // Unified Audio Unlock for Mobile Browsers
+    const initAndUnlockAudio = () => {
+        // 1. Initialize and resume AudioContext if supported
+        this.initAudioContext();
         if (this.audioCtx && this.audioCtx.state === 'suspended') {
             this.audioCtx.resume();
         }
-        if (this.currentBgm && this.currentBgm.paused && !this.isMuted()) {
-            this.currentBgm.play().catch(e => console.log('Audio still blocked', e));
-        }
-        window.removeEventListener('click', unlockAudio);
-        window.removeEventListener('touchstart', unlockAudio);
+
+        // 2. "Unlock" all audio elements by playing them silently in the user-gesture
+        const allAudio = [this.menuBgm, this.worldBgm, this.intenseBgm, this.sfxShoot, this.sfxHit, this.sfxExplosion, this.sfxHeal, this.sfxBuy, this.sfxClick];
+        allAudio.forEach(audio => {
+            if (audio.paused) {
+                // Save current state
+                const isCurrentBgm = (audio === this.currentBgm);
+                
+                audio.play().then(() => {
+                    // If it's not the currently active BGM, pause it immediately
+                    if (!isCurrentBgm) {
+                        audio.pause();
+                        audio.currentTime = 0;
+                    } else {
+                        // If it is the current BGM, start fading it in
+                        this.fadeAudio(false);
+                    }
+                }).catch(() => {
+                    console.log('Audio unlock prevented for:', audio.src);
+                });
+            }
+        });
+
+        document.removeEventListener('click', initAndUnlockAudio);
+        document.removeEventListener('touchstart', initAndUnlockAudio);
     };
-    window.addEventListener('click', unlockAudio);
-    window.addEventListener('touchstart', unlockAudio, { passive: true });
+    
+    document.addEventListener('click', initAndUnlockAudio);
+    document.addEventListener('touchstart', initAndUnlockAudio, { passive: true });
 
     let worldFading = false;
     this.worldBgm.addEventListener('play', () => worldFading = false);
@@ -91,19 +113,6 @@ export class AudioService {
 
     this.loadSettings();
     this.updateVolumes();
-
-    const startAudioContext = () => {
-        this.initAudioContext();
-        if (this.currentBgm && this.currentBgm.paused) {
-            this.currentBgm.play().then(() => this.fadeAudio(false)).catch(() => {});
-        } else if (this.currentBgm && this.currentBgm.volume === 0) {
-            this.fadeAudio(false);
-        }
-        document.removeEventListener('click', startAudioContext);
-        document.removeEventListener('touchstart', startAudioContext);
-    };
-    document.addEventListener('click', startAudioContext);
-    document.addEventListener('touchstart', startAudioContext);
   }
 
   private initAudioContext() {
