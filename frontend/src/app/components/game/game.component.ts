@@ -705,13 +705,11 @@ export class GameComponent implements OnInit, OnDestroy {
     this.timerInterval = setInterval(() => {
       if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
       
-      const duration = this.audioService.getBgmDuration();
-      const current = this.audioService.getBgmCurrentTime();
-      if (duration > 0 && !this.bossSpawned()) {
-          this.totalTimeSignal.set(duration);
-          this.timeRemaining.set(Math.max(0, duration - current));
-      } else {
-          this.gameState.sessionPlayTime.update(t => t + 1);
+      this.timeRemaining.update(t => Math.max(0, Math.floor(t - 1)));
+      this.gameState.sessionPlayTime.update(t => t + 1);
+      
+      if (this.timeRemaining() === 0 && this.bossSpawned() && !this.inBossDefeatSequence() && !this.isDead() && !this.rageModeActive()) {
+          this.triggerRageMode();
       }
       
       if (this.gameState.sessionPlayTime() >= 60) this.gameState.awardTrophy("Survivor");
@@ -1778,8 +1776,9 @@ export class GameComponent implements OnInit, OnDestroy {
   private onTouchEnd() { this.isMouseHeld = false; }
 
   public formatTime(seconds: number): string {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+    const totalSeconds = Math.floor(seconds);
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 }
