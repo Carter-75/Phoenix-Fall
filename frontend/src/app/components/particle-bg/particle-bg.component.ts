@@ -202,7 +202,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   }
 
   private updateBounds() {
-    this.birdScale = Math.max(0.2, Math.min(0.5, window.innerWidth / 1200)); // Scaled down bird
+    this.birdScale = Math.max(0.15, Math.min(0.4, window.innerWidth / 1500));
     const vFOV = THREE.MathUtils.degToRad(this.camera.fov);
     const height = 2 * Math.tan(vFOV / 2) * Math.abs(this.camera.position.z + 15);
     this.boundY = height / 2;
@@ -391,7 +391,8 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         this.particles.geometry.attributes['position'].needsUpdate = true;
         this.particles.rotation.y += 0.0001;
 
-        const speed = 0.08 * this.gameState.currentStats().speed; 
+        const screenFactor = Math.max(1.0, 1000 / (window.innerWidth || 1000));
+        const speed = 0.12 * this.gameState.currentStats().speed * screenFactor; 
         const bird = this.bird;
         
         // --- ONLY UPDATE BIRD PHYSICS IF NOT PAUSED ---
@@ -434,7 +435,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
                   const modifiers = this.gameState.currentStats().unlockedAbilities['drill_attack']?.modifiers;
                   if (modifiers && modifiers['speed']) speedMult *= modifiers['speed'];
               }
-              const maxTurnForce = (0.001 / this.birdScale) * speedMult; 
+              const maxTurnForce = (0.002 / this.birdScale) * speedMult * screenFactor; 
               const desiredVelocity = bird.velocity.clone().add(directToTarget.multiplyScalar(speedMult)).normalize().multiplyScalar(speed * speedMult);
               const steering = desiredVelocity.sub(bird.velocity);
               if (steering.length() > maxTurnForce) steering.normalize().multiplyScalar(maxTurnForce);

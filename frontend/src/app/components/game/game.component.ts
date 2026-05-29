@@ -184,6 +184,10 @@ export class GameComponent implements OnInit, OnDestroy {
   public Math = Math;
   public currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
   
+  get screenScale() {
+      return Math.max(0.4, Math.min(1.0, window.innerWidth / 1000));
+  }
+  
   public maxHealth = computed(() => this.gameState.currentStats().maxHealth);
   public currentHealth = signal<number>(this.maxHealth());
   public damageFlash = signal<boolean>(false);
@@ -409,9 +413,10 @@ export class GameComponent implements OnInit, OnDestroy {
     }
 
     // Invisible player hitbox (Compound Body for Bird Shape)
-    const birdCore = Bodies.rectangle(window.innerWidth / 2, window.innerHeight / 2, 10, 20, { label: 'player' });
-    const birdLeftWing = Bodies.rectangle(window.innerWidth / 2 - 15, window.innerHeight / 2 - 5, 20, 8, { label: 'player' });
-    const birdRightWing = Bodies.rectangle(window.innerWidth / 2 + 15, window.innerHeight / 2 - 5, 20, 8, { label: 'player' });
+    const scale = this.screenScale;
+    const birdCore = Bodies.rectangle(window.innerWidth / 2, window.innerHeight / 2, 10 * scale, 20 * scale, { label: 'player' });
+    const birdLeftWing = Bodies.rectangle(window.innerWidth / 2 - (15 * scale), window.innerHeight / 2 - (5 * scale), 20 * scale, 8 * scale, { label: 'player' });
+    const birdRightWing = Bodies.rectangle(window.innerWidth / 2 + (15 * scale), window.innerHeight / 2 - (5 * scale), 20 * scale, 8 * scale, { label: 'player' });
     
     const playerCategory = 0x0002;
     const playerCollisionFilter = { category: playerCategory, mask: 0xFFFF };
@@ -465,7 +470,7 @@ export class GameComponent implements OnInit, OnDestroy {
                 let val = data.value || 0;
                 if (this.gameState.hasGoldenAura() && Math.random() < 0.1) val *= 5;
                 const scale = 3 * Math.max(0.2, 1 - (this.progressPercent() / 100));
-                this.gameState.coins.update(c => c + (val * scale * this.gameState.coinMultiplier()));
+                this.gameState.coins.update(c => c + (val * scale * this.gameState.coinMultiplier() * 3));
             }
             if (data.type === 'gem') {
                 const scale = 3 * Math.max(0.2, 1 - (this.progressPercent() / 100));
@@ -1097,7 +1102,8 @@ export class GameComponent implements OnInit, OnDestroy {
     this.clearEnemies();
 
     const data = { id: Math.random().toString(), type: 'boss', health: 1000, maxHealth: 1000 } as EnemyData;
-    const boss = this.createEnemyBody(window.innerWidth / 2, -100, 100, 'boss', data);
+    const scale = this.screenScale;
+    const boss = this.createEnemyBody(window.innerWidth / 2, -100, 100 * scale, 'boss', data);
 
     this.enemies.push(boss);
     Matter.Composite.add(this.engine.world, boss);
@@ -1131,14 +1137,15 @@ export class GameComponent implements OnInit, OnDestroy {
 
     const progress = this.progressPercent();
     let type: 'bat' | 'slime' | 'golem' = 'slime';
-    let size = 20;
+    const scale = this.screenScale;
+    let size = 20 * scale;
     let health = 20;
 
     const rand = Math.random();
     if (progress > 50 && rand < 0.1) {
-      type = 'golem'; size = 60; health = 200;
+      type = 'golem'; size = 60 * scale; health = 200;
     } else if (progress > 20 && rand < 0.4) {
-      type = 'bat'; size = 15; health = 10;
+      type = 'bat'; size = 15 * scale; health = 10;
     }
 
     const data = { id: Math.random().toString(), type, health, maxHealth: health, lastAttackTime: Date.now() } as EnemyData;
