@@ -54,7 +54,23 @@ export class AudioService {
     };
 
     setupLoop(this.menuBgm);
+    setupLoop(this.worldBgm);
     setupLoop(this.intenseBgm);
+
+    // Mobile browsers block autoplay until a user interaction occurs.
+    // We add a one-time global event listener to unlock the audio context.
+    const unlockAudio = () => {
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
+        if (this.currentBgm && this.currentBgm.paused && !this.isMuted()) {
+            this.currentBgm.play().catch(e => console.log('Audio still blocked', e));
+        }
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('touchstart', unlockAudio);
+    };
+    window.addEventListener('click', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio, { passive: true });
 
     let worldFading = false;
     this.worldBgm.addEventListener('play', () => worldFading = false);

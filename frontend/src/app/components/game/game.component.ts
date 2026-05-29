@@ -1790,7 +1790,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private onMouseDown(event: MouseEvent) { this.handleInputStart(event.clientX, event.clientY); }
   private onTouchStart(event: TouchEvent) { 
-      event.preventDefault();
+      // Do not prevent default here, as it blocks UI clicks (like the pause button)
       if (event.touches.length > 0) this.handleInputStart(event.touches[0].clientX, event.touches[0].clientY); 
   }
   
