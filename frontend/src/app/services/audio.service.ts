@@ -13,9 +13,9 @@ export class AudioService {
   public onIntenseBgmEnded = signal<boolean>(false);
 
   private currentBgm: HTMLAudioElement | null = null;
-  public menuBgm = new Audio('assets/audio/menu_bgm.wav');
-  public worldBgm = new Audio('assets/audio/world_1_bgm.wav');
-  public intenseBgm = new Audio('assets/audio/world_1_intense_bgm.wav');
+  public menuBgm = new Audio('assets/audio/menu_bgm.wav?v=2');
+  public worldBgm = new Audio('assets/audio/world_1_bgm.wav?v=2');
+  public intenseBgm = new Audio('assets/audio/world_1_intense_bgm.wav?v=2');
   
   private sfxShoot = new Audio('assets/audio/shoot.wav');
   private sfxHit = new Audio('assets/audio/hit.wav');
@@ -240,7 +240,7 @@ export class AudioService {
   playWorldBgm(worldId: number = 0) {
       this.stopBgm(true);
       this.currentBgm = this.worldBgm;
-      this.worldBgm.src = `assets/audio/world_${worldId + 1}_bgm.wav`;
+      this.worldBgm.src = `assets/audio/world_${worldId + 1}_bgm.wav?v=2`;
       this.onWorldBgmEnded.set(false);
       this.currentBgm.currentTime = 0;
       this.currentBgm.volume = 0;
@@ -250,7 +250,7 @@ export class AudioService {
   playIntenseBgm(worldId: number = 0) {
       this.stopBgm(true);
       this.currentBgm = this.intenseBgm;
-      this.intenseBgm.src = `assets/audio/world_${worldId + 1}_intense_bgm.wav`;
+      this.intenseBgm.src = `assets/audio/world_${worldId + 1}_intense_bgm.wav?v=2`;
       this.onIntenseBgmEnded.set(false);
       this.currentBgm.currentTime = 0;
       this.currentBgm.volume = 0;
