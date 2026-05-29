@@ -1,8 +1,5 @@
-// --- Environment and Dependencies ---
 const path = require('path');
 const fs = require('fs');
-const dns = require('node:dns');
-dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const resolveEnvPath = () => {
   const candidates = [
@@ -122,8 +119,8 @@ app.use(cors({
   credentials: true
 }));
 
-// Apply DB check to all /api routes
-app.use('/api', dbCheck);
+// Apply DB check universally to handle Vercel Service prefix stripping
+app.use(dbCheck);
 
 app.use(cors({
   origin: true,
@@ -144,11 +141,11 @@ app.use(
     secret: process.env.SESSION_SECRET || 'secret',
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({
-      mongoUrl: process.env.pf_MONGODB_URI || process.env.MONGODB_URI,
+    store: mongoURI ? MongoStore.create({
+      clientPromise: mongoose.connection.asPromise().then(m => m.connection.getClient()),
       collectionName: 'sessions',
       autoRemove: 'native'
-    }),
+    }) : undefined,
     cookie: {
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax'
