@@ -464,7 +464,8 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         targetQuat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
         
         if (bird.historyQuat.length > 0) {
-            dummy.quaternion.copy(bird.historyQuat[0]).slerp(targetQuat, 0.15);
+            // Slerp at 0.075 instead of 0.15 to make visual turning 50% slower without affecting the physical turn radius
+            dummy.quaternion.copy(bird.historyQuat[0]).slerp(targetQuat, 0.075);
         } else {
             dummy.quaternion.copy(targetQuat);
         }
@@ -477,7 +478,8 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         if (this.gameState.isDrilling()) {
             bird.currentBank += 0.5; // Continuous barrel roll
         } else {
-            bird.currentBank += (targetBank - bird.currentBank) * 0.05;
+            // Bank interpolation at 0.025 instead of 0.05 for 50% slower banking visually
+            bird.currentBank += (targetBank - bird.currentBank) * 0.025;
         }
         
         dummy.rotateZ(bird.currentBank);
