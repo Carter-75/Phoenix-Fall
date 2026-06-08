@@ -11,7 +11,7 @@ import { AudioService } from '../../services/audio.service';
         <div class="settings-content window-panel">
             <h2 class="title text-4xl mb-6">SETTINGS</h2>
             
-            <div class="sliders-container flex flex-col gap-4">
+            <div class="sliders-container flex flex-col gap-4 overflow-y-auto max-h-[60vh] pr-2 pb-2 custom-scrollbar">
                 <div class="slider-group">
                     <div class="flex justify-between">
                         <div class="flex items-center gap-2">
@@ -79,12 +79,28 @@ import { AudioService } from '../../services/audio.service';
                 <div class="slider-group">
                     <div class="flex justify-between">
                         <div class="flex items-center gap-2">
+                            <button (click)="audio.toggleMute('dropVolume')" class="text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-gray-800 transition-colors">
+                                {{ audio.dropVolume() > 0 ? '🔊' : '🔇' }}
+                            </button>
+                            <label>Item Drop / Coin Volume</label>
+                        </div>
+                        <span class="text-white/80" [class.text-red-500]="audio.dropVolume() === 0">{{(audio.dropVolume() * 100).toFixed(0)}}%</span>
+                    </div>
+                    <input type="range" min="0" max="1" step="0.05" 
+                           [value]="audio.dropVolume()" 
+                           (input)="updateVolume('dropVolume', $event)" 
+                           class="w-full">
+                </div>
+                
+                <div class="slider-group">
+                    <div class="flex justify-between">
+                        <div class="flex items-center gap-2">
                             <button (click)="audio.toggleMute('intenseVolume')" class="text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-gray-800 transition-colors">
                                 {{ audio.intenseVolume() > 0 ? '🔊' : '🔇' }}
                             </button>
-                            <label class="text-red-400">Intense (Low HP) Volume</label>
+                            <label>Intense (Low HP) Volume</label>
                         </div>
-                        <span class="text-red-400" [class.opacity-50]="audio.intenseVolume() === 0">{{(audio.intenseVolume() * 100).toFixed(0)}}%</span>
+                        <span class="text-white/80" [class.text-red-500]="audio.intenseVolume() === 0">{{(audio.intenseVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.intenseVolume()" 
@@ -159,13 +175,24 @@ import { AudioService } from '../../services/audio.service';
         transform: scale(1.05);
         box-shadow: 0 0 20px rgba(255,170,0,0.4);
     }
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #111;
+        border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #ffaa00;
+        border-radius: 4px;
+    }
   `]
 })
 export class SettingsComponent {
   public audio = inject(AudioService);
   @Output() close = new EventEmitter<void>();
 
-  updateVolume(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume', event: any) {
+  updateVolume(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume'|'dropVolume', event: any) {
       const val = parseFloat(event.target.value);
       this.audio.setVolume(channel, val);
   }

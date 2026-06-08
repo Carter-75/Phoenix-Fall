@@ -14,6 +14,8 @@ export class AudioService {
   public intenseVolumePrev = 1.0;
   public sfxVolume = signal<number>(1.0);
   public sfxVolumePrev = 1.0;
+  public dropVolume = signal<number>(1.0);
+  public dropVolumePrev = 1.0;
   
   public onWorldBgmEnded = signal<boolean>(false);
   public onIntenseBgmEnded = signal<boolean>(false);
@@ -181,6 +183,7 @@ export class AudioService {
       loadVol('attack', this.attackVolume, 'attackVolumePrev');
       loadVol('intense', this.intenseVolume, 'intenseVolumePrev');
       loadVol('sfx', this.sfxVolume, 'sfxVolumePrev');
+      loadVol('drop', this.dropVolume, 'dropVolumePrev');
   }
 
   public saveSettings() {
@@ -194,10 +197,11 @@ export class AudioService {
       saveVol('attack', this.attackVolume(), this.attackVolumePrev);
       saveVol('intense', this.intenseVolume(), this.intenseVolumePrev);
       saveVol('sfx', this.sfxVolume(), this.sfxVolumePrev);
+      saveVol('drop', this.dropVolume(), this.dropVolumePrev);
       this.updateVolumes();
   }
 
-  public toggleMute(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume') {
+  public toggleMute(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume'|'dropVolume') {
       const prevKey = (channel + 'Prev') as keyof AudioService;
       const current = this[channel]();
       if (current > 0) {
@@ -209,7 +213,7 @@ export class AudioService {
       this.saveSettings();
   }
 
-  public setVolume(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume', val: number) {
+  public setVolume(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume'|'dropVolume', val: number) {
       this[channel].set(val);
       if (val > 0) {
           const prevKey = (channel + 'Prev') as keyof AudioService;
@@ -392,7 +396,7 @@ export class AudioService {
         const clone = audio.cloneNode() as HTMLAudioElement;
         const isMenuSfx = (type === 'buy' || type === 'click');
         const isCombatSfx = (type === 'shoot' || type === 'explosion' || type === 'boss');
-        const channelVol = isMenuSfx ? this.sfxVolume() : (isCombatSfx ? this.attackVolume() : this.sfxVolume());
+        const channelVol = isMenuSfx ? this.sfxVolume() : (isCombatSfx ? this.attackVolume() : (type === 'drop' ? this.dropVolume() : this.sfxVolume()));
         clone.volume = 0.4 * this.masterVolume() * channelVol;
         
         if (clone.volume > 0) {
