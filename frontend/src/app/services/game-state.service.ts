@@ -84,7 +84,7 @@ const ABILITY_UPGRADE_TARGETS: Record<string, { targetLevel: number, stats: Reco
   drill_attack: { targetLevel: 30, stats: { cooldown: 0.25, speed: 3.0, duration: 5.0 } },
   burst: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0, radius: 3.0 } },
   phoenix_turret: { targetLevel: 30, stats: { cooldown: 0.5, duration: 3.0, damage: 3.0 } },
-  fire_breath: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0, range: 3.0 } },
+  fire_breath: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0, range: 3.0, ammo: 3.0 } },
   aura: { targetLevel: 30, stats: { damage: 5.0, radius: 3.0 } },
   rebirth: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0 } }
 };
@@ -197,7 +197,7 @@ export class GameStateService {
                                       const ability = abilities[abKey];
                                       if (ability && typeof ability.level === 'number' && !ability.modifiers) {
                                           ability.modifiers = {
-                                              cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0
+                                              cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0, ammo: 1.0
                                           };
                                       }
                                   });
@@ -434,7 +434,7 @@ export class GameStateService {
                               if (ability && typeof ability.level === 'number' && !ability.modifiers) {
                                   // Migrate old format to AbilityData
                                   ability.modifiers = {
-                                      cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0
+                                      cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0, ammo: 1.0
                                   };
                               }
                           });
@@ -459,7 +459,7 @@ export class GameStateService {
       const upgrades = { ...this.worldUpgrades() };
       const worldStats = upgrades[worldId];
       if (!worldStats.unlockedAbilities[abilityId]) {
-          worldStats.unlockedAbilities[abilityId] = { level: 1, modifiers: { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 } };
+          worldStats.unlockedAbilities[abilityId] = { level: 1, modifiers: { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0, ammo: 1.0 } };
       }
 
       const abilityData = worldStats.unlockedAbilities[abilityId];

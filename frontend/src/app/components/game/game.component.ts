@@ -777,34 +777,75 @@ export class GameComponent implements OnInit, OnDestroy {
       if (this.gameState.isRebirthing()) return;
 
       const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['fire_breath'];
-      const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+      const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0, ammo: 1.0 };
       
-      this.tapCooldown.set(8 * mods['cooldown']);
-      this.tapAbilityEndTime = Date.now() + 1000;
-      const damage = this.gameState.currentStats().damage * 0.5 * mods['damage'];
-      const range = 12 * mods['range'];
-      this.audioService.playSFX('shoot');
-      
-      // Auto-target nearest enemy instead of mouse
-      let fireAngle = 0;
+      // Proximity check - only trigger if an enemy is near
+      let nearest = null;
+      let minDist = Infinity;
       if (this.enemies.length > 0) {
-          let nearest = this.enemies[0];
-          let minDist = Infinity;
+          nearest = this.enemies[0];
           this.enemies.forEach(e => {
               const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
               if (dist < minDist) { minDist = dist; nearest = e; }
           });
-          const dirVec = Matter.Vector.sub(nearest.position, this.playerBody.position);
-          fireAngle = Math.atan2(dirVec.y, dirVec.x);
-      } else {
-          // Fallback to pointing right if no enemies
-          fireAngle = 0;
       }
+      if (minDist > 500 || !nearest) return; 
+
+      // Ammo-based firing over time
+      const ammo = Math.floor(20 * (mods['ammo'] || 1.0));
+      const fireIntervalMs = 50;
+      const firingDurationSec = (ammo * fireIntervalMs) / 1000;
       
-      // Longer duration fire breath (20 projectiles over 1000ms)
-      for(let i=0; i<20; i++) {
+      // Cooldown includes firing duration so it effectively begins after completion
+      this.tapCooldown.set(firingDurationSec + (8 * mods['cooldown']));
+      this.tapAbilityEndTime = Date.now() + (ammo * fireIntervalMs);
+      const damage = this.gameState.currentStats().damage * 0.5 * mods['damage'];
+      const range = 12 * mods['range'];
+      
+      // Smart targeting: Track expected damage to prevent overkill
+      const incomingDamage = new Map<string, number>();
+
+      for(let i=0; i<ammo; i++) {
           setTimeout(() => {
-              if (this.isDead() || this.gameState.isRebirthing()) return; // stop if player dies during breath
+              if (this.isDead() || this.gameState.isRebirthing()) return;
+              
+              // Recalculate target for EACH projectile individually
+              let target = null;
+              let bestDist = Infinity;
+              
+              if (this.enemies.length > 0) {
+                  this.enemies.forEach(e => {
+                      const data = e.plugin['data'] as EnemyData;
+                      if (!data) return;
+                      const currentIncoming = incomingDamage.get(data.id) || 0;
+                      // Don't target enemies that will already die from previous projectiles
+                      if (data.health - currentIncoming > 0 || data.type === 'boss') {
+                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
+                          if (dist < bestDist) { bestDist = dist; target = e; }
+                      }
+                  });
+                  
+                  // Fallback: If all enemies are marked as "dead", just shoot the closest one anyway
+                  if (!target) {
+                      this.enemies.forEach(e => {
+                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
+                          if (dist < bestDist) { bestDist = dist; target = e; }
+                      });
+                  }
+              }
+              
+              let fireAngle = 0;
+              if (target) {
+                  const dirVec = Matter.Vector.sub(target.position, this.playerBody.position);
+                  fireAngle = Math.atan2(dirVec.y, dirVec.x);
+                  
+                  const data = target.plugin['data'] as EnemyData;
+                  if (data) {
+                      incomingDamage.set(data.id, (incomingDamage.get(data.id) || 0) + damage);
+                  }
+              }
+
+              this.audioService.playSFX('shoot');
               
               const spreadAngle = (Math.random() - 0.5) * 0.5;
               const angle = fireAngle + spreadAngle;
@@ -816,7 +857,7 @@ export class GameComponent implements OnInit, OnDestroy {
               Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, range));
               Matter.Composite.add(this.engine.world, proj);
               setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 500);
-          }, i * 50);
+          }, i * fireIntervalMs);
       }
   }
 
