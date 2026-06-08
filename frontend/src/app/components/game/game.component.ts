@@ -810,7 +810,7 @@ export class GameComponent implements OnInit, OnDestroy {
               if (this.isDead() || this.gameState.isRebirthing()) return;
               
               // Recalculate target for EACH projectile individually
-              let target = null;
+              let target: any = null;
               let bestDist = Infinity;
               
               if (this.enemies.length > 0) {
