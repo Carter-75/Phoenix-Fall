@@ -74,7 +74,7 @@ export class LeaderboardComponent implements OnInit {
   }
 
   goBack() {
-    this.audio.playSFX('hit');
+    this.audio.playSFX('click');
     this.gameState.activeScreen.set('menu');
   }
 }

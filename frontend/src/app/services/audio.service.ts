@@ -72,7 +72,7 @@ export class AudioService {
         }
 
         // 2. "Unlock" all audio elements by playing them silently in the user-gesture
-        const allAudio = [this.menuBgm, this.worldBgm, this.intenseBgm, this.sfxShoot, this.sfxHit, this.sfxExplosion, this.sfxHeal, this.sfxBuy, this.sfxClick];
+        const allAudio = [this.menuBgm, this.worldBgm, this.intenseBgm, this.sfxShoot, this.sfxExplosion, this.sfxHeal, this.sfxBuy, this.sfxClick, this.sfxDrop];
         allAudio.forEach(audio => {
             if (audio.paused) {
                 // Save current state

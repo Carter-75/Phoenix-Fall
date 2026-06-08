@@ -150,7 +150,7 @@ export class MainMenuComponent {
       this.audio.playSFX('shoot');
       this.gameState.startGame();
     } else {
-      this.audio.playSFX('hit');
+      this.audio.playSFX('click');
     }
   }
 }

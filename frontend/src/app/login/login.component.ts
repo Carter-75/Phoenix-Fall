@@ -87,7 +87,7 @@ export class LoginComponent implements OnInit {
   }
 
   goBack() {
-    this.audioService.playSFX('hit'); 
+    this.audioService.playSFX('click'); 
     window.history.replaceState({}, document.title, "/");
     this.gameState.activeScreen.set('menu');
   }

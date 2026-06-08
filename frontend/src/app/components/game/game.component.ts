@@ -1449,7 +1449,7 @@ export class GameComponent implements OnInit, OnDestroy {
       if (activeHold === 'rebirth' && this.holdCooldown() === 0) {
          this.holdCooldown.set(this.getHoldMaxCooldown());
          this.gameState.isRebirthing.set(true);
-         this.audioService.playSFX('hit');
+         // Hit sound removed permanently
          
          // 3 second Ash visual effect loop
          const ashInterval = setInterval(() => {

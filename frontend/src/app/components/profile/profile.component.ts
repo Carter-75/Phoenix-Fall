@@ -261,17 +261,17 @@ export class ProfileComponent {
   }
 
   goBack() {
-    this.audio.playSFX('hit');
+    this.audio.playSFX('click');
     this.gameState.activeScreen.set('menu');
   }
 
   goToLogin() {
-    this.audio.playSFX('hit');
+    this.audio.playSFX('click');
     this.gameState.activeScreen.set('login');
   }
   
   logout() {
-      this.audio.playSFX('hit');
+      this.audio.playSFX('click');
       this.auth.logout();
   }
 
