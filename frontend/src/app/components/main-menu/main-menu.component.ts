@@ -105,41 +105,34 @@ export class MainMenuComponent {
   showSettings = false;
 
   nextWorld() {
-    this.audio.playSFX('click');
     let idx = this.gameState.selectedWorldIndex() + 1;
     if (idx >= this.gameState.worlds.length) idx = 0;
     this.gameState.selectedWorldIndex.set(idx);
   }
 
   prevWorld() {
-    this.audio.playSFX('click');
     let idx = this.gameState.selectedWorldIndex() - 1;
     if (idx < 0) idx = this.gameState.worlds.length - 1;
     this.gameState.selectedWorldIndex.set(idx);
   }
 
   openShop() {
-    this.audio.playSFX('click');
     this.gameState.activeScreen.set('shop');
   }
   
   openProfile() {
     if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) {
-      this.audio.playSFX('click');
       this.gameState.activeScreen.set('login');
     } else {
-      this.audio.playSFX('click');
       this.gameState.activeScreen.set('profile');
     }
   }
 
   openCodex() {
-    this.audio.playSFX('click');
     this.gameState.activeScreen.set('codex');
   }
 
   openLeaderboard() {
-    this.audio.playSFX('click');
     this.gameState.activeScreen.set('leaderboard');
   }
 
@@ -147,10 +140,8 @@ export class MainMenuComponent {
 
   startGame() {
     if (this.isWorldUnlocked()) {
-      this.audio.playSFX('shoot');
       this.gameState.startGame();
     } else {
-      this.audio.playSFX('click');
     }
   }
 }

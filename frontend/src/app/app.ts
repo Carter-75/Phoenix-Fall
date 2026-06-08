@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, HostListener } from '@angular/core';
 import { ParticleBgComponent } from './components/particle-bg/particle-bg.component';
 import { MainMenuComponent } from './components/main-menu/main-menu.component';
 import { ShopComponent } from './components/shop/shop.component';
@@ -104,6 +104,14 @@ export class App {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('mode') === 'set-username') {
           this.gameState.activeScreen.set('login');
+      }
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (target.closest('button')) {
+          this.gameState.audio.playSFX('click');
       }
   }
 
