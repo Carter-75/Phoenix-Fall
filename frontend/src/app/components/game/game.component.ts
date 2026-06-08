@@ -1422,6 +1422,7 @@ export class GameComponent implements OnInit, OnDestroy {
       Matter.Body.setVelocity(item, { x: (Math.random() - 0.5) * 5, y: (Math.random() - 0.5) * 5 });
       Matter.Composite.add(this.engine.world, item);
       this.items.push(item);
+      this.audioService.playSFX('drop');
   }
 
   private takeDamage(amount: number) {

@@ -5,10 +5,15 @@ import { Injectable, signal } from '@angular/core';
 })
 export class AudioService {
   public masterVolume = signal<number>(1.0);
+  public masterVolumePrev = 1.0;
   public menuVolume = signal<number>(1.0);
+  public menuVolumePrev = 1.0;
   public attackVolume = signal<number>(1.0);
+  public attackVolumePrev = 1.0;
   public intenseVolume = signal<number>(1.0);
+  public intenseVolumePrev = 1.0;
   public sfxVolume = signal<number>(1.0);
+  public sfxVolumePrev = 1.0;
   
   public onWorldBgmEnded = signal<boolean>(false);
   public onIntenseBgmEnded = signal<boolean>(false);
@@ -23,6 +28,7 @@ export class AudioService {
   private sfxHeal = new Audio('assets/audio/heal.wav');
   private sfxBuy = new Audio('assets/audio/buy.wav');
   private sfxClick = new Audio('assets/audio/click.wav');
+  private sfxDrop = new Audio('assets/audio/drop.wav');
 
   private audioCtx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
@@ -163,29 +169,53 @@ export class AudioService {
   }
 
   private loadSettings() {
-      const savedMaster = localStorage.getItem('phoenix_vol_master');
-      if (savedMaster !== null) this.masterVolume.set(parseFloat(savedMaster));
+      const loadVol = (key: string, sig: ReturnType<typeof signal<number>>, prevKey: keyof AudioService) => {
+          const saved = localStorage.getItem('phoenix_vol_' + key);
+          if (saved !== null) sig.set(parseFloat(saved));
+          const savedPrev = localStorage.getItem('phoenix_vol_' + key + '_prev');
+          if (savedPrev !== null) (this as any)[prevKey] = parseFloat(savedPrev);
+      };
       
-      const savedMenu = localStorage.getItem('phoenix_vol_menu');
-      if (savedMenu !== null) this.menuVolume.set(parseFloat(savedMenu));
-      
-      const savedAttack = localStorage.getItem('phoenix_vol_attack');
-      if (savedAttack !== null) this.attackVolume.set(parseFloat(savedAttack));
-      
-      const savedIntense = localStorage.getItem('phoenix_vol_intense');
-      if (savedIntense !== null) this.intenseVolume.set(parseFloat(savedIntense));
-      
-      const savedSfx = localStorage.getItem('phoenix_vol_sfx');
-      if (savedSfx !== null) this.sfxVolume.set(parseFloat(savedSfx));
+      loadVol('master', this.masterVolume, 'masterVolumePrev');
+      loadVol('menu', this.menuVolume, 'menuVolumePrev');
+      loadVol('attack', this.attackVolume, 'attackVolumePrev');
+      loadVol('intense', this.intenseVolume, 'intenseVolumePrev');
+      loadVol('sfx', this.sfxVolume, 'sfxVolumePrev');
   }
 
   public saveSettings() {
-      localStorage.setItem('phoenix_vol_master', this.masterVolume().toString());
-      localStorage.setItem('phoenix_vol_menu', this.menuVolume().toString());
-      localStorage.setItem('phoenix_vol_attack', this.attackVolume().toString());
-      localStorage.setItem('phoenix_vol_intense', this.intenseVolume().toString());
-      localStorage.setItem('phoenix_vol_sfx', this.sfxVolume().toString());
+      const saveVol = (key: string, val: number, prevVal: number) => {
+          localStorage.setItem('phoenix_vol_' + key, val.toString());
+          localStorage.setItem('phoenix_vol_' + key + '_prev', prevVal.toString());
+      };
+      
+      saveVol('master', this.masterVolume(), this.masterVolumePrev);
+      saveVol('menu', this.menuVolume(), this.menuVolumePrev);
+      saveVol('attack', this.attackVolume(), this.attackVolumePrev);
+      saveVol('intense', this.intenseVolume(), this.intenseVolumePrev);
+      saveVol('sfx', this.sfxVolume(), this.sfxVolumePrev);
       this.updateVolumes();
+  }
+
+  public toggleMute(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume') {
+      const prevKey = (channel + 'Prev') as keyof AudioService;
+      const current = this[channel]();
+      if (current > 0) {
+          (this as any)[prevKey] = current;
+          this[channel].set(0);
+      } else {
+          this[channel].set((this as any)[prevKey] || 1.0);
+      }
+      this.saveSettings();
+  }
+
+  public setVolume(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume', val: number) {
+      this[channel].set(val);
+      if (val > 0) {
+          const prevKey = (channel + 'Prev') as keyof AudioService;
+          (this as any)[prevKey] = val;
+      }
+      this.saveSettings();
   }
 
   private updateVolumes() {
@@ -331,8 +361,9 @@ export class AudioService {
 
   private lastHitTime = 0;
   private lastShootTime = 0;
+  private lastDropTime = 0;
 
-  playSFX(type: 'shoot' | 'explosion' | 'heal' | 'buy' | 'click' | 'boss') {
+  playSFX(type: 'shoot' | 'explosion' | 'heal' | 'buy' | 'click' | 'boss' | 'drop') {
     if (this.isMuted()) return;
     
     const now = Date.now();
@@ -341,6 +372,9 @@ export class AudioService {
     if (type === 'shoot') {
         if (now - this.lastShootTime < 40) return;
         this.lastShootTime = now;
+    } else if (type === 'drop') {
+        if (now - this.lastDropTime < 60) return; // Prevent speaker blowout when 100 coins drop
+        this.lastDropTime = now;
     }
 
     let audio: HTMLAudioElement | null = null;
@@ -351,6 +385,7 @@ export class AudioService {
         case 'buy': audio = this.sfxBuy; break;
         case 'click': audio = this.sfxClick; break;
         case 'boss': audio = this.sfxExplosion; break; // fallback
+        case 'drop': audio = this.sfxDrop; break;
     }
     
     if (audio) {
@@ -361,8 +396,8 @@ export class AudioService {
         clone.volume = 0.4 * this.masterVolume() * channelVol;
         
         if (clone.volume > 0) {
-            // Add pitch variation for organic combat sounds (prevents the annoying "machine gun" identical repeating sound)
-            if (isCombatSfx && clone.playbackRate) {
+            // Add pitch variation for organic combat sounds
+            if ((isCombatSfx || type === 'drop') && clone.playbackRate) {
                 clone.playbackRate = 0.8 + (Math.random() * 0.4); // Randomizes pitch/speed between 80% and 120%
                 clone.preservesPitch = false;
             }

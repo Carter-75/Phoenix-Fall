@@ -14,8 +14,13 @@ import { AudioService } from '../../services/audio.service';
             <div class="sliders-container flex flex-col gap-4">
                 <div class="slider-group">
                     <div class="flex justify-between">
-                        <label>Master Volume</label>
-                        <span>{{(audio.masterVolume() * 100).toFixed(0)}}%</span>
+                        <div class="flex items-center gap-2">
+                            <button (click)="audio.toggleMute('masterVolume')" class="text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-gray-800 transition-colors">
+                                {{ audio.masterVolume() > 0 ? '🔊' : '🔇' }}
+                            </button>
+                            <label>Master Volume</label>
+                        </div>
+                        <span [class.text-red-500]="audio.masterVolume() === 0">{{(audio.masterVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.masterVolume()" 
@@ -25,8 +30,13 @@ import { AudioService } from '../../services/audio.service';
                 
                 <div class="slider-group">
                     <div class="flex justify-between">
-                        <label>Menu / BGM Volume</label>
-                        <span>{{(audio.menuVolume() * 100).toFixed(0)}}%</span>
+                        <div class="flex items-center gap-2">
+                            <button (click)="audio.toggleMute('menuVolume')" class="text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-gray-800 transition-colors">
+                                {{ audio.menuVolume() > 0 ? '🔊' : '🔇' }}
+                            </button>
+                            <label>Menu / BGM Volume</label>
+                        </div>
+                        <span [class.text-red-500]="audio.menuVolume() === 0">{{(audio.menuVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.menuVolume()" 
@@ -36,8 +46,13 @@ import { AudioService } from '../../services/audio.service';
                 
                 <div class="slider-group">
                     <div class="flex justify-between">
-                        <label>Attack / SFX Volume</label>
-                        <span>{{(audio.attackVolume() * 100).toFixed(0)}}%</span>
+                        <div class="flex items-center gap-2">
+                            <button (click)="audio.toggleMute('attackVolume')" class="text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-gray-800 transition-colors">
+                                {{ audio.attackVolume() > 0 ? '🔊' : '🔇' }}
+                            </button>
+                            <label>Attack / SFX Volume</label>
+                        </div>
+                        <span [class.text-red-500]="audio.attackVolume() === 0">{{(audio.attackVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.attackVolume()" 
@@ -47,8 +62,13 @@ import { AudioService } from '../../services/audio.service';
                 
                 <div class="slider-group">
                     <div class="flex justify-between">
-                        <label>SFX / Clicks Volume</label>
-                        <span>{{(audio.sfxVolume() * 100).toFixed(0)}}%</span>
+                        <div class="flex items-center gap-2">
+                            <button (click)="audio.toggleMute('sfxVolume')" class="text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-gray-800 transition-colors">
+                                {{ audio.sfxVolume() > 0 ? '🔊' : '🔇' }}
+                            </button>
+                            <label>SFX / Clicks Volume</label>
+                        </div>
+                        <span [class.text-red-500]="audio.sfxVolume() === 0">{{(audio.sfxVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.sfxVolume()" 
@@ -58,8 +78,13 @@ import { AudioService } from '../../services/audio.service';
                 
                 <div class="slider-group">
                     <div class="flex justify-between">
-                        <label class="text-red-400">Intense (Low HP) Volume</label>
-                        <span class="text-red-400">{{(audio.intenseVolume() * 100).toFixed(0)}}%</span>
+                        <div class="flex items-center gap-2">
+                            <button (click)="audio.toggleMute('intenseVolume')" class="text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-gray-800 transition-colors">
+                                {{ audio.intenseVolume() > 0 ? '🔊' : '🔇' }}
+                            </button>
+                            <label class="text-red-400">Intense (Low HP) Volume</label>
+                        </div>
+                        <span class="text-red-400" [class.opacity-50]="audio.intenseVolume() === 0">{{(audio.intenseVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.intenseVolume()" 
@@ -142,8 +167,7 @@ export class SettingsComponent {
 
   updateVolume(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume', event: any) {
       const val = parseFloat(event.target.value);
-      this.audio[channel].set(val);
-      this.audio.saveSettings();
+      this.audio.setVolume(channel, val);
   }
 
   onBackdropClick(event: MouseEvent) {
