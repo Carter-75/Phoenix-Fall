@@ -407,10 +407,15 @@ export class GameComponent implements OnInit, OnDestroy {
 
     this.engine = Engine.create({ gravity: { x: 0, y: 0 } });
     
+    // Base time scale is 0.85 to make the game 15% slower overall
+    let timeScale = 0.85;
+
     // Speed up physics engine if running natively on a mobile device
     if (Capacitor.isNativePlatform()) {
-        this.engine.timing.timeScale = 1.35;
+        timeScale *= 1.35;
     }
+    
+    this.engine.timing.timeScale = timeScale;
 
     // Invisible player hitbox (Compound Body for Bird Shape)
     const scale = this.screenScale;
@@ -1130,10 +1135,17 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private spawnEnemy() {
-    const angle = Math.random() * Math.PI * 2;
-    const distance = Math.max(window.innerWidth, window.innerHeight) * 0.6; 
-    const x = this.playerBody.position.x + Math.cos(angle) * distance;
-    const y = this.playerBody.position.y + Math.sin(angle) * distance;
+    let x, y;
+    const padding = 100; // spawn exactly 100px outside the screen bounds
+    if (Math.random() < 0.5) {
+        // Top or bottom edge
+        x = Math.random() * window.innerWidth;
+        y = Math.random() < 0.5 ? -padding : window.innerHeight + padding;
+    } else {
+        // Left or right edge
+        x = Math.random() < 0.5 ? -padding : window.innerWidth + padding;
+        y = Math.random() * window.innerHeight;
+    }
 
     const progress = this.progressPercent();
     let type: 'bat' | 'slime' | 'golem' = 'slime';
