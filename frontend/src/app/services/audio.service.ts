@@ -330,9 +330,23 @@ export class AudioService {
       }
   }
 
+  private lastHitTime = 0;
+  private lastShootTime = 0;
+
   playSFX(type: 'shoot' | 'hit' | 'explosion' | 'heal' | 'buy' | 'click' | 'boss') {
     if (this.isMuted()) return;
     
+    const now = Date.now();
+    
+    // Throttle overlapping spam for fast attacks/hits
+    if (type === 'hit') {
+        if (now - this.lastHitTime < 60) return; 
+        this.lastHitTime = now;
+    } else if (type === 'shoot') {
+        if (now - this.lastShootTime < 40) return;
+        this.lastShootTime = now;
+    }
+
     let audio: HTMLAudioElement | null = null;
     switch(type) {
         case 'shoot': audio = this.sfxShoot; break;
@@ -352,6 +366,11 @@ export class AudioService {
         clone.volume = 0.4 * this.masterVolume() * channelVol;
         
         if (clone.volume > 0) {
+            // Add pitch variation for organic combat sounds (prevents the annoying "machine gun" identical repeating sound)
+            if (isCombatSfx && clone.playbackRate) {
+                clone.playbackRate = 0.8 + (Math.random() * 0.4); // Randomizes pitch/speed between 80% and 120%
+                clone.preservesPitch = false;
+            }
             clone.play().catch(e => console.log('SFX play prevented', e));
         }
     }
