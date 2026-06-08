@@ -9,7 +9,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { App } from '@capacitor/app';
 
 export interface AbilityData {
-  level: number;
+  level: number; 
   modifiers: Record<string, number>;
 }
 
