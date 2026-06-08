@@ -1406,7 +1406,7 @@ export class GameComponent implements OnInit, OnDestroy {
         }
       }
     } else {
-      this.audioService.playSFX('hit');
+      // Hit sound removed permanently
     }
   }
 
@@ -1429,7 +1429,7 @@ export class GameComponent implements OnInit, OnDestroy {
     
     if (this.gameState.hasCelestialShield() && this.celestialShieldActive()) {
         this.celestialShieldActive.set(false);
-        this.audioService.playSFX('hit');
+        // Hit sound removed permanently
         setTimeout(() => this.celestialShieldActive.set(true), 30000);
         return;
     }
@@ -1438,7 +1438,7 @@ export class GameComponent implements OnInit, OnDestroy {
         amount *= 0.1;
     }
 
-    this.audioService.playSFX('hit');
+    // Hit sound removed permanently
     this.currentHealth.update(h => Math.max(0, h - amount));
     this.damageFlash.set(true);
     setTimeout(() => this.damageFlash.set(false), 200);

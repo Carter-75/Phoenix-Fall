@@ -18,8 +18,7 @@ export class AudioService {
   public worldBgm = new Audio('assets/audio/world_1_bgm.wav');
   public intenseBgm = new Audio('assets/audio/world_1_intense_bgm.wav');
   
-  private sfxShoot = new Audio('assets/audio/shoot.wav');
-  private sfxHit = new Audio('assets/audio/hit.wav');
+  private sfxShoot = new Audio('assets/audio/hit.wav');
   private sfxExplosion = new Audio('assets/audio/explosion.wav');
   private sfxHeal = new Audio('assets/audio/heal.wav');
   private sfxBuy = new Audio('assets/audio/buy.wav');
@@ -333,16 +332,13 @@ export class AudioService {
   private lastHitTime = 0;
   private lastShootTime = 0;
 
-  playSFX(type: 'shoot' | 'hit' | 'explosion' | 'heal' | 'buy' | 'click' | 'boss') {
+  playSFX(type: 'shoot' | 'explosion' | 'heal' | 'buy' | 'click' | 'boss') {
     if (this.isMuted()) return;
     
     const now = Date.now();
     
     // Throttle overlapping spam for fast attacks/hits
-    if (type === 'hit') {
-        if (now - this.lastHitTime < 60) return; 
-        this.lastHitTime = now;
-    } else if (type === 'shoot') {
+    if (type === 'shoot') {
         if (now - this.lastShootTime < 40) return;
         this.lastShootTime = now;
     }
@@ -350,7 +346,6 @@ export class AudioService {
     let audio: HTMLAudioElement | null = null;
     switch(type) {
         case 'shoot': audio = this.sfxShoot; break;
-        case 'hit': audio = this.sfxHit; break;
         case 'explosion': audio = this.sfxExplosion; break;
         case 'heal': audio = this.sfxHeal; break;
         case 'buy': audio = this.sfxBuy; break;
@@ -361,7 +356,7 @@ export class AudioService {
     if (audio) {
         const clone = audio.cloneNode() as HTMLAudioElement;
         const isMenuSfx = (type === 'buy' || type === 'click');
-        const isCombatSfx = (type === 'shoot' || type === 'hit' || type === 'explosion' || type === 'boss');
+        const isCombatSfx = (type === 'shoot' || type === 'explosion' || type === 'boss');
         const channelVol = isMenuSfx ? this.sfxVolume() : (isCombatSfx ? this.attackVolume() : this.sfxVolume());
         clone.volume = 0.4 * this.masterVolume() * channelVol;
         
