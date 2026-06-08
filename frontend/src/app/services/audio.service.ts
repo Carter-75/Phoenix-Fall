@@ -373,7 +373,7 @@ export class AudioService {
         if (now - this.lastShootTime < 40) return;
         this.lastShootTime = now;
     } else if (type === 'drop') {
-        if (now - this.lastDropTime < 60) return; // Prevent speaker blowout when 100 coins drop
+        if (now - this.lastDropTime < 100) return; // Prevent speaker blowout when 100 coins drop/collect
         this.lastDropTime = now;
     }
 

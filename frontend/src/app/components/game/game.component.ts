@@ -501,6 +501,9 @@ export class GameComponent implements OnInit, OnDestroy {
                 setTimeout(() => el.style.opacity = '0', 50);
                 setTimeout(() => el.remove(), 350);
             }
+            if (data.type === 'coin' || data.type === 'gem') {
+                this.audioService.playSFX('drop');
+            }
             Matter.Composite.remove(this.engine.world, otherBody);
             this.items = this.items.filter(i => i !== otherBody);
           }
@@ -1359,7 +1362,10 @@ export class GameComponent implements OnInit, OnDestroy {
         if (this.bossGemsDropped > 0) {
             const valPerGem = intendedGems / (this.bossGemsDropped * scaleAtEnd);
             for(let i=0; i<this.bossGemsDropped; i++) {
-                this.dropItem(enemy.position.x + (Math.random()-0.5)*150, enemy.position.y + (Math.random()-0.5)*150, 'gem', valPerGem);
+                setTimeout(() => {
+                    this.dropItem(enemy.position.x + (Math.random()-0.5)*150, enemy.position.y + (Math.random()-0.5)*150, 'gem', valPerGem);
+                    this.audioService.playSFX('drop');
+                }, i * 30);
             }
         } else {
             // If no gems dropped, automatically ascend after a delay to let the coins bounce
@@ -1373,7 +1379,10 @@ export class GameComponent implements OnInit, OnDestroy {
         const physicalCoins = Math.min(150, Math.floor(intendedCoins / scaleAtEnd));
         const valPerCoin = intendedCoins / (physicalCoins * scaleAtEnd);
         for(let i=0; i<physicalCoins; i++) {
-           this.dropItem(enemy.position.x + (Math.random()-0.5)*200, enemy.position.y + (Math.random()-0.5)*200, 'coin', valPerCoin);
+           setTimeout(() => {
+               this.dropItem(enemy.position.x + (Math.random()-0.5)*200, enemy.position.y + (Math.random()-0.5)*200, 'coin', valPerCoin);
+               this.audioService.playSFX('drop');
+           }, i * 15); // Stagger drop and sound for a nice "brrrrr" effect
         }
         
         this.triggerMassiveExplosion(enemy.position.x, enemy.position.y);
@@ -1422,7 +1431,6 @@ export class GameComponent implements OnInit, OnDestroy {
       Matter.Body.setVelocity(item, { x: (Math.random() - 0.5) * 5, y: (Math.random() - 0.5) * 5 });
       Matter.Composite.add(this.engine.world, item);
       this.items.push(item);
-      this.audioService.playSFX('drop');
   }
 
   private takeDamage(amount: number) {

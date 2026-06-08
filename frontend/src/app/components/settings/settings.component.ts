@@ -20,7 +20,7 @@ import { AudioService } from '../../services/audio.service';
                             </button>
                             <label>Master Volume</label>
                         </div>
-                        <span [class.text-red-500]="audio.masterVolume() === 0">{{(audio.masterVolume() * 100).toFixed(0)}}%</span>
+                        <span class="text-white/80" [class.text-red-500]="audio.masterVolume() === 0">{{(audio.masterVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.masterVolume()" 
@@ -36,7 +36,7 @@ import { AudioService } from '../../services/audio.service';
                             </button>
                             <label>Menu / BGM Volume</label>
                         </div>
-                        <span [class.text-red-500]="audio.menuVolume() === 0">{{(audio.menuVolume() * 100).toFixed(0)}}%</span>
+                        <span class="text-white/80" [class.text-red-500]="audio.menuVolume() === 0">{{(audio.menuVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.menuVolume()" 
@@ -52,7 +52,7 @@ import { AudioService } from '../../services/audio.service';
                             </button>
                             <label>Attack / SFX Volume</label>
                         </div>
-                        <span [class.text-red-500]="audio.attackVolume() === 0">{{(audio.attackVolume() * 100).toFixed(0)}}%</span>
+                        <span class="text-white/80" [class.text-red-500]="audio.attackVolume() === 0">{{(audio.attackVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.attackVolume()" 
@@ -68,7 +68,7 @@ import { AudioService } from '../../services/audio.service';
                             </button>
                             <label>SFX / Clicks Volume</label>
                         </div>
-                        <span [class.text-red-500]="audio.sfxVolume() === 0">{{(audio.sfxVolume() * 100).toFixed(0)}}%</span>
+                        <span class="text-white/80" [class.text-red-500]="audio.sfxVolume() === 0">{{(audio.sfxVolume() * 100).toFixed(0)}}%</span>
                     </div>
                     <input type="range" min="0" max="1" step="0.05" 
                            [value]="audio.sfxVolume()" 
