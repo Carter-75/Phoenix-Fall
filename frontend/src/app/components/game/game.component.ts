@@ -407,15 +407,10 @@ export class GameComponent implements OnInit, OnDestroy {
 
     this.engine = Engine.create({ gravity: { x: 0, y: 0 } });
     
-    // Base time scale is 0.85 to make the game 15% slower overall
-    let timeScale = 0.85;
-
     // Speed up physics engine if running natively on a mobile device
     if (Capacitor.isNativePlatform()) {
-        timeScale *= 1.35;
+        this.engine.timing.timeScale = 1.35;
     }
-    
-    this.engine.timing.timeScale = timeScale;
 
     // Invisible player hitbox (Compound Body for Bird Shape)
     const scale = this.screenScale;

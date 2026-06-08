@@ -392,7 +392,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         this.particles.rotation.y += 0.0001;
 
         const screenFactor = Math.max(1.0, 1000 / (window.innerWidth || 1000));
-        const speed = 0.08 * this.gameState.currentStats().speed * screenFactor; 
+        const speed = 0.068 * this.gameState.currentStats().speed * screenFactor; 
         const bird = this.bird;
         
         // --- ONLY UPDATE BIRD PHYSICS IF NOT PAUSED ---
