@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -11,11 +12,7 @@ export class ApiService {
 
   // Dynamic API URL mapping
   private get apiUrl(): string {
-    const isProd = ('false' as string) === 'true';
-    if (isProd) {
-      return '/api';
-    }
-    return '/api';
+    return environment.apiUrl;
   }
 
   getData<T>(endpoint: string): Observable<T> {

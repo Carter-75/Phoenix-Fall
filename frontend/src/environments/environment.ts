@@ -2,9 +2,8 @@ import { Capacitor } from '@capacitor/core';
 
 export const environment = {
   production: true,
-  // If running natively in Capacitor (Android/iOS), point to your Render production URL.
-  // Replace 'your-render-url.onrender.com' with your actual Render deployment link!
-  apiUrl: Capacitor.isNativePlatform() ? 'https://phoenix-fall.onrender.com' : '/api',
+  // Force the API to ALWAYS point to the standalone Render backend for both Web AND Native!
+  apiUrl: 'https://phoenix-fall.onrender.com',
   
   googlePlay: {
     skuTier1: 'com.phoenix.gems.tier1',
