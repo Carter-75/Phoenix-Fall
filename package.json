@@ -5,7 +5,7 @@
     "dev": "node scripts/dev-launcher.js",
     "build": "cd frontend && npm install && npm run build",
     "postinstall": "npm install --prefix backend && npm install --prefix frontend",
-    "start": "node start-dev.js"
+    "start": "npm start --prefix backend"
   },
   "dependencies": {
     "express": "^4.19.2",
