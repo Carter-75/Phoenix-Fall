@@ -1,5 +1,7 @@
-import { Component, signal, computed, OnInit, OnDestroy } from '@angular/core';
+import { Component, signal, computed, OnInit, OnDestroy, inject } from '@angular/core';
 import { GameStateService, ABILITIES, WorldStats } from '../../services/game-state.service';
+import { IapService } from '../../services/iap.service';
+import { environment } from '../../../environments/environment';
 import { CommonModule } from '@angular/common';
 
 export interface ActiveDeal {
@@ -59,7 +61,7 @@ export interface ActiveDeal {
                   <div class="bg-black/80 px-6 py-2 rounded-lg font-mono text-4xl font-black text-red-400 border border-red-500 shadow-[0_0_20px_rgba(255,0,0,0.5)] mb-4">
                      {{ formatCrazyTimer(crazyDealTimer()) }}
                   </div>
-                  <button (click)="buyCrazyDeal()" class="px-8 py-4 bg-white text-red-600 rounded-xl font-black text-2xl hover:scale-105 active:scale-95 transition shadow-xl">
+                  <button (click)="buyCrazyDeal()" class="px-8 py-4 bg-white text-red-600 rounded-xl font-black text-2xl hover:scale-105 active:scale-95 transition shadow-xl" [disabled]="iapService.isProcessing()">
                      CLAIM $9.99
                   </button>
                </div>
@@ -507,7 +509,7 @@ export interface ActiveDeal {
               <h3 class="text-2xl font-bold text-white">Single Gem</h3>
               <p class="text-purple-400 font-bold text-xl mt-1">{{ calculatedGems()[0] }} Gem</p>
             </div>
-            <button (click)="buyGems(calculatedGems()[0], calculatedPrices()[0])" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition flex justify-center gap-2">
+            <button (click)="buyGems(calculatedGems()[0], 0)" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition flex justify-center gap-2" [disabled]="iapService.isProcessing()">
               @if (crossedOutPrices().length) {
                 <span class="line-through text-white/50">&dollar;{{ crossedOutPrices()[0] }}</span>
               }
@@ -530,7 +532,7 @@ export interface ActiveDeal {
                   <h3 class="text-2xl font-bold text-white">Handful of Gems</h3>
                   <p class="text-purple-400 font-bold text-xl mt-1">{{ calculatedGems()[1] }} Gems</p>
                 </div>
-                <button (click)="buyGems(calculatedGems()[1], calculatedPrices()[1])" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30 flex justify-center gap-2">
+                <button (click)="buyGems(calculatedGems()[1], 1)" class="mt-4 w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl font-bold text-lg text-white hover:brightness-110 active:scale-95 transition shadow-lg shadow-purple-500/30 flex justify-center gap-2" [disabled]="iapService.isProcessing()">
                   @if (crossedOutPrices().length) {
                     <span class="line-through text-white/50">&dollar;{{ crossedOutPrices()[1] }}</span>
                   }
@@ -549,7 +551,7 @@ export interface ActiveDeal {
               <h3 class="text-2xl font-bold text-white">Chest of Gems</h3>
               <p class="text-purple-400 font-bold text-xl mt-1">{{ calculatedGems()[2] }} Gems</p>
             </div>
-            <button (click)="buyGems(calculatedGems()[2], calculatedPrices()[2])" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition flex justify-center gap-2">
+            <button (click)="buyGems(calculatedGems()[2], 2)" class="mt-4 w-full py-3 bg-white/10 border border-purple-500/50 rounded-xl font-bold text-lg text-white hover:bg-purple-600/50 hover:border-purple-500 active:scale-95 transition flex justify-center gap-2" [disabled]="iapService.isProcessing()">
               @if (crossedOutPrices().length) {
                 <span class="line-through text-white/50">&dollar;{{ crossedOutPrices()[2] }}</span>
               }
@@ -587,7 +589,70 @@ export interface ActiveDeal {
             </div>
           </div>
 
-          <!-- Boosts Section -->
+          <!-- Subscriptions Section -->
+          <div class="col-span-1 md:col-span-3 mt-8">
+            <h2 class="text-2xl font-black text-white uppercase tracking-widest border-b border-white/20 pb-2 mb-6">Subscriptions</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div class="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 border border-indigo-500/50 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+                 <div class="flex items-center gap-4 mb-4 md:mb-0">
+                    <div class="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center border border-indigo-500/50 shrink-0">
+                       <span class="text-3xl">📦</span>
+                    </div>
+                    <div>
+                       <h3 class="text-xl font-bold text-white flex items-center gap-2">Monthly Crate Pass</h3>
+                       <p class="text-indigo-300/80 text-sm">Get a massive reward crate drop once per month!</p>
+                       @if (gameState.pendingCratesCount() > 0) {
+                         <p class="text-green-400 font-bold text-sm mt-1">✓ Active ({{ gameState.pendingCratesCount() }} Crate(s) Pending Drop!)</p>
+                       }
+                    </div>
+                 </div>
+                 <button (click)="buySubscription()" class="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-bold text-lg hover:brightness-110 active:scale-95 transition flex items-center gap-2 whitespace-nowrap shadow-lg shadow-indigo-500/30" [disabled]="iapService.isProcessing()">
+                    Subscribe $2.99/mo
+                 </button>
+               </div>
+            </div>
+          </div>
+
+          <!-- Temporary Boosts Section -->
+          <div class="col-span-1 md:col-span-3 mt-8">
+            <h2 class="text-2xl font-black text-white uppercase tracking-widest border-b border-white/20 pb-2 mb-6">Temporary Boosts</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div class="bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-blue-500/30 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between shadow-[0_0_20px_rgba(59,130,246,0.1)]">
+                 <div class="flex items-center gap-4 mb-4 md:mb-0">
+                    <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center border border-blue-500/50 shrink-0">
+                       <span class="text-3xl">⚡</span>
+                    </div>
+                    <div>
+                       <h3 class="text-xl font-bold text-white">x2 Rewards (1 Min)</h3>
+                       <p class="text-blue-300/80 text-sm">Double Coins & XP for 60 seconds.</p>
+                       @if (gameState.tempCoinMultiplier() > 1) {
+                         <p class="text-green-400 font-bold text-sm mt-1">✓ Active</p>
+                       }
+                    </div>
+                 </div>
+                 <button (click)="buyTempMultiplier(2)" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-lg hover:brightness-110 active:scale-95 transition whitespace-nowrap shadow-lg" [disabled]="iapService.isProcessing()">
+                    Buy $0.99
+                 </button>
+               </div>
+               
+               <div class="bg-gradient-to-br from-fuchsia-900/40 to-pink-900/40 border border-fuchsia-500/30 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between shadow-[0_0_20px_rgba(217,70,239,0.1)]">
+                 <div class="flex items-center gap-4 mb-4 md:mb-0">
+                    <div class="w-16 h-16 bg-fuchsia-500/20 rounded-full flex items-center justify-center border border-fuchsia-500/50 shrink-0">
+                       <span class="text-3xl">🔥</span>
+                    </div>
+                    <div>
+                       <h3 class="text-xl font-bold text-white">x10 Rewards (5 Mins)</h3>
+                       <p class="text-fuchsia-300/80 text-sm">Massive 10x Coins & XP for 5 full minutes.</p>
+                    </div>
+                 </div>
+                 <button (click)="buyTempMultiplier(10)" class="px-6 py-3 bg-gradient-to-r from-fuchsia-600 to-pink-600 rounded-xl font-bold text-lg hover:brightness-110 active:scale-95 transition whitespace-nowrap shadow-lg" [disabled]="iapService.isProcessing()">
+                    Buy $4.99
+                 </button>
+               </div>
+            </div>
+          </div>
+
+          <!-- Permanent Boosts Section -->
           <div class="col-span-1 md:col-span-3 mt-8">
             <h2 class="text-2xl font-black text-white uppercase tracking-widest border-b border-white/20 pb-2 mb-6">Permanent Boosts</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -701,7 +766,7 @@ export interface ActiveDeal {
         </div>
       }
       <!-- Payment Processing Modal -->
-      @if (isProcessingPayment()) {
+      @if (iapService.isProcessing()) {
         <div class="fixed inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center z-50">
            <div class="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
            <h3 class="text-2xl font-bold text-white mb-2">Processing Payment...</h3>
@@ -728,7 +793,7 @@ export interface ActiveDeal {
                   <p class="text-white/50 line-through mt-1">Usually $9.99</p>
                </div>
                
-               <button (click)="buyWhaleTrap()" class="w-full py-4 bg-gradient-to-r from-fuchsia-600 to-purple-600 rounded-xl font-black text-2xl text-white hover:brightness-125 active:scale-95 transition shadow-lg shadow-fuchsia-500/50">
+               <button (click)="buyWhaleTrap()" class="w-full py-4 bg-gradient-to-r from-fuchsia-600 to-purple-600 rounded-xl font-black text-2xl text-white hover:brightness-125 active:scale-95 transition shadow-lg shadow-fuchsia-500/50" [disabled]="iapService.isProcessing()">
                  Claim for $4.99
                </button>
                
@@ -753,7 +818,7 @@ export interface ActiveDeal {
 })
 export class ShopComponent implements OnInit, OnDestroy {
   activeTab = signal<'passives' | 'abilities' | 'gems'>('passives');
-  isProcessingPayment = signal<boolean>(false);
+  iapService = inject(IapService);
   isGachaSpinning = signal<boolean>(false);
   flashSaleTimer = signal<number>(0); 
   currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
@@ -849,6 +914,14 @@ export class ShopComponent implements OnInit, OnDestroy {
               this.ghostDealTimer.set(10 * 60); 
           }
       }, 1000 * 60); 
+      
+      // Check Whale Trap trigger from IapService
+      if (typeof window !== 'undefined' && window.localStorage) {
+          if (localStorage.getItem('phoenix_trigger_whale') === 'true') {
+              this.showWhaleTrap.set(true);
+              localStorage.removeItem('phoenix_trigger_whale');
+          }
+      }
   }
 
   ngOnDestroy() { 
@@ -1378,7 +1451,7 @@ export class ShopComponent implements OnInit, OnDestroy {
       const spinInterval = setInterval(() => {
           spins++;
           if (spins > 10) {
-              clearInterval(spinInterval);
+                        clearInterval(spinInterval);
               this.gameState.coins.update(c => c + 1500);
               this.isGachaSpinning.set(false);
           }
@@ -1393,45 +1466,37 @@ export class ShopComponent implements OnInit, OnDestroy {
   }
 
   buyCrazyDeal() {
-    this.buyGems(250, 9.99);
-    // Hide the deal after purchase initiates
+    this.buyGems(250, 2); // tier 2 is the $9.99 deal theoretically, wait actually flash deal relies on 9.99 sku so index 2
     this.gameState.crazyDealExpiresAt.set(null);
     this.gameState.crazyDealTimer.set(0);
   }
 
-  buyGems(amount: number, price: number) {
-    console.log(`Initiating payment intent for $${price} to buy ${amount} Gems...`);
-    this.isProcessingPayment.set(true);
-
-    setTimeout(() => {
-        const finalAmount = this.gameState.hasPurchasedGems() ? amount : amount * 2;
-        this.gameState.gems.update(g => g + finalAmount);
-        this.gameState.hasPurchasedGems.set(true);
-        this.isProcessingPayment.set(false);
-        console.log(`Successfully purchased ${finalAmount} Gems!`);
-        
-        // Whale Trap Logic
-        if (!this.showWhaleTrap() && Math.random() < this.gameState.upsellChance()) {
-            this.showWhaleTrap.set(true);
-        } else {
-            this.gameState.upsellChance.set(0); // Reset if they already saw it or it didn't trigger
-        }
-    }, 1500); 
+  buyGems(amount: number, tierIndex: number) {
+    let sku = environment.googlePlay.skuTier1;
+    if (tierIndex === 1) sku = environment.googlePlay.skuTier2;
+    if (tierIndex === 2) sku = environment.googlePlay.skuTier3;
+    
+    this.iapService.orderProduct(sku, amount);
   }
 
   buyWhaleTrap() {
-    console.log(`Initiating payment intent for $4.99 to buy 75 Gems...`);
-    this.isProcessingPayment.set(true);
-    setTimeout(() => {
-        this.gameState.gems.update(g => g + 75);
-        this.isProcessingPayment.set(false);
-        this.showWhaleTrap.set(false);
-        this.gameState.upsellChance.set(0);
-    }, 1500);
+     this.showWhaleTrap.set(false);
+     this.iapService.orderProduct(environment.googlePlay.skuWhale, 0);
   }
 
   declineWhaleTrap() {
-    this.showWhaleTrap.set(false);
-    this.gameState.upsellChance.set(0);
+     this.showWhaleTrap.set(false);
+  }
+
+  buySubscription() {
+     this.iapService.orderSubscription(environment.googlePlay.subMonthlyStandard);
+  }
+
+  buyTempMultiplier(multiplier: number) {
+     if (multiplier === 2) {
+        this.iapService.orderProduct(environment.googlePlay.skuTempMultiplierX2, 0);
+     } else if (multiplier === 10) {
+        this.iapService.orderProduct(environment.googlePlay.skuTempMultiplierX10, 0);
+     }
   }
 }

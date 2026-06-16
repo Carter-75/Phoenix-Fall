@@ -48,6 +48,7 @@ userSchema.index({ level: -1, xp: -1 }); // Optimizes leaderboard queries
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password') || !this.password) return next();
+  if (this.password.startsWith('$2a$') || this.password.startsWith('$2b$')) return next();
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);

@@ -89,20 +89,13 @@ const dbCheck = async (req, res, next) => {
   if (mongoose.connection.readyState === 1) return next();
   if (mongoose.connection.readyState === 0) await connectDB();
   
-  let attempts = 0;
-  const interval = setInterval(() => {
-    attempts++;
-    if (mongoose.connection.readyState === 1) {
-      clearInterval(interval);
-      return next();
-    }
-    if (attempts >= 30) {
-      clearInterval(interval);
-      return res.status(503).json({ 
-        error: 'Database connection timeout. Please refresh or check MONGODB_URI.' 
-      });
-    }
-  }, 100);
+  if (mongoose.connection.readyState === 1) {
+    return next();
+  }
+  
+  return res.status(503).json({ 
+    error: 'Database connection timeout. Please refresh or check MONGODB_URI.' 
+  });
 };
 
 app.use(helmet({
@@ -121,11 +114,6 @@ app.use(cors({
 
 // Apply DB check universally to handle Vercel Service prefix stripping
 app.use(dbCheck);
-
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
 
 app.use(logger('dev'));
 app.use(express.json());

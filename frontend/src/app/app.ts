@@ -1,50 +1,20 @@
 import { Component, HostListener } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 import { ParticleBgComponent } from './components/particle-bg/particle-bg.component';
-import { MainMenuComponent } from './components/main-menu/main-menu.component';
-import { ShopComponent } from './components/shop/shop.component';
-import { LoginComponent } from './login/login.component';
-import { GameComponent } from './components/game/game.component';
-import { ProfileComponent } from './components/profile/profile.component';
-import { LeaderboardComponent } from './components/leaderboard/leaderboard.component';
-import { CodexComponent } from './codex/codex.component';
+import { AdBubbleComponent } from './components/ad-bubble/ad-bubble.component';
 import { GameStateService } from './services/game-state.service';
 import { AuthService } from './services/auth.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [ParticleBgComponent, MainMenuComponent, ShopComponent, LoginComponent, GameComponent, ProfileComponent, LeaderboardComponent, CodexComponent],
+  imports: [RouterOutlet, ParticleBgComponent, AdBubbleComponent],
   template: `
     <app-particle-bg></app-particle-bg>
+    <app-ad-bubble></app-ad-bubble>
     
     <div class="absolute inset-0 z-10 w-full h-full min-h-screen">
-      @if (gameState.activeScreen() === 'menu') {
-        <app-main-menu></app-main-menu>
-      }
-      
-      @if (gameState.activeScreen() === 'shop') {
-        <app-shop></app-shop>
-      }
-
-      @if (gameState.activeScreen() === 'login') {
-        <app-login></app-login>
-      }
-      
-      @if (gameState.activeScreen() === 'game') {
-        <app-game></app-game>
-      }
-
-      @if (gameState.activeScreen() === 'profile') {
-        <app-profile></app-profile>
-      }
-
-      @if (gameState.activeScreen() === 'leaderboard') {
-        <app-leaderboard></app-leaderboard>
-      }
-
-      @if (gameState.activeScreen() === 'codex') {
-        <app-codex></app-codex>
-      }
+      <router-outlet></router-outlet>
 
       <!-- Global Policy Modal -->
       @if (!gameState.acceptedLegalPolicies()) {
@@ -134,7 +104,7 @@ export class App {
       if (this.activeLegalDoc === 'privacy') {
           return "We collect your email, username, and gameplay analytics. We use this data to optimize monetization, track your engagement, and serve targeted offers. By agreeing, you consent to our use of third-party analytics trackers to monitor your session times and in-game currency balances. If you are under 13, you must have parental consent to play.";
       }
-      return "ALL SALES ARE FINAL. Virtual currency (Gems) and in-game upgrades hold no real-world value and cannot be exchanged for fiat currency. We do not offer refunds for accidental purchases, account bans, or buyer's remorse, except where expressly mandated by statutory consumer rights in your jurisdiction. Please contact Google Play or Apple App Store for billing inquiries.";
+      return "ALL SALES ARE FINAL. Virtual currency (Gems) and in-game upgrades hold no real-world value and cannot be exchanged for fiat currency. We do not offer refunds for accidental purchases, account bans, or buyer's remorse, except where expressly mandated by statutory consumer rights in your jurisdiction. For Monthly Crate Subscriptions, you may upgrade or downgrade your tier at any time through your platform's app store (e.g., Google Play); however, mid-cycle changes will not be refunded. Please contact Google Play or Apple App Store for billing inquiries.";
   }
 
   acceptPolicies() {

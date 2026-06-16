@@ -15,11 +15,14 @@ router.post('/register', async (req, res) => {
         return res.status(400).json({ message: 'Email is already registered' });
     }
 
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     const tempUser = {
         isTemp: true,
         isLocal: true,
         email: email.toLowerCase(),
-        password: password
+        password: hashedPassword
     };
     
     req.login(tempUser, (err) => {
@@ -117,7 +120,15 @@ router.post('/google/native', async (req, res) => {
         
         let user = await User.findOne({ googleId: payload.sub });
         if (!user) {
-            user = await User.findOne({ email: payload.email });
+            // Only map to email if it already exists and doesn't have a password, or prompt for linking.
+            // Best practice: if user has an email but no googleId, and has a password, reject or require password.
+            // For now, only match if they don't have a password (i.e. they are already a google-only user that somehow didn't match sub)
+            let existingByEmail = await User.findOne({ email: payload.email });
+            if (existingByEmail && existingByEmail.googleId) {
+                user = existingByEmail;
+            } else if (existingByEmail && !existingByEmail.googleId) {
+                return res.status(400).json({ message: 'Email registered locally. Please log in with your password.' });
+            }
         }
         
         if (!user) {
@@ -153,13 +164,16 @@ router.post('/sync', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
   try {
     const user = req.user;
-    if (req.body.coins !== undefined) user.coins = req.body.coins;
-    if (req.body.gems !== undefined) user.gems = req.body.gems;
-    if (req.body.level !== undefined) user.level = req.body.level;
-    if (req.body.xp !== undefined) user.xp = req.body.xp;
-    if (req.body.unlockedWorlds) user.unlockedWorlds = req.body.unlockedWorlds;
-    if (req.body.trophies) user.trophies = req.body.trophies;
-    if (req.body.unlockedEnemies) user.unlockedEnemies = req.body.unlockedEnemies;
+    
+    // Server-side validation
+    if (typeof req.body.coins === 'number' && req.body.coins >= 0 && req.body.coins < 9999999) user.coins = req.body.coins;
+    if (typeof req.body.gems === 'number' && req.body.gems >= 0 && req.body.gems < 999999) user.gems = req.body.gems;
+    if (typeof req.body.level === 'number' && req.body.level >= 0 && req.body.level < 10000) user.level = req.body.level;
+    if (typeof req.body.xp === 'number' && req.body.xp >= 0 && req.body.xp < 999999999) user.xp = req.body.xp;
+    
+    if (Array.isArray(req.body.unlockedWorlds)) user.unlockedWorlds = req.body.unlockedWorlds;
+    if (Array.isArray(req.body.trophies)) user.trophies = req.body.trophies;
+    if (Array.isArray(req.body.unlockedEnemies)) user.unlockedEnemies = req.body.unlockedEnemies;
     
     // Cosmetics & Premium
     if (req.body.hasCosmicTrail !== undefined) user.hasCosmicTrail = req.body.hasCosmicTrail;

@@ -9,7 +9,7 @@ import anime from 'animejs';
 
 interface EnemyData {
   id: string;
-  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret' | 'egg';
+  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret' | 'egg' | 'crate';
   health: number;
   maxHealth: number;
   lastAttackTime?: number;
@@ -218,6 +218,10 @@ export class GameComponent implements OnInit, OnDestroy {
   public animatingAscension = signal<boolean>(false);
   
   public showSettings = false;
+  
+  // Crate Logic
+  public crateDroppedThisRun = false;
+  public crateCollectedThisRun = false;
 
   // Revive UI
   public reviveCountdown = signal<number>(10);
@@ -312,6 +316,7 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private triggerRageMode() {
+      if (this.rageModeActive()) return; // Fix race condition
       this.rageModeActive.set(true);
       const kInt = setInterval(() => {
           if (this.gameEnded() || this.isDead() || this.inBossDefeatSequence()) {
@@ -333,7 +338,7 @@ export class GameComponent implements OnInit, OnDestroy {
       if (!boss) return;
       for (let i = 0; i < 60; i++) {
           setTimeout(() => {
-              if (this.isDead()) return;
+              if (this.isDead() || this.gameEnded() || this.inBossDefeatSequence()) return;
               const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, boss.position));
               const spreadAngle = (Math.random() - 0.5) * 1.5;
               const angle = Math.atan2(dir.y, dir.x) + spreadAngle;
@@ -346,7 +351,10 @@ export class GameComponent implements OnInit, OnDestroy {
               Matter.Composite.add(this.engine.world, proj);
           }, i * 50);
       }
-      setTimeout(() => this.takeDamage(9999), 2000);
+      setTimeout(() => {
+          if (this.isDead() || this.gameEnded() || this.inBossDefeatSequence()) return;
+          this.takeDamage(9999);
+      }, 2000);
   }
 
   ngOnInit() {
@@ -481,6 +489,12 @@ export class GameComponent implements OnInit, OnDestroy {
                         this.triggerAscension();
                     }
                 }
+            }
+            if (data.type === 'crate') {
+                this.audioService.playSFX('heal'); 
+                this.crateCollectedThisRun = true;
+                // Instantly remove pending state so they can't get it again this month
+                this.gameState.pendingCratesCount.set(Math.max(0, this.gameState.pendingCratesCount() - 1));
             }
             if (data.type === 'heart') {
                 this.audioService.playSFX('heal');
@@ -677,8 +691,8 @@ export class GameComponent implements OnInit, OnDestroy {
                       if (minDist < 600) {
                           const force = Matter.Vector.sub(nearest.position, body.position);
                           const normalized = Matter.Vector.normalise(force);
-                          // Starts weak, but scales quadratically with level for stronger homing over time
-                          const pullStrength = 0.00003 + (0.000015 * Math.pow(homingLvl, 1.5));
+                          // Capped linear scaling for stable physics
+                          const pullStrength = 0.00003 + (0.000015 * Math.min(homingLvl, 50));
                           Matter.Body.applyForce(body, body.position, Matter.Vector.mult(normalized, pullStrength));
                       }
                   }
@@ -1142,10 +1156,13 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private spawnBoss() {
+    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has a boss for now
     this.bossSpawned.set(true);
     this.clearEnemies();
 
-    const data = { id: Math.random().toString(), type: 'boss', health: 1000, maxHealth: 1000 } as EnemyData;
+    const worldIndex = this.gameState.selectedWorldIndex();
+    const hp = Math.floor(1000 * Math.pow(1.5, worldIndex));
+    const data = { id: Math.random().toString(), type: 'boss', health: hp, maxHealth: hp } as EnemyData;
     const scale = this.screenScale;
     const boss = this.createEnemyBody(window.innerWidth / 2, -100, 100 * scale, 'boss', data);
 
@@ -1174,6 +1191,8 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private spawnEnemy() {
+    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has enemies for now
+
     let x, y;
     const padding = 100; // spawn exactly 100px outside the screen bounds
     if (Math.random() < 0.5) {
@@ -1198,6 +1217,9 @@ export class GameComponent implements OnInit, OnDestroy {
     } else if (progress > 20 && rand < 0.4) {
       type = 'bat'; size = 15 * scale; health = 10;
     }
+
+    const worldIndex = this.gameState.selectedWorldIndex();
+    health = Math.floor(health * Math.pow(1.5, worldIndex));
 
     const data = { id: Math.random().toString(), type, health, maxHealth: health, lastAttackTime: Date.now() } as EnemyData;
     const enemy = this.createEnemyBody(x, y, size, type, data);
@@ -1266,7 +1288,9 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private spawnMinion(x: number, y: number) {
-      const data = { id: Math.random().toString(), type: 'bat', health: 5, maxHealth: 5 } as EnemyData;
+      const worldIndex = this.gameState.selectedWorldIndex();
+      const hp = Math.floor(5 * Math.pow(1.5, worldIndex));
+      const data = { id: Math.random().toString(), type: 'bat', health: hp, maxHealth: hp } as EnemyData;
       const minion = this.createEnemyBody(x, y, 10, 'bat', data);
       Matter.Body.setVelocity(minion, { x: (Math.random()-0.5)*10, y: (Math.random()-0.5)*10 });
       this.enemies.push(minion);
@@ -1413,14 +1437,18 @@ export class GameComponent implements OnInit, OnDestroy {
         if (Math.random() < 0.1) { // 10% chance for a heart
             this.dropItem(enemy.position.x + 20, enemy.position.y + 20, 'heart', 20); // Heals 20
         }
+        if (!this.crateDroppedThisRun && this.gameState.pendingCratesCount() > 0 && Math.random() < 0.01) {
+            this.crateDroppedThisRun = true;
+            this.dropItem(enemy.position.x, enemy.position.y, 'crate', 1);
+        }
       }
     } else {
       // Hit sound removed permanently
     }
   }
 
-  private dropItem(x: number, y: number, type: 'coin' | 'gem' | 'heart', value: number) {
-      const item = Matter.Bodies.circle(x, y, type === 'gem' ? 15 : 10, {
+  private dropItem(x: number, y: number, type: 'coin' | 'gem' | 'heart' | 'crate', value: number) {
+      const item = Matter.Bodies.circle(x, y, type === 'gem' ? 15 : (type === 'crate' ? 25 : 10), {
           isSensor: true,
           label: 'item',
           frictionAir: 0.1,
@@ -1677,6 +1705,8 @@ export class GameComponent implements OnInit, OnDestroy {
     this.currentHealth.set(this.maxHealth());
     this.gameState.phoenixOverridePosition.set(null);
     this.clearEnemies();
+    this.rageModeActive.set(false); // Reset rage mode on revive
+    this.killScreenTimer.set(10); // Reset timer just in case
     if (this.runner && this.engine) Matter.Runner.run(this.runner, this.engine); // Unfreeze physics
     if (this.bossSpawned()) {
         // Boss fight continues: reset timer so rage mode doesn't trigger instantly
@@ -1844,7 +1874,11 @@ export class GameComponent implements OnInit, OnDestroy {
       this.gameState.coins.update(c => Math.floor(c));
       this.gameState.gems.update(g => Math.floor(g));
       this.audioService.playMenuBgm();
-      this.gameState.activeScreen.set('menu'); 
+      if (this.crateCollectedThisRun) {
+          this.gameState.activeScreen.set('crate_opening');
+      } else {
+          this.gameState.activeScreen.set('menu'); 
+      }
   }
 
   private onMouseMove(event: MouseEvent) { this.updateMouseInput(event.clientX, event.clientY); }
