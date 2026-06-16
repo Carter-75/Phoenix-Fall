@@ -30,3 +30,4 @@
 
 ---
 **Instructions for AI:** Use the above design document as the foundation to begin architecting the game. Focus heavily on mobile responsiveness and a highly performant canvas-based particle engine as the foundation. Build out the core loop (menu -> run -> die -> upgrade -> repeat) before expanding into the 10 worlds.
+ 
