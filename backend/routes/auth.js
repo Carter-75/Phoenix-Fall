@@ -27,6 +27,7 @@ router.post('/register', async (req, res) => {
     
     req.login(tempUser, (err) => {
       if (err) return res.status(500).json({ error: err.message });
+      req.session.cookie.maxAge = 60 * 60 * 1000; // 1 hour for temp
       res.status(201).json(tempUser);
     });
   } catch (err) {
@@ -40,6 +41,7 @@ router.post('/login', (req, res, next) => {
     if (!user) return res.status(401).json({ message: info.message || 'Login failed' });
     req.login(user, (err) => {
       if (err) return next(err);
+      req.session.cookie.maxAge = user.isTemp ? 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
       res.json(user);
     });
   })(req, res, next);
@@ -73,6 +75,7 @@ router.post('/complete-signup', async (req, res) => {
         
         req.login(newUser, (err) => {
             if (err) return res.status(500).json({ error: err.message });
+            req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
             res.json(newUser);
         });
     } catch(err) {
@@ -93,6 +96,7 @@ router.get('/google/callback', (req, res, next) => {
     
     req.login(user, (err) => {
       if (err) return next(err);
+      req.session.cookie.maxAge = user.isTemp ? 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
       if (user.isTemp) {
           return res.redirect(`${frontendUrl}?mode=set-username`);
       }
@@ -139,11 +143,13 @@ router.post('/google/native', async (req, res) => {
             };
             req.login(tempUser, (err) => {
                 if (err) return res.status(500).json({ error: err.message });
+                req.session.cookie.maxAge = 60 * 60 * 1000; // 1 hour for temp
                 return res.json(tempUser);
             });
         } else {
             req.login(user, (err) => {
                 if (err) return res.status(500).json({ error: err.message });
+                req.session.cookie.maxAge = user.isTemp ? 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
                 return res.json(user);
             });
         }

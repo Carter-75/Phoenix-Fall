@@ -177,8 +177,9 @@ export class GameStateService {
 
       effect(() => {
           const screen = this.activeScreen();
-          if (this.router.url !== `/${screen}`) {
-              this.router.navigate([`/${screen}`]);
+          const currentUrlTree = this.router.parseUrl(this.router.url);
+          if (currentUrlTree.root.children['primary']?.segments[0]?.path !== screen) {
+              this.router.navigate([`/${screen}`], { queryParamsHandling: 'preserve' });
           }
       });
 
