@@ -154,10 +154,12 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   }
 
   private onMouseMove(event: MouseEvent) {
+    if (this.gameState.isPaused() || this.gameState.isDeadMenuOpen()) return;
     this.updateMouseTarget(event.clientX, event.clientY);
   }
 
   private onTouchMove(event: TouchEvent) {
+    if (this.gameState.isPaused() || this.gameState.isDeadMenuOpen()) return;
     if (event.touches.length > 0) {
       this.updateMouseTarget(event.touches[0].clientX, event.touches[0].clientY);
     }
@@ -417,6 +419,14 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
               } else {
                   mat.color.setRGB(1, 1, 1); // Normal color
               }
+
+              // Flash during immortality (500ms full cycle = 10 flashes over 5 seconds)
+              if (Date.now() < this.gameState.immortalUntil) {
+                  mat.opacity = Math.floor(Date.now() / 250) % 2 === 0 ? 0.1 : 0.9;
+              } else {
+                  mat.opacity = 0.9;
+              }
+
               bird.flapTime += 0.04;
               
               // Track Mouse
@@ -431,6 +441,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
               }
 
               let speedMult = this.gameState.currentStats().speed;
+              if (Date.now() < this.gameState.speedBoostUntil) {
+                  speedMult *= 2.0;
+              }
               if (this.gameState.isDrilling()) {
                   const modifiers = this.gameState.currentStats().unlockedAbilities['drill_attack']?.modifiers;
                   if (modifiers && modifiers['speed']) speedMult *= modifiers['speed'];

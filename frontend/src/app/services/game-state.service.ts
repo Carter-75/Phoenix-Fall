@@ -72,7 +72,7 @@ export const ABILITIES: Record<string, { id: string, type: 'tap' | 'hold', name:
 };
 
 const BASE_STATS: WorldStats = { 
-  maxHealth: 100, speed: 1.0, magnetism: 1.0, damage: 10, attackSpeed: 1.0, 
+  maxHealth: 100, speed: 2.0, magnetism: 1.0, damage: 10, attackSpeed: 1.0, 
   burstDamage: 20, auraRadius: 250, homingLevel: 0, attackRange: 400,
   unlockedAbilities: {}, 
   activeTapAbility: null, activeHoldAbility: null
@@ -162,6 +162,8 @@ export class GameStateService {
   public toggleCosmicTrail = signal<boolean>(true);
   public toggleGoldenAura = signal<boolean>(true);
   public toggleCelestialShield = signal<boolean>(true);
+  public speedBoostUntil = 0;
+  public immortalUntil = 0;
 
   private router = inject(Router);
 
@@ -496,6 +498,7 @@ export class GameStateService {
   public isPaused = signal<boolean>(false);
   public isDrilling = signal<boolean>(false);
   public isRebirthing = signal<boolean>(false);
+  public isDeadMenuOpen = signal<boolean>(false);
 
   // Sync with DB User
   syncWithUser(user: any) {

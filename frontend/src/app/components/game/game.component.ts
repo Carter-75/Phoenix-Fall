@@ -28,15 +28,23 @@ interface EnemyData {
       <!-- Progress Bar Overlay -->
       <div class="absolute top-8 left-1/2 -translate-x-1/2 w-[80%] max-w-2xl flex flex-col items-center gap-2 pointer-events-auto">
         <span class="text-white font-bold tracking-widest uppercase drop-shadow-md">
-           {{ bossSpawned() ? 'BOSS HEALTH' : 'SURVIVE' }}
+           SURVIVE
         </span>
         <div class="w-full h-3 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,255,255,0.1)]">
            <div class="h-full bg-gradient-to-r transition-all duration-1000"
-                [ngClass]="bossSpawned() ? 'from-red-600 to-red-400' : currentWorld().textColorClass"
-                [style.width]="bossSpawned() ? bossHealthPercent() + '%' : progressPercent() + '%'"></div>
+                [ngClass]="currentWorld().textColorClass"
+                [style.width]="progressPercent() + '%'"></div>
         </div>
-        @if (!bossSpawned()) {
-          <span class="text-white/80 font-mono text-sm">{{ formatTime(Math.max(0, timeRemaining())) }}</span>
+        <span class="text-white/80 font-mono text-sm">{{ formatTime(Math.max(0, timeRemaining())) }}</span>
+        
+        @if (bossSpawned()) {
+            <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4">
+               BOSS HEALTH
+            </span>
+            <div class="w-full h-3 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,0,0,0.1)]">
+               <div class="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-1000"
+                    [style.width]="bossHealthPercent() + '%'"></div>
+            </div>
         }
       </div>
       
@@ -129,26 +137,35 @@ interface EnemyData {
           </div>
 
           <h2 class="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">YOU DIED</h2>
-          <p class="text-white text-xl font-bold mb-8">Revive in: <span class="text-orange-400 font-mono">{{ reviveCountdown() }}s</span></p>
-          
-          <div class="flex flex-col gap-4 w-full max-w-sm">
-            <button (click)="reviveWithGems()" 
-                    [disabled]="gameState.gems() < getReviveCost()"
-                    [class.opacity-50]="gameState.gems() < getReviveCost()"
-                    [class.cursor-not-allowed]="gameState.gems() < getReviveCost()"
-                    class="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:brightness-125 border border-fuchsia-400/50 rounded-2xl flex justify-center items-center gap-3 transition shadow-[0_0_20px_rgba(200,0,255,0.3)]">
-              <span class="text-white font-bold text-xl">Instant Revive</span>
-              <img src="assets/gem_icon.png" class="w-6 h-6"/>
-              <span class="text-white font-bold text-xl">{{ getReviveCost() }}</span>
-            </button>
-            <button (click)="reviveWithAd()" class="w-full mt-2 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:brightness-125 border border-cyan-400/50 rounded-2xl flex justify-center items-center gap-3 transition shadow-[0_0_20px_rgba(0,200,255,0.3)]">
-              <span class="text-white font-bold text-xl">Watch Ad to Revive</span>
-              <span class="text-2xl">📺</span>
-            </button>
-            <button (click)="quitGame()" class="w-full mt-4 py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
-              Give Up
-            </button>
-          </div>
+          @if (!annihilationModeActive()) {
+              <p class="text-white text-xl font-bold mb-8">Revive in: <span class="text-orange-400 font-mono">{{ reviveCountdown() }}s</span></p>
+              
+              <div class="flex flex-col gap-4 w-full max-w-sm">
+                <button (click)="reviveWithGems()" 
+                        [disabled]="gameState.gems() < getReviveCost()"
+                        [class.opacity-50]="gameState.gems() < getReviveCost()"
+                        [class.cursor-not-allowed]="gameState.gems() < getReviveCost()"
+                        class="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:brightness-125 border border-fuchsia-400/50 rounded-2xl flex justify-center items-center gap-3 transition shadow-[0_0_20px_rgba(200,0,255,0.3)]">
+                  <span class="text-white font-bold text-xl">Instant Revive</span>
+                  <img src="assets/gem_icon.png" class="w-6 h-6"/>
+                  <span class="text-white font-bold text-xl">{{ getReviveCost() }}</span>
+                </button>
+                <button (click)="reviveWithAd()" class="w-full mt-2 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:brightness-125 border border-cyan-400/50 rounded-2xl flex justify-center items-center gap-3 transition shadow-[0_0_20px_rgba(0,200,255,0.3)]">
+                  <span class="text-white font-bold text-xl">Watch Ad to Revive</span>
+                  <span class="text-2xl">📺</span>
+                </button>
+                <button (click)="quitGame()" class="w-full mt-4 py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
+                  Give Up
+                </button>
+              </div>
+          } @else {
+              <p class="text-red-500 text-xl font-bold mb-8 uppercase text-center max-w-md">Your flames have been permanently extinguished.</p>
+              <div class="flex flex-col gap-4 w-full max-w-sm">
+                <button (click)="quitGame()" class="w-full mt-4 py-4 bg-red-900/50 hover:bg-red-800/50 border border-red-500/30 rounded-2xl text-white transition">
+                  Accept Fate
+                </button>
+              </div>
+          }
         </div>
       }
 
@@ -290,6 +307,10 @@ export class GameComponent implements OnInit, OnDestroy {
   private boundTouchEnd = this.onTouchEnd.bind(this);
 
   public rageModeActive = signal<boolean>(false);
+  public annihilationModeActive = signal<boolean>(false);
+  public infiniteBurnActive = signal<boolean>(false);
+  private annihilationInterval: any = null;
+  private infiniteBurnInterval: any = null;
   public killScreenTimer = signal<number>(10);
 
   constructor(private ngZone: NgZone) {
@@ -336,25 +357,44 @@ export class GameComponent implements OnInit, OnDestroy {
   private executeKillScreen() {
       const boss = this.enemies.find(e => e.plugin['data']?.type === 'boss');
       if (!boss) return;
-      for (let i = 0; i < 60; i++) {
-          setTimeout(() => {
-              if (this.isDead() || this.gameEnded() || this.inBossDefeatSequence()) return;
-              const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, boss.position));
-              const spreadAngle = (Math.random() - 0.5) * 1.5;
-              const angle = Math.atan2(dir.y, dir.x) + spreadAngle;
-              const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
-              const proj = Matter.Bodies.circle(boss.position.x, boss.position.y, 20, {
-                  label: 'projectile', isSensor: true,
-                  plugin: { data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1 } as EnemyData }
-              });
-              Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
-              Matter.Composite.add(this.engine.world, proj);
-          }, i * 50);
-      }
-      setTimeout(() => {
-          if (this.isDead() || this.gameEnded() || this.inBossDefeatSequence()) return;
-          this.takeDamage(9999);
-      }, 2000);
+      
+      this.annihilationModeActive.set(true);
+      
+      // Clear all enemies except boss
+      this.enemies.forEach(e => {
+          if (e.plugin['data']?.type !== 'boss') {
+              Matter.Composite.remove(this.engine.world, e);
+          }
+      });
+      this.enemies = [boss];
+      
+      // Clear existing projectiles
+      const currentBodies = Matter.Composite.allBodies(this.engine.world);
+      currentBodies.forEach(b => {
+          if (b.label === 'projectile') {
+              Matter.Composite.remove(this.engine.world, b);
+          }
+      });
+
+      // Start Annihilation Barrage (every 200ms)
+      if (this.annihilationInterval) clearInterval(this.annihilationInterval);
+      this.annihilationInterval = setInterval(() => {
+          if (this.isDead() || this.gameEnded() || this.inBossDefeatSequence()) {
+              clearInterval(this.annihilationInterval);
+              return;
+          }
+          
+          const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, boss.position));
+          const angle = Math.atan2(dir.y, dir.x);
+          const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+          const proj = Matter.Bodies.circle(boss.position.x, boss.position.y, 20, {
+              label: 'projectile', isSensor: true,
+              plugin: { data: { id: Math.random().toString(), type: 'annihilation_fire', health: 1, maxHealth: 1 } as EnemyData }
+          });
+          Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
+          Matter.Composite.add(this.engine.world, proj);
+          
+      }, 200);
   }
 
   ngOnInit() {
@@ -470,8 +510,19 @@ export class GameComponent implements OnInit, OnDestroy {
             if (data.type !== 'boss') {
                 Matter.Body.applyForce(otherBody, otherBody.position, Matter.Vector.mult(normalized, -0.05));
             }
-          } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy')) {
-            this.takeDamage(15);
+          } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy' || data.type === 'annihilation_fire')) {
+            if (data.type === 'annihilation_fire') {
+                if (!this.infiniteBurnActive()) {
+                    this.infiniteBurnActive.set(true);
+                    this.infiniteBurnInterval = setInterval(() => {
+                        if (!this.isDead() && !this.gameEnded()) {
+                            this.takeDamage(this.maxHealth() / 10);
+                        }
+                    }, 500);
+                }
+            } else {
+                this.takeDamage(15);
+            }
             Matter.Composite.remove(this.engine.world, otherBody);
           } else if (otherBody.label === 'item') {
             if (data.type === 'coin') {
@@ -602,11 +653,11 @@ export class GameComponent implements OnInit, OnDestroy {
         const data = enemy.plugin['data'] as EnemyData;
         if (!data) return;
 
-        let moveSpeed = 0.0001;
+        let moveSpeed = 0.00025;
         if (data.type === 'bat') moveSpeed = 0.0005;
-        if (data.type === 'slime') moveSpeed = 0.00005;
+        if (data.type === 'slime') moveSpeed = 0.00012;
         if (data.type === 'golem') {
-            moveSpeed = 0.00002;
+            moveSpeed = 0.00005;
             // Golem Ranged Attack
             if (now - (data.lastAttackTime || 0) > 3000) {
                 data.lastAttackTime = now;
@@ -614,7 +665,7 @@ export class GameComponent implements OnInit, OnDestroy {
             }
         }
         if (data.type === 'boss') {
-            moveSpeed = this.rageModeActive() ? 0.0003 : 0.0001; // Much faster
+            moveSpeed = this.rageModeActive() ? 0.0005 : 0.0002; // Much faster
             
             const intensity = this.audioService.getAudioIntensity();
             
@@ -622,15 +673,17 @@ export class GameComponent implements OnInit, OnDestroy {
             // Threshold varies if rage mode is active
             const attackThreshold = this.rageModeActive() ? 0.25 : 0.35;
             
-            if (intensity > attackThreshold && now - (data.lastAttackTime || 0) > (this.rageModeActive() ? 3000 : 6000)) {
-                data.lastAttackTime = now;
-                this.fireBossWaveAttack(enemy.position);
-            }
-            
-            if (intensity > attackThreshold - 0.1 && now - (data.lastMinionTime || 0) > (this.rageModeActive() ? 2000 : 4000)) {
-                data.lastMinionTime = now;
-                for(let i=0; i<3; i++) {
-                   this.spawnMinion(enemy.position.x, enemy.position.y);
+            if (!this.annihilationModeActive()) {
+                if (intensity > attackThreshold && now - (data.lastAttackTime || 0) > (this.rageModeActive() ? 3000 : 6000)) {
+                    data.lastAttackTime = now;
+                    this.fireBossWaveAttack(enemy.position);
+                }
+                
+                if (intensity > attackThreshold - 0.1 && now - (data.lastMinionTime || 0) > (this.rageModeActive() ? 2000 : 4000)) {
+                    data.lastMinionTime = now;
+                    for(let i=0; i<3; i++) {
+                       this.spawnMinion(enemy.position.x, enemy.position.y);
+                    }
                 }
             }
             
@@ -695,6 +748,11 @@ export class GameComponent implements OnInit, OnDestroy {
                           const pullStrength = 0.00003 + (0.000015 * Math.min(homingLvl, 50));
                           Matter.Body.applyForce(body, body.position, Matter.Vector.mult(normalized, pullStrength));
                       }
+                  } else if (data && data.type === 'annihilation_fire') {
+                      // Homing onto player
+                      const force = Matter.Vector.sub(this.playerBody.position, body.position);
+                      const normalized = Matter.Vector.normalise(force);
+                      Matter.Body.applyForce(body, body.position, Matter.Vector.mult(normalized, 0.0002));
                   }
               }
           });
@@ -1183,8 +1241,8 @@ export class GameComponent implements OnInit, OnDestroy {
     // Delay driven by audio intensity: lower intensity = longer delay
     const progress = this.progressPercent();
     const intensity = this.audioService.getAudioIntensity(); // 0.0 to ~0.5 usually
-    const baseDelay = Math.max(300, 2000 - (progress * 17));
-    const intensityModifier = Math.max(0.2, 1.0 - (intensity * 2));
+    const baseDelay = Math.max(150, 1000 - (progress * 8.5));
+    const intensityModifier = Math.max(0.1, 1.0 - (intensity * 2.5));
     const delay = baseDelay * intensityModifier;
     
     this.spawnInterval = setTimeout(() => this.scheduleNextSpawn(), delay);
@@ -1463,6 +1521,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private takeDamage(amount: number) {
     if (this.isDead() || this.gameEnded() || this.gameState.isRebirthing()) return;
+    if (Date.now() < this.gameState.immortalUntil) return;
     
     if (this.gameState.hasCelestialShield() && this.celestialShieldActive()) {
         this.celestialShieldActive.set(false);
@@ -1482,7 +1541,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
     if (this.currentHealth() <= 0) {
       const activeHold = this.gameState.currentStats().activeHoldAbility;
-      if (activeHold === 'rebirth' && this.holdCooldown() === 0) {
+      if (activeHold === 'rebirth' && this.holdCooldown() === 0 && !this.annihilationModeActive()) {
          this.holdCooldown.set(this.getHoldMaxCooldown());
          this.gameState.isRebirthing.set(true);
          // Hit sound removed permanently
@@ -1518,6 +1577,8 @@ export class GameComponent implements OnInit, OnDestroy {
          setTimeout(() => {
              clearInterval(ashInterval);
              this.gameState.isRebirthing.set(false);
+             this.gameState.immortalUntil = Date.now() + 5000;
+             this.gameState.speedBoostUntil = Date.now() + 2500;
              this.currentHealth.set(Math.floor(this.maxHealth() / 2)); 
              
              // Massive explosion
@@ -1622,10 +1683,17 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private triggerDeathSequence() {
     this.isDead.set(true);
+    this.gameState.isDeadMenuOpen.set(true);
     this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 });
     this.gameState.syncProgressToServer();
 
     if (this.runner) Matter.Runner.stop(this.runner);
+    
+    // Disable revive if player dies in Annihilation Phase
+    if (this.annihilationModeActive()) {
+        setTimeout(() => this.quitGame(), 3000);
+        return;
+    }
     
     // Revive mechanic logic
     this.reviveCountdown.set(10);
@@ -1702,6 +1770,9 @@ export class GameComponent implements OnInit, OnDestroy {
   private executeRevival() {
     clearInterval(this.reviveInterval);
     this.isDead.set(false);
+    this.gameState.isDeadMenuOpen.set(false);
+    this.gameState.immortalUntil = Date.now() + 5000;
+    this.gameState.speedBoostUntil = Date.now() + 2500;
     this.currentHealth.set(this.maxHealth());
     this.gameState.phoenixOverridePosition.set(null);
     this.clearEnemies();
@@ -1888,6 +1959,7 @@ export class GameComponent implements OnInit, OnDestroy {
   }
   
   private updateMouseInput(x: number, y: number) {
+      if (this.gameState.isPaused() || this.gameState.isDeadMenuOpen() || this.isDead()) return;
       this.mouseX = x;
       this.mouseY = y;
   }
