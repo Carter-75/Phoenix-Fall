@@ -181,6 +181,11 @@ router.post('/sync', async (req, res) => {
     if (Array.isArray(req.body.trophies)) user.trophies = req.body.trophies;
     if (Array.isArray(req.body.unlockedEnemies)) user.unlockedEnemies = req.body.unlockedEnemies;
     
+    // Battle Mode
+    if (typeof req.body.battleHighscore === 'number' && req.body.battleHighscore > (user.battleHighscore || 0)) user.battleHighscore = req.body.battleHighscore;
+    if (typeof req.body.battleBestTime === 'number' && req.body.battleBestTime > (user.battleBestTime || 0)) user.battleBestTime = req.body.battleBestTime;
+    if (typeof req.body.battleBestCoins === 'number' && req.body.battleBestCoins > (user.battleBestCoins || 0)) user.battleBestCoins = req.body.battleBestCoins;
+    
     // Cosmetics & Premium
     if (req.body.hasCosmicTrail !== undefined) user.hasCosmicTrail = req.body.hasCosmicTrail;
     if (req.body.hasGoldenAura !== undefined) user.hasGoldenAura = req.body.hasGoldenAura;

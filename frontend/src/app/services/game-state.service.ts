@@ -71,7 +71,7 @@ export const ABILITIES: Record<string, { id: string, type: 'tap' | 'hold', name:
   'aura': { id: 'aura', type: 'hold', name: 'Aura', desc: 'Continuous damage zone', icon: '🌀', unlockCost: 0, upgradeCost: 400 },
 };
 
-const BASE_STATS: WorldStats = { 
+export const BASE_STATS: WorldStats = { 
   maxHealth: 100, speed: 2.0, magnetism: 1.0, damage: 10, attackSpeed: 1.0, 
   burstDamage: 20, auraRadius: 250, homingLevel: 0, attackRange: 400,
   unlockedAbilities: {}, 
@@ -141,6 +141,7 @@ export class GameStateService {
   public activeScreen = signal<'menu' | 'game' | 'shop' | 'login' | 'profile' | 'leaderboard' | 'codex' | 'crate_opening'>('menu');
   public unlockedWorlds = signal<number[]>([0]); // IDs of unlocked worlds
   public selectedWorldIndex = signal<number>(0);
+  public currentGameMode = signal<'campaign' | 'battle'>('campaign');
   public crazyDealTimer = signal<number>(0);
   public crazyDealExpiresAt = signal<number | null>(null);
   public coinMultiplier = signal<number>(1);
@@ -688,7 +689,7 @@ export class GameStateService {
       }
   }
 
-  public async syncProgressToServer() {
+  public async syncProgressToServer(battleStats?: any) {
       if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) return;
       
       this.coins.update(c => Math.floor(c));
@@ -716,7 +717,8 @@ export class GameStateService {
           toggleGoldenAura: this.toggleGoldenAura(),
           toggleCelestialShield: this.toggleCelestialShield(),
           unlockedEnemies: this.unlockedEnemies(),
-          crazyDealExpiresAt: this.crazyDealExpiresAt()
+          crazyDealExpiresAt: this.crazyDealExpiresAt(),
+          ...(battleStats || {})
       };
       
       try {
@@ -768,7 +770,8 @@ export class GameStateService {
     return false;
   }
 
-  public startGame() {
+  public startGame(mode: 'campaign' | 'battle' = 'campaign') {
+    this.currentGameMode.set(mode);
     this.activeScreen.set('game');
   }
 }

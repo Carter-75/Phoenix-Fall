@@ -17,6 +17,11 @@ const userSchema = new mongoose.Schema({
   trophies: { type: [String], default: [] },
   unlockedEnemies: { type: [String], default: [] },
   
+  // Battle Mode Stats
+  battleHighscore: { type: Number, default: 0 },
+  battleBestTime: { type: Number, default: 0 },
+  battleBestCoins: { type: Number, default: 0 },
+  
   // Premium Items
   hasCosmicTrail: { type: Boolean, default: false },
   hasGoldenAura: { type: Boolean, default: false },
@@ -45,6 +50,7 @@ const userSchema = new mongoose.Schema({
 
 // Indexes for optimization
 userSchema.index({ level: -1, xp: -1 }); // Optimizes leaderboard queries
+userSchema.index({ battleHighscore: -1 }); // Optimizes battle leaderboard queries
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password') || !this.password) return next();

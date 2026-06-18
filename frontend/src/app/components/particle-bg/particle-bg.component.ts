@@ -683,7 +683,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       } else if (data.type === 'heart') {
         const beat = 1 + Math.sin(Date.now() * 0.01) * 0.2;
         entity.mesh.scale.set(beat, beat, beat);
-      } else if (data.type === 'gem') {
+      } else if (data.type === 'gem' || data.type === 'xp_orb') {
         entity.mesh.rotation.y += 0.05;
         entity.mesh.rotation.x += 0.02;
       }
@@ -778,11 +778,12 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
             }
         }
         entity.mesh.geometry.attributes['position'].needsUpdate = true;
-      } else if (data.type === 'turret') {
+      } else if (data.type === 'turret' || data.type === 'enemy_phoenix') {
         // True vertex-level flapping animation just like the main phoenix
         if (this.bird && this.bird.basePositions) {
             const pPositions = entity.mesh.geometry.attributes['position'].array as Float32Array;
             const r = data.size / 30;
+            const scaleFactor = data.type === 'enemy_phoenix' ? 1.0 : 0.4;
             for (let i = 0; i < 4000; i++) {
                  const idx = i * 3;
                  if (this.bird.basePositions.length > idx + 2) {
@@ -794,12 +795,15 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
                      const flapPhase = (Date.now() * 0.01) - baseZ * 2.0;
                      const flapOffset = Math.sin(flapPhase) * flapAmount;
                      
-                     pPositions[idx] = baseX * 0.4 * r;
-                     pPositions[idx+1] = (baseY + flapOffset) * 0.4 * r;
-                     pPositions[idx+2] = baseZ * 0.4 * r;
+                     pPositions[idx] = baseX * scaleFactor * r;
+                     pPositions[idx+1] = (baseY + flapOffset) * scaleFactor * r;
+                     pPositions[idx+2] = baseZ * scaleFactor * r;
                  }
             }
             entity.mesh.geometry.attributes['position'].needsUpdate = true;
+            if (data.type === 'enemy_phoenix') {
+                entity.mesh.rotation.y = Math.PI; // Face the screen
+            }
         }
       } else if (data.type !== 'egg') {  entity.mesh.rotation.y += 0.02;
       }
@@ -813,7 +817,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
   private createEntityMesh(data: PhysicsEntity): ParticleEntity {
     const geo = new THREE.BufferGeometry();
-    const count = data.type === 'boss' || data.type === 'turret' ? 4000 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (data.type === 'coin' || data.type === 'gem' || data.type === 'heart' ? 200 : 800)));
+    const count = data.type === 'boss' || data.type === 'turret' || data.type === 'enemy_phoenix' ? 4000 : (data.type.startsWith('projectile') ? 100 : (data.type === 'aura' ? 500 : (['coin', 'gem', 'heart', 'xp_orb'].includes(data.type) ? 200 : 800)));
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
 
@@ -829,6 +833,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     else if (data.type === 'coin') color.setHex(0xfacc15); // Yellow
     else if (data.type === 'gem') color.setHex(0xc084fc); // Purple
     else if (data.type === 'heart') color.setHex(0xec4899); // Pinkish red
+    else if (data.type === 'xp_orb') color.setHex(0x38bdf8); // Glowing Cyan/Light Blue
     else if (data.type === 'fire') color.setHex(0xff5500); // Orange/Red
     else if (data.type === 'egg') color.setHex(0xffaa00); // Golden Egg
     else if (data.type === 'turret') color.setHex(0xffffff); // Use original bird colors
@@ -961,7 +966,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           y = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * rad;
           z = (Math.random() - 0.5) * r * 0.2;
       }
-      else if (data.type === 'gem') {
+      else if (data.type === 'gem' || data.type === 'xp_orb') {
           // Diamond shape (Octahedron)
           x = (Math.random() - 0.5) * r;
           y = (Math.random() - 0.5) * r * 2;
@@ -1056,6 +1061,11 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           col[idx] = bColors[idx];
           col[idx+1] = bColors[idx+1];
           col[idx+2] = bColors[idx+2];
+      } else if (data.type === 'enemy_phoenix' && this.bird) {
+          const bColors = this.bird.particles.geometry.attributes['color'].array as Float32Array;
+          col[idx] = 1.0 - bColors[idx];
+          col[idx+1] = 1.0 - bColors[idx+1];
+          col[idx+2] = 1.0 - bColors[idx+2];
       } else if (data.type === 'egg') {
           const rand = Math.random();
           if (rand > 0.8) { col[idx] = 1.0; col[idx+1] = 1.0; col[idx+2] = 0.8; } // White/Gold
@@ -1076,7 +1086,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     mesh.frustumCulled = false;
     
     // Store base positions for complex entities to allow vertex animation
-    const basePositions = ['slime', 'bat', 'golem', 'boss', 'egg', 'turret'].includes(data.type) ? new Float32Array(pos) : undefined;
+    const basePositions = ['slime', 'bat', 'golem', 'boss', 'egg', 'turret', 'enemy_phoenix'].includes(data.type) ? new Float32Array(pos) : undefined;
 
     return { mesh, type: data.type, basePositions, timeOffset: Math.random() * 1000 };
   }

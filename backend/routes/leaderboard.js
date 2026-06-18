@@ -16,4 +16,17 @@ router.get('/', async (req, res) => {
     }
 });
 
+router.get('/battle', async (req, res) => {
+    try {
+        const topPlayers = await User.find({ username: { $exists: true }, battleHighscore: { $gt: 0 } })
+                                     .sort({ battleHighscore: -1 })
+                                     .limit(100)
+                                     .select('username battleHighscore battleBestTime battleBestCoins trophies');
+                                     
+        res.json(topPlayers);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

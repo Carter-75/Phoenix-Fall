@@ -1,4 +1,5 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { GameStateService } from '../../services/game-state.service';
 import { AudioService } from '../../services/audio.service';
@@ -7,6 +8,7 @@ import { environment } from '../../../environments/environment';
 @Component({
   selector: 'app-leaderboard',
   standalone: true,
+  imports: [CommonModule],
   template: `
     <div class="fixed inset-0 flex flex-col items-center p-4 md:p-8 z-50 overflow-y-auto">
       <button (click)="goBack()" class="absolute top-4 left-4 md:top-6 md:left-6 text-white/50 hover:text-white transition flex items-center gap-2">
@@ -17,6 +19,18 @@ import { environment } from '../../../environments/environment';
         <h2 class="text-3xl md:text-4xl font-black text-center mb-6 md:mb-8 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-500">
           GLOBAL LEADERBOARD
         </h2>
+        <div class="flex gap-4 justify-center mb-6">
+            <button (click)="switchTab('survival')" 
+                    [ngClass]="activeTab() === 'survival' ? 'border-orange-500 text-white' : 'border-white/10 text-white/50'"
+                    class="px-6 py-2 rounded-full border-2 bg-white/5 hover:bg-white/10 transition font-bold tracking-widest">
+                SURVIVAL
+            </button>
+            <button (click)="switchTab('battle')"
+                    [ngClass]="activeTab() === 'battle' ? 'border-fuchsia-500 text-white' : 'border-white/10 text-white/50'"
+                    class="px-6 py-2 rounded-full border-2 bg-white/5 hover:bg-white/10 transition font-bold tracking-widest">
+                BATTLE MODE
+            </button>
+        </div>
         
         @if (loading()) {
             <div class="text-center text-white/50 py-12 text-xl animate-pulse">Loading Rankings...</div>
@@ -41,8 +55,13 @@ import { environment } from '../../../environments/environment';
                             </div>
                         </div>
                         <div class="text-right">
-                            <div class="text-orange-400 font-bold text-2xl">Lvl {{ player.level }}</div>
-                            <div class="text-white/40 text-sm">{{ player.xp }} XP</div>
+                            @if (activeTab() === 'survival') {
+                                <div class="text-orange-400 font-bold text-2xl">Lvl {{ player.level }}</div>
+                                <div class="text-white/40 text-sm">{{ player.xp }} XP</div>
+                            } @else {
+                                <div class="text-fuchsia-400 font-bold text-2xl">{{ player.battleHighscore }}</div>
+                                <div class="text-white/40 text-sm">{{ formatTime(player.battleBestTime) }} | {{ player.battleBestCoins }} Coins</div>
+                            }
                         </div>
                     </div>
                 }
@@ -57,11 +76,24 @@ export class LeaderboardComponent implements OnInit {
   audio = inject(AudioService);
   http = inject(HttpClient);
   
+  activeTab = signal<'survival' | 'battle'>('survival');
   players = signal<any[]>([]);
   loading = signal(true);
 
   ngOnInit() {
-      this.http.get<any[]>(environment.apiUrl + '/leaderboard').subscribe({
+      this.loadLeaderboard();
+  }
+  
+  switchTab(tab: 'survival' | 'battle') {
+      this.audio.playSFX('click');
+      this.activeTab.set(tab);
+      this.loadLeaderboard();
+  }
+
+  loadLeaderboard() {
+      this.loading.set(true);
+      const endpoint = this.activeTab() === 'battle' ? '/leaderboard/battle' : '/leaderboard';
+      this.http.get<any[]>(environment.apiUrl + endpoint).subscribe({
           next: (data) => {
               this.players.set(data);
               this.loading.set(false);
@@ -71,6 +103,13 @@ export class LeaderboardComponent implements OnInit {
               this.loading.set(false);
           }
       });
+  }
+  
+  formatTime(seconds: number): string {
+      if (!seconds) return '0:00';
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
   goBack() {

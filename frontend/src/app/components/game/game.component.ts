@@ -1,6 +1,6 @@
 import { Component, ElementRef, OnInit, OnDestroy, ViewChild, inject, NgZone, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GameStateService, PhysicsEntity, ABILITIES } from '../../services/game-state.service';
+import { GameStateService, PhysicsEntity, ABILITIES, WorldStats, BASE_STATS } from '../../services/game-state.service';
 import { Capacitor } from '@capacitor/core';
 import { AudioService } from '../../services/audio.service';
 import { SettingsComponent } from '../settings/settings.component';
@@ -9,13 +9,14 @@ import anime from 'animejs';
 
 interface EnemyData {
   id: string;
-  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'drill' | 'fire' | 'turret' | 'egg' | 'crate' | 'annihilation_fire';
+  type: 'bat' | 'slime' | 'golem' | 'boss' | 'projectile_player' | 'projectile_enemy' | 'aura' | 'coin' | 'gem' | 'heart' | 'xp_orb' | 'drill' | 'fire' | 'turret' | 'egg' | 'crate' | 'annihilation_fire' | 'enemy_phoenix';
   health: number;
   maxHealth: number;
   lastAttackTime?: number;
   lastMinionTime?: number;
   burstDamage?: number; // Custom damage payload
   value?: number;
+  aiAbilities?: { id: string; level: number }[]; // For Battle Mode
 }
 
 @Component({
@@ -27,26 +28,51 @@ interface EnemyData {
       
       <!-- Progress Bar Overlay -->
       <div class="absolute top-8 left-1/2 -translate-x-1/2 w-[80%] max-w-2xl flex flex-col items-center gap-2 pointer-events-auto">
-        <span class="text-white font-bold tracking-widest uppercase drop-shadow-md">
-           SURVIVE
-        </span>
-        <div class="w-full h-3 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-           <div class="h-full bg-gradient-to-r transition-all duration-1000"
-                [ngClass]="currentWorld().textColorClass"
-                [style.width]="progressPercent() + '%'"></div>
-        </div>
-        <span class="text-white/80 font-mono text-sm">{{ formatTime(Math.max(0, timeRemaining())) }}</span>
-        
-        @if (bossSpawned()) {
-            <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4">
-               BOSS HEALTH
-            </span>
-            <div class="w-full h-3 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,0,0,0.1)]">
-               <div class="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-1000"
-                    [style.width]="bossHealthPercent() + '%'"></div>
-            </div>
+        @if (gameState.currentGameMode() === 'battle') {
+           <span class="text-white font-bold tracking-widest uppercase drop-shadow-md text-xl">BATTLE MODE</span>
+           <span class="text-white/90 font-mono text-2xl font-bold">{{ formatTime(battleTimer()) }}</span>
+           
+           <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4">AI PHOENIX</span>
+           <div class="w-full h-4 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,0,0,0.2)]">
+              <div class="h-full bg-gradient-to-r from-red-600 to-fuchsia-600 transition-all duration-300"
+                   [style.width]="bossHealthPercent() + '%'"></div>
+           </div>
+        } @else {
+           <span class="text-white font-bold tracking-widest uppercase drop-shadow-md">
+              SURVIVE
+           </span>
+           <div class="w-full h-3 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+              <div class="h-full bg-gradient-to-r transition-all duration-1000"
+                   [ngClass]="currentWorld().textColorClass"
+                   [style.width]="progressPercent() + '%'"></div>
+           </div>
+           <span class="text-white/80 font-mono text-sm">{{ formatTime(Math.max(0, timeRemaining())) }}</span>
+           
+           @if (bossSpawned()) {
+               <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4">
+                  BOSS HEALTH
+               </span>
+               <div class="w-full h-3 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,0,0,0.1)]">
+                  <div class="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-1000"
+                       [style.width]="bossHealthPercent() + '%'"></div>
+               </div>
+           }
         }
       </div>
+      
+      <!-- Battle Score UI -->
+      @if (gameState.currentGameMode() === 'battle') {
+          <div class="absolute bottom-20 left-4 md:left-8 flex flex-col gap-1 pointer-events-auto z-10 p-4 bg-black/50 border border-white/10 rounded-2xl backdrop-blur-sm">
+             <div class="text-white/80 font-bold text-xs tracking-widest uppercase mb-1">Battle Stats</div>
+             <div class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 to-cyan-400 drop-shadow-md flex items-center gap-2">
+                 <span>Score:</span> <span>{{ currentBattleScore() }}</span>
+             </div>
+             <div class="text-lg font-bold text-yellow-400 flex items-center gap-2 drop-shadow-md">
+                 <img src="assets/coin_icon.png" class="w-5 h-5"/> <span>{{ gameState.coins() }}</span>
+                 <span class="text-xs text-yellow-500 ml-1">(+{{ currentBattleCoinsGained() }})</span>
+             </div>
+          </div>
+      }
       
       <!-- Health Bar -->
       <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-48 md:w-64 flex flex-col items-center gap-2 pointer-events-auto">
@@ -113,7 +139,7 @@ interface EnemyData {
             <button (click)="showSettings = true" class="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/20 rounded-2xl text-white font-bold text-lg transition">
               Settings
             </button>
-            <button (click)="quitGame()" class="w-full py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
+            <button (click)="quitFromPause()" class="w-full py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
               Quit to Menu
             </button>
           </div>
@@ -123,6 +149,10 @@ interface EnemyData {
       @if (showSettings) {
           <app-settings (close)="showSettings = false"></app-settings>
       }
+
+      <!-- Drop Event Screen Flash -->
+      <div class="absolute inset-0 bg-white transition-opacity duration-200 pointer-events-none z-40"
+           [style.opacity]="screenFlash() ? 0.8 : 0"></div>
 
       <!-- Damage Overlay (Red Flash) -->
       <div class="absolute inset-0 bg-red-600 transition-opacity duration-300 pointer-events-none"
@@ -137,7 +167,7 @@ interface EnemyData {
           </div>
 
           <h2 class="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">YOU DIED</h2>
-          @if (!annihilationModeActive()) {
+          @if (!annihilationModeActive() && gameState.currentGameMode() !== 'battle') {
               <p class="text-white text-xl font-bold mb-8">Revive in: <span class="text-orange-400 font-mono">{{ reviveCountdown() }}s</span></p>
               
               <div class="flex flex-col gap-4 w-full max-w-sm">
@@ -156,6 +186,13 @@ interface EnemyData {
                 </button>
                 <button (click)="quitGame()" class="w-full mt-4 py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
                   Give Up
+                </button>
+              </div>
+          } @else if (gameState.currentGameMode() === 'battle') {
+              <p class="text-red-500 text-xl font-bold mb-8 uppercase text-center max-w-md">The AI Phoenix emerges victorious.</p>
+              <div class="flex flex-col gap-4 w-full max-w-sm">
+                <button (click)="quitGame()" class="w-full mt-4 py-4 bg-red-900/50 hover:bg-red-800/50 border border-red-500/30 rounded-2xl text-white transition">
+                  Accept Fate
                 </button>
               </div>
           } @else {
@@ -224,15 +261,45 @@ export class GameComponent implements OnInit, OnDestroy {
   public isDead = signal<boolean>(false);
   public bossSpawned = signal<boolean>(false);
   public bossHealth = signal<number>(1000);
+  public inBossDefeatSequence = signal<boolean>(false);
+  private bossDefeatTimestamp = 0;
+  private bossGemsDropped = 0;
+  private bossGemsCollected = 0;
+  public animatingAscension = signal<boolean>(false);
+  public infiniteBurnActive = signal<boolean>(false);
+  public rageModeActive = signal<boolean>(false);
+
+  // --- Battle Mode AI State ---
+  public aiCoins: number = 0;
+  public aiCoinGainRate: number = 2; // AI passive coin income per sec
+  public aiStats!: WorldStats;
+  public aiUpgradesWeights: Record<string, number> = {};
+  public aiAbilities: string[] = [];
+  public aiLastTapTime: number = 0;
+  public aiLastHoldTime: number = 0;
+  
+  public battleTimer = signal<number>(0);
+  public battleDropReady = signal<boolean>(false);
+  public battleDropGrace = signal<boolean>(false);
+  public nextDropIndex = 0;
+  public screenFlash = signal<boolean>(false);
+  public battleStartCoins = 0;
+  public battleStartXp = 0;
+  
+  public currentBattleCoinsGained = computed(() => Math.max(0, this.gameState.coins() - this.battleStartCoins));
+  public currentBattleScore = computed(() => {
+      const xpGained = Math.max(0, this.gameState.xp() - this.battleStartXp);
+      return Math.floor(this.battleTimer() * 10) + (this.currentBattleCoinsGained() * 10) + Math.floor(xpGained * 5);
+  });
+
+  private getNextDropTime(index: number): number {
+      if (index < 5) return (index + 1) * 60; // 1m, 2m, 3m, 4m, 5m
+      if (index < 8) return 300 + (index - 4) * 90; // 6:30, 8:00, 9:30
+      return 570 + (index - 7) * 120; // 11:30, 13:30, ...
+  }
+  
   public bossMaxHealth = signal<number>(1000);
   public bossHealthPercent = computed(() => (this.bossHealth() / this.bossMaxHealth()) * 100);
-
-  // Cinematic Boss Defeat Sequence State
-  public bossGemsDropped = 0;
-  public bossGemsCollected = 0;
-  public inBossDefeatSequence = signal<boolean>(false);
-  public bossDefeatTimestamp = 0;
-  public animatingAscension = signal<boolean>(false);
   
   public showSettings = false;
   
@@ -306,9 +373,7 @@ export class GameComponent implements OnInit, OnDestroy {
   private boundTouchMove = this.onTouchMove.bind(this);
   private boundTouchEnd = this.onTouchEnd.bind(this);
 
-  public rageModeActive = signal<boolean>(false);
   public annihilationModeActive = signal<boolean>(false);
-  public infiniteBurnActive = signal<boolean>(false);
   private annihilationInterval: any = null;
   private infiniteBurnInterval: any = null;
   public killScreenTimer = signal<number>(10);
@@ -406,6 +471,10 @@ export class GameComponent implements OnInit, OnDestroy {
     this.initPhysics();
     this.startGameLoop();
     
+    if (this.gameState.currentGameMode() === 'battle') {
+        this.initBattleMode();
+    }
+    
     window.addEventListener('mousemove', this.boundMouseMove);
     window.addEventListener('mousedown', this.boundMouseDown);
     window.addEventListener('mouseup', this.boundMouseUp);
@@ -445,6 +514,71 @@ export class GameComponent implements OnInit, OnDestroy {
     }
     
     this.audioService.stopIntenseBgm();
+  }
+
+  private initBattleMode() {
+      // Pick 2 random abilities from all available
+      const allAbilities = Object.keys(ABILITIES);
+      
+      // Shuffle array
+      for (let i = allAbilities.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [allAbilities[i], allAbilities[j]] = [allAbilities[j], allAbilities[i]];
+      }
+      
+      const pickedAbilities = allAbilities.slice(0, 2);
+      this.aiAbilities = pickedAbilities;
+      
+      // Initialize AI Stats cloned from Player Base Stats + Upgrades
+      const playerStats = this.gameState.currentStats();
+      this.aiStats = JSON.parse(JSON.stringify(playerStats));
+      
+      pickedAbilities.forEach(id => {
+          // Scale 1 to 5 levels past player level
+          const playerLevel = this.gameState.currentStats().unlockedAbilities[id]?.level || 0;
+          const targetLevel = Math.min(30, playerLevel + Math.floor(Math.random() * 5) + 1); // Max level typically 30 per ABILITY_UPGRADE_TARGETS
+          
+          if (!this.aiStats.unlockedAbilities[id]) {
+              this.aiStats.unlockedAbilities[id] = { level: targetLevel, modifiers: {} };
+          } else {
+              this.aiStats.unlockedAbilities[id].level = targetLevel;
+          }
+          // Note: Generate actual modifier stats
+          this.aiStats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, targetLevel, {});
+      });
+      
+      this.aiCoins = 0;
+      this.aiCoinGainRate = 2;
+      this.nextDropIndex = 0;
+      this.battleDropReady.set(false);
+      this.battleDropGrace.set(false);
+      this.aiUpgradesWeights = {};
+      
+      const maxHp = this.maxHealth() * 10;
+      this.bossMaxHealth.set(maxHp);
+      this.bossHealth.set(maxHp);
+      
+      this.battleStartCoins = this.gameState.coins();
+      this.battleStartXp = this.gameState.xp();
+      
+      // Spawn AI Phoenix
+      const enemyPhoenix = Matter.Bodies.circle(window.innerWidth / 2, 100, 20, {
+          label: 'enemy',
+          plugin: {
+              data: {
+                  id: 'ai_phoenix',
+                  type: 'enemy_phoenix',
+                  health: maxHp,
+                  maxHealth: maxHp,
+                  value: 0
+              } as EnemyData
+          }
+      });
+      
+      this.triggerImpactEffect(window.innerWidth / 2, 100, true); // Rebirth effect on spawn
+      
+      Matter.Composite.add(this.engine.world, enemyPhoenix);
+      this.enemies.push(enemyPhoenix);
   }
 
   private initPhysics() {
@@ -497,12 +631,21 @@ export class GameComponent implements OnInit, OnDestroy {
           if (!data) continue;
 
           if (otherBody.label === 'enemy' || otherBody.label === 'boss') {
+            if (data.type === 'enemy_phoenix' && this.battleDropReady() && !this.battleDropGrace()) {
+                 // Player bumped AI Phoenix
+                 if (this.gameState.isDrilling()) {
+                     this.resolveBattleDrop(true, otherBody.position.x, otherBody.position.y);
+                 } else {
+                     this.resolveBattleDrop(false, this.playerBody.position.x, this.playerBody.position.y);
+                 }
+            }
+
             if (this.gameState.isDrilling()) {
                 this.damageEnemy(otherBody, this.gameState.currentStats().burstDamage * 3);
                 this.triggerImpactEffect(otherBody.position.x, otherBody.position.y, false);
                 continue; // Skip player taking damage while drilling
             }
-            this.takeDamage(data.type === 'boss' ? 50 : 10);
+            this.takeDamage(data.type === 'boss' || data.type === 'enemy_phoenix' ? 50 : 10);
             
             // Knockback logic
             const force = Matter.Vector.sub(this.playerBody.position, otherBody.position);
@@ -511,6 +654,11 @@ export class GameComponent implements OnInit, OnDestroy {
                 Matter.Body.applyForce(otherBody, otherBody.position, Matter.Vector.mult(normalized, -0.05));
             }
           } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy' || data.type === 'annihilation_fire')) {
+            if (data.type === 'projectile_enemy' && this.gameState.currentGameMode() === 'battle') {
+                if (this.battleDropReady() && !this.battleDropGrace()) {
+                    this.resolveBattleDrop(false, this.playerBody.position.x, this.playerBody.position.y);
+                }
+            }
             if (data.type === 'annihilation_fire') {
                 if (!this.infiniteBurnActive()) {
                     this.infiniteBurnActive.set(true);
@@ -566,6 +714,12 @@ export class GameComponent implements OnInit, OnDestroy {
                 setTimeout(() => el.style.opacity = '0', 50);
                 setTimeout(() => el.remove(), 350);
             }
+            if (data.type === 'xp_orb') {
+                this.audioService.playSFX('drop'); // Replace with specific XP sound if available
+                const timeAlive = this.gameState.sessionPlayTime();
+                const xpAmount = Math.max(20, Math.floor(timeAlive * 0.5)); // Balances out over time
+                this.gameState.addXp(xpAmount);
+            }
             if (data.type === 'coin' || data.type === 'gem') {
                 this.audioService.playSFX('drop');
             }
@@ -600,7 +754,17 @@ export class GameComponent implements OnInit, OnDestroy {
             }
             
             this.triggerImpactEffect(other.position.x, other.position.y, other.label === 'boss');
-            this.damageEnemy(other, projData.burstDamage || this.gameState.currentStats().damage);
+            const damage = projData.type === 'aura' ? this.gameState.currentStats().damage * 0.5 : this.gameState.currentStats().damage;
+            
+            if (other.label === 'boss' || other.label === 'enemy') {
+                const otherData = other.plugin['data'] as EnemyData;
+                if (otherData && otherData.type === 'enemy_phoenix' && this.gameState.currentGameMode() === 'battle') {
+                    if (this.battleDropReady() && !this.battleDropGrace()) {
+                        this.resolveBattleDrop(true, other.position.x, other.position.y);
+                    }
+                }
+            }
+            this.damageEnemy(other, damage);
           }
         }
       }
@@ -696,6 +860,18 @@ export class GameComponent implements OnInit, OnDestroy {
             if (enemy.position.y < 100) Matter.Body.setPosition(enemy, { x: enemy.position.x, y: 100 });
             if (enemy.position.y > window.innerHeight - 100) Matter.Body.setPosition(enemy, { x: enemy.position.x, y: window.innerHeight - 100 });
         }
+        if (data.type === 'enemy_phoenix') {
+            const aiSpeedLevel = ((this.aiStats?.speed || 1) - 1) * 10;
+            moveSpeed = 0.00025 + (Math.max(0, aiSpeedLevel) * 0.000005);
+            
+            if (now - this.aiLastTapTime > (1500 / (this.aiStats?.attackSpeed || 1))) {
+                this.aiLastTapTime = now;
+                const hasTap = this.aiAbilities.some(a => ABILITIES[a]?.type === 'tap');
+                if (hasTap) {
+                    this.fireEnemyProjectile(enemy.position);
+                }
+            }
+        }
         
         Matter.Body.applyForce(enemy, enemy.position, Matter.Vector.mult(normalized, moveSpeed));
       });
@@ -715,15 +891,17 @@ export class GameComponent implements OnInit, OnDestroy {
             Matter.Body.applyForce(item, item.position, Matter.Vector.mult(normalized, 0.05));
          } else if (data) {
              // Normal Magnetism
+             const isXpOrb = data.type === 'xp_orb';
+             const activeRadius = (isXpOrb ? 300 : 150) * this.gameState.currentStats().magnetism;
              const force = Matter.Vector.sub(this.playerBody.position, item.position);
              const dist = Matter.Vector.magnitude(force);
-             if (dist < magnetRadius) {
+             if (dist < activeRadius) {
                 const normalized = Matter.Vector.normalise(force);
-                const pullStrength = 0.002 * (1 - dist / magnetRadius);
+                const pullStrength = (isXpOrb ? 0.004 : 0.002) * (1 - dist / activeRadius);
                 Matter.Body.applyForce(item, item.position, Matter.Vector.mult(normalized, pullStrength));
              } else {
                  // Fall down via gravity
-                 Matter.Body.applyForce(item, item.position, { x: 0, y: 0.00015 });
+                 Matter.Body.applyForce(item, item.position, { x: 0, y: isXpOrb ? 0.00008 : 0.00015 });
              }
          }
       });
@@ -785,12 +963,117 @@ export class GameComponent implements OnInit, OnDestroy {
          }
       });
       // Deduplicate by ID
-      const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values());
+const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values());
       this.gameState.activeEntities.set(uniqueEntities);
     });
 
     this.runner = Runner.create();
     Runner.run(this.runner, this.engine);
+  }
+
+  private tryPurchaseAiUpgrade() {
+      // Find all available upgrades and their base costs
+      const upgradeOptions = [
+         { id: 'maxHealth', cost: 100 },
+         { id: 'speed', cost: 150 },
+         { id: 'magnetism', cost: 200 },
+         { id: 'damage', cost: 250 },
+         { id: 'attackSpeed', cost: 300 },
+         { id: 'attackRange', cost: 250 },
+         { id: 'auraRadius', cost: 400 },
+         { id: 'homingLevel', cost: 300 },
+      ];
+      
+      // Calculate actual current cost for each option based on AI's current stats level
+      const getAiCost = (stat: string, baseCost: number, step: number, offset: number) => {
+          let currentVal = (this.aiStats as any)[stat] as number;
+          if (stat === 'maxHealth' || stat === 'speed') currentVal = (BASE_STATS as any)[stat];
+          const level = Math.max(0, (currentVal - offset) / step);
+          return Math.floor(baseCost * Math.pow(1.5, level));
+      };
+
+      const aiCosts: Record<string, number> = {
+          'maxHealth': getAiCost('maxHealth', 100, 10, 100),
+          'speed': getAiCost('speed', 150, 0.1, 1),
+          'magnetism': getAiCost('magnetism', 200, 0.1, 1),
+          'damage': getAiCost('damage', 250, 1, 10),
+          'attackSpeed': getAiCost('attackSpeed', 300, 0.1, 1),
+          'attackRange': getAiCost('attackRange', 250, 50, 400),
+          'auraRadius': getAiCost('auraRadius', 400, 10, 250),
+          'homingLevel': getAiCost('homingLevel', 300, 1, 0),
+      };
+
+      // Also add abilities to the pool
+      this.aiAbilities.forEach(ab => {
+          const level = this.aiStats.unlockedAbilities[ab]?.level || 1;
+          const baseAbilityCost = ABILITIES[ab].upgradeCost;
+          aiCosts[`ability_${ab}`] = Math.floor(baseAbilityCost * Math.pow(1.5, level - 1));
+          upgradeOptions.push({ id: `ability_${ab}`, cost: baseAbilityCost });
+      });
+
+      // Find max cost available
+      const maxCost = Math.max(...Object.values(aiCosts));
+      const fullPickOverride = this.aiCoins >= maxCost * 1.5;
+
+      let boughtSomething = true;
+      let attempts = 0;
+      
+      while (boughtSomething && attempts < 3) {
+          boughtSomething = false;
+          attempts++;
+          
+          // Weighted random selection
+          let totalWeight = 0;
+          const validOptions = upgradeOptions.filter(opt => {
+              if (this.aiUpgradesWeights[opt.id] === undefined) this.aiUpgradesWeights[opt.id] = 100;
+              return this.aiUpgradesWeights[opt.id] > 0;
+          });
+          
+          if (validOptions.length === 0) break;
+          
+          validOptions.forEach(opt => totalWeight += fullPickOverride ? 100 : this.aiUpgradesWeights[opt.id]);
+          let rand = Math.random() * totalWeight;
+          let selectedOpt = validOptions[0].id;
+          
+          for (let opt of validOptions) {
+              rand -= (fullPickOverride ? 100 : this.aiUpgradesWeights[opt.id]);
+              if (rand <= 0) {
+                  selectedOpt = opt.id;
+                  break;
+              }
+          }
+          
+          const actualCost = aiCosts[selectedOpt];
+          if (this.aiCoins >= actualCost) {
+              this.aiCoins -= actualCost;
+              boughtSomething = true;
+              
+              // Apply Upgrade
+              if (selectedOpt.startsWith('ability_')) {
+                  const abId = selectedOpt.replace('ability_', '');
+                  if (!this.aiStats.unlockedAbilities[abId]) {
+                      this.aiStats.unlockedAbilities[abId] = { level: 1, modifiers: {} };
+                  }
+                  this.aiStats.unlockedAbilities[abId].level++;
+                  this.aiStats.unlockedAbilities[abId].modifiers = this.gameState.generateAbilityUpgrade(abId, this.aiStats.unlockedAbilities[abId].level, this.aiStats.unlockedAbilities[abId].modifiers);
+              } else {
+                  // Global stat increment based on standard steps
+                  let step = 0;
+                  if (selectedOpt === 'maxHealth') step = 10;
+                  if (selectedOpt === 'speed') step = 0.1;
+                  if (selectedOpt === 'magnetism') step = 0.1;
+                  if (selectedOpt === 'damage') step = 1;
+                  if (selectedOpt === 'attackSpeed') step = 0.1;
+                  if (selectedOpt === 'attackRange') step = 50;
+                  if (selectedOpt === 'auraRadius') step = 10;
+                  if (selectedOpt === 'homingLevel') step = 1;
+                  (this.aiStats as any)[selectedOpt] += step;
+              }
+              
+              // Reduce weight to prevent spamming same upgrade
+              this.aiUpgradesWeights[selectedOpt] = Math.max(10, this.aiUpgradesWeights[selectedOpt] - 20);
+          }
+      }
   }
 
   private startGameLoop() {
@@ -801,12 +1084,34 @@ export class GameComponent implements OnInit, OnDestroy {
     this.timerInterval = setInterval(() => {
       if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
       
-      this.timeRemaining.update(t => Math.max(0, Math.floor(t - 1)));
       this.gameState.sessionPlayTime.update(t => t + 1);
       
-      if (this.timeRemaining() === 0 && this.bossSpawned() && !this.inBossDefeatSequence() && !this.isDead() && !this.rageModeActive()) {
-          this.triggerRageMode();
-      }
+      if (this.gameState.currentGameMode() === 'battle') {
+          this.battleTimer.set(this.gameState.sessionPlayTime());
+          
+          // AI Economy TICK
+          this.aiCoins += this.aiCoinGainRate;
+          this.tryPurchaseAiUpgrade();
+          
+          // Drop Event TICK
+          const nextDropTime = this.getNextDropTime(this.nextDropIndex);
+          if (this.battleTimer() >= nextDropTime && !this.battleDropReady()) {
+              this.battleDropReady.set(true);
+              this.battleDropGrace.set(true);
+              this.screenFlash.set(true);
+              setTimeout(() => this.screenFlash.set(false), 200);
+              setTimeout(() => this.battleDropGrace.set(false), 500);
+              this.nextDropIndex++;
+          }
+      } else {
+          this.timeRemaining.update(t => Math.max(0, Math.floor(t - 1)));
+          if (this.timeRemaining() === 0 && this.bossSpawned() && !this.inBossDefeatSequence() && !this.isDead() && !this.rageModeActive()) {
+              this.triggerRageMode();
+          }
+          if (this.timeRemaining() === 0 && !this.bossSpawned() && this.progressPercent() >= 100) {
+              this.spawnBoss();
+          }
+      }  
       
       if (this.gameState.sessionPlayTime() >= 60) this.gameState.awardTrophy("Survivor");
       
@@ -1249,6 +1554,7 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private spawnEnemy() {
+    if (this.gameState.currentGameMode() === 'battle') return; // No regular mobs in Battle Mode
     if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has enemies for now
 
     let x, y;
@@ -1387,16 +1693,97 @@ export class GameComponent implements OnInit, OnDestroy {
       }
   }
 
+  public triggerBattleDrop(x: number, y: number, isDeathDrop: boolean = false) {
+      if (!isDeathDrop) {
+          this.battleDropReady.set(false);
+          this.battleDropGrace.set(false);
+      }
+      
+      const numGems = Math.floor(Math.random() * 5) + 3;
+      const numCoins = Math.floor(Math.random() * 10) + 5;
+      
+      for(let i=0; i<numGems; i++) {
+          this.dropItem(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, 'gem', 2);
+      }
+      for(let i=0; i<numCoins; i++) {
+          this.dropItem(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, 'coin', 1);
+      }
+      // Guaranteed health
+      this.dropItem(x, y, 'heart', 20);
+      
+      // XP Orb
+      this.dropItem(x + 20, y - 20, 'xp_orb' as any, 1);
+      
+      if (!isDeathDrop) {
+          this.aiCoinGainRate += 1; // AI income increases after every drop
+      }
+  }
+
+  public resolveBattleDrop(playerWon: boolean, px: number, py: number) {
+      this.battleDropReady.set(false);
+      this.battleDropGrace.set(false);
+      
+      if (playerWon) {
+          this.triggerBattleDrop(px, py, false);
+      } else {
+          // AI Won -> Steal
+          const aiEnemy = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
+          if (aiEnemy) {
+              const data = aiEnemy.plugin['data'] as EnemyData;
+              // AI heals 15-25% max health
+              const healPercent = 0.15 + (Math.random() * 0.10);
+              data.health = Math.min(data.maxHealth, data.health + (data.maxHealth * healPercent));
+              this.bossHealth.set(data.health);
+              
+              // 50% chance to steal coins
+              if (Math.random() < 0.5) {
+                 const playerCoins = this.gameState.coins();
+                 const stealAmount = Math.floor(playerCoins * 0.10); // steal 10%
+                 if (stealAmount > 0) {
+                     this.gameState.coins.set(playerCoins - stealAmount);
+                     this.aiCoins += stealAmount;
+                 }
+              }
+              
+              this.triggerImpactEffect(px, py, false); // Small red burst maybe
+          }
+          this.aiCoinGainRate += 1; // Increase income anyway
+      }
+  }
+
   private damageEnemy(enemy: Matter.Body, damage: number) {
     const data = enemy.plugin['data'] as EnemyData;
     data.health -= damage;
     
     if (data.type === 'boss') {
        this.bossHealth.set(Math.max(0, data.health));
+    } else if (data.type === 'enemy_phoenix') {
+       this.bossHealth.set(Math.max(0, data.health));
     }
     
     if (data.health <= 0) {
       this.audioService.playSFX('explosion');
+      
+      if (data.type === 'enemy_phoenix') {
+          // AI Phoenix Death Logic
+          if (this.aiAbilities.includes('rebirth')) {
+              // Revive via rebirth
+              data.health = data.maxHealth;
+              this.bossHealth.set(data.maxHealth);
+              this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // big shockwave
+              return;
+          } else {
+              // Auto drop and respawn
+              this.triggerBattleDrop(enemy.position.x, enemy.position.y, true);
+              data.health = data.maxHealth;
+              this.bossHealth.set(data.maxHealth);
+              this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // rebirth effect
+              Matter.Body.setPosition(enemy, { x: 500, y: 100 });
+              Matter.Body.setVelocity(enemy, { x: 0, y: 0 });
+              return;
+          }
+      }
+      
       Matter.Composite.remove(this.engine.world, enemy);
       this.enemies = this.enemies.filter(e => e !== enemy);
       
@@ -1685,7 +2072,16 @@ export class GameComponent implements OnInit, OnDestroy {
     this.isDead.set(true);
     this.gameState.isDeadMenuOpen.set(true);
     this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 });
-    this.gameState.syncProgressToServer();
+    
+    if (this.gameState.currentGameMode() === 'battle') {
+        this.gameState.syncProgressToServer({
+            battleHighscore: this.currentBattleScore(),
+            battleBestTime: this.battleTimer(),
+            battleBestCoins: this.currentBattleCoinsGained()
+        });
+    } else {
+        this.gameState.syncProgressToServer();
+    }
 
     if (this.runner) Matter.Runner.stop(this.runner);
     
@@ -1939,7 +2335,25 @@ export class GameComponent implements OnInit, OnDestroy {
       }
   }
 
+  public quitFromPause() {
+      this.gameState.isPaused.set(false);
+      if (this.gameState.currentGameMode() === 'battle') {
+          this.triggerDeathSequence();
+      } else {
+          this.quitGame();
+      }
+  }
+
   public quitGame() { 
+      if (this.gameState.currentGameMode() === 'battle') {
+          this.gameState.syncProgressToServer({
+              battleHighscore: this.currentBattleScore(),
+              battleBestTime: this.battleTimer(),
+              battleBestCoins: this.currentBattleCoinsGained()
+          });
+      } else {
+          this.gameState.syncProgressToServer();
+      }
       this.gameState.isPaused.set(false);
       this.cheatPrepared.set(false);
       this.gameState.coins.update(c => Math.floor(c));
