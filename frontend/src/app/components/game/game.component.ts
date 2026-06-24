@@ -561,8 +561,8 @@ export class GameComponent implements OnInit, OnDestroy {
       this.battleStartCoins = this.gameState.coins();
       this.battleStartXp = this.gameState.xp();
       
-      // Spawn AI Phoenix
-      const enemyPhoenix = Matter.Bodies.circle(window.innerWidth / 2, 100, 20, {
+      // Spawn AI Phoenix off-screen top
+      const enemyPhoenix = Matter.Bodies.circle(window.innerWidth / 2, -200, 20, {
           label: 'enemy',
           plugin: {
               data: {
@@ -575,10 +575,38 @@ export class GameComponent implements OnInit, OnDestroy {
           }
       });
       
-      this.triggerImpactEffect(window.innerWidth / 2, 100, true); // Rebirth effect on spawn
-      
       Matter.Composite.add(this.engine.world, enemyPhoenix);
       this.enemies.push(enemyPhoenix);
+      
+      // Cinematic Entrance for AI
+      const aiStartY = -200;
+      const aiEndY = window.innerHeight / 2 - 150;
+      
+      const duration = 1500;
+      const startTime = Date.now();
+      
+      const animateEntrance = () => {
+          if (this.isDead() || this.gameEnded()) return;
+          const now = Date.now();
+          const progress = Math.min((now - startTime) / duration, 1);
+          
+          // Easing: easeOutQuad
+          const easeProgress = progress * (2 - progress);
+          
+          const currentAiY = aiStartY + (aiEndY - aiStartY) * easeProgress;
+          
+          // Override AI physics position
+          Matter.Body.setPosition(enemyPhoenix, { x: window.innerWidth / 2, y: currentAiY });
+          Matter.Body.setVelocity(enemyPhoenix, { x: 0, y: 0 }); 
+          
+          if (progress < 1) {
+              requestAnimationFrame(animateEntrance);
+          } else {
+              this.triggerImpactEffect(window.innerWidth / 2, currentAiY, true); // AI flash effect on landing
+          }
+      };
+      
+      requestAnimationFrame(animateEntrance);
   }
 
   private initPhysics() {
@@ -1922,6 +1950,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     }
 
     // Hit sound removed permanently
+    this.gameState.immortalUntil = Date.now() + 500; // 0.5s i-frames
     this.currentHealth.update(h => Math.max(0, h - amount));
     this.damageFlash.set(true);
     setTimeout(() => this.damageFlash.set(false), 200);

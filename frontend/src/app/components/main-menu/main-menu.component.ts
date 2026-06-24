@@ -166,7 +166,7 @@ export class MainMenuComponent {
   isBattleWorldUnlocked = computed(() => this.selectedBattleWorldIndex() === 0);
   
   showSettings = false;
-  activeMenuMode: 'campaign' | 'battle' = 'campaign';
+  activeMenuMode: 'campaign' | 'battle' = this.gameState.currentGameMode();
   
   private touchStartY = 0;
 
