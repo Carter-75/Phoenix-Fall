@@ -277,6 +277,8 @@ export class GameComponent implements OnInit, OnDestroy {
   public aiAbilities: string[] = [];
   public aiLastTapTime: number = 0;
   public aiLastHoldTime: number = 0;
+  public aiUpgradeTokensBox: number = 0;
+  public aiAbilityTokensBox: number = 0;
   
   public battleTimer = signal<number>(0);
   public battleDropReady = signal<boolean>(false);
@@ -463,6 +465,12 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.isDead.set(false);
+    this.gameEnded.set(false);
+    this.bossSpawned.set(false);
+    this.inBossDefeatSequence.set(false);
+    this.gameState.isDeadMenuOpen.set(false);
+    
     this.currentHealth.set(this.maxHealth());
     this.gameState.sessionPlayTime.set(0);
     this.gameState.sessionKills.set({});
@@ -516,45 +524,65 @@ export class GameComponent implements OnInit, OnDestroy {
     this.audioService.stopIntenseBgm();
   }
 
-  private initBattleMode() {
-      // Pick 2 random abilities from all available
-      const allAbilities = Object.keys(ABILITIES);
+  private setupAiPhoenix(isRespawn: boolean) {
+      const playerStats = this.gameState.currentStats();
+      this.aiStats = JSON.parse(JSON.stringify(playerStats));
+      this.aiStats.maxHealth *= 10; // Scale base health x10 for Battle Mode boss pool
       
-      // Shuffle array
+      const allAbilities = Object.keys(ABILITIES);
       for (let i = allAbilities.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [allAbilities[i], allAbilities[j]] = [allAbilities[j], allAbilities[i]];
       }
+      this.aiAbilities = allAbilities.slice(0, 2);
       
-      const pickedAbilities = allAbilities.slice(0, 2);
-      this.aiAbilities = pickedAbilities;
+      const playerTapLevel = playerStats.activeTapAbility ? (playerStats.unlockedAbilities[playerStats.activeTapAbility]?.level || 1) : 1;
+      const playerHoldLevel = playerStats.activeHoldAbility ? (playerStats.unlockedAbilities[playerStats.activeHoldAbility]?.level || 1) : 1;
+      const avgPlayerLevel = Math.max(1, Math.floor((playerTapLevel + playerHoldLevel) / 2));
       
-      // Initialize AI Stats cloned from Player Base Stats + Upgrades
-      const playerStats = this.gameState.currentStats();
-      this.aiStats = JSON.parse(JSON.stringify(playerStats));
-      
-      pickedAbilities.forEach(id => {
-          // Scale 1 to 5 levels past player level
-          const playerLevel = this.gameState.currentStats().unlockedAbilities[id]?.level || 0;
-          const targetLevel = Math.min(30, playerLevel + Math.floor(Math.random() * 5) + 1); // Max level typically 30 per ABILITY_UPGRADE_TARGETS
-          
-          if (!this.aiStats.unlockedAbilities[id]) {
-              this.aiStats.unlockedAbilities[id] = { level: targetLevel, modifiers: {} };
-          } else {
-              this.aiStats.unlockedAbilities[id].level = targetLevel;
-          }
-          // Note: Generate actual modifier stats
-          this.aiStats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, targetLevel, {});
+      this.aiAbilities.forEach(id => {
+          this.aiStats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
+          this.aiStats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
       });
+
+      if (!isRespawn) {
+          // Roll 1-5 tokens for each of the 8 stats
+          const statCount = 8;
+          let initialUpgradeTokens = 0;
+          for(let i=0; i<statCount; i++) {
+              initialUpgradeTokens += Math.floor(Math.random() * 5) + 1;
+          }
+          
+          // Roll 1-5 tokens for each of the 2 abilities
+          let initialAbilityTokens = 0;
+          for(let i=0; i<2; i++) {
+              initialAbilityTokens += Math.floor(Math.random() * 5) + 1;
+          }
+          
+          // Spend tokens
+          this.spendTokens(initialUpgradeTokens, initialAbilityTokens);
+          this.aiUpgradesWeights = {}; // reset weights after init
+      } else {
+          // On respawn, spend accumulated tokens from boxes
+          this.spendTokens(this.aiUpgradeTokensBox, this.aiAbilityTokensBox);
+          // (Weights are preserved across respawns)
+      }
+  }
+
+  private initBattleMode() {
+      this.aiUpgradeTokensBox = 0;
+      this.aiAbilityTokensBox = 0;
+      this.aiUpgradesWeights = {};
+      
+      this.setupAiPhoenix(false);
       
       this.aiCoins = 0;
       this.aiCoinGainRate = 2;
       this.nextDropIndex = 0;
       this.battleDropReady.set(false);
       this.battleDropGrace.set(false);
-      this.aiUpgradesWeights = {};
       
-      const maxHp = this.maxHealth() * 10;
+      const maxHp = this.aiStats.maxHealth;
       this.bossMaxHealth.set(maxHp);
       this.bossHealth.set(maxHp);
       
@@ -562,7 +590,13 @@ export class GameComponent implements OnInit, OnDestroy {
       this.battleStartXp = this.gameState.xp();
       
       // Spawn AI Phoenix off-screen top
-      const enemyPhoenix = Matter.Bodies.circle(window.innerWidth / 2, -200, 20, {
+      const scale = this.screenScale;
+      const aiCore = Matter.Bodies.rectangle(window.innerWidth / 2, -200, 10 * scale, 20 * scale, { label: 'enemy' });
+      const aiLeftWing = Matter.Bodies.rectangle(window.innerWidth / 2 - (15 * scale), -200 - (5 * scale), 20 * scale, 8 * scale, { label: 'enemy' });
+      const aiRightWing = Matter.Bodies.rectangle(window.innerWidth / 2 + (15 * scale), -200 - (5 * scale), 20 * scale, 8 * scale, { label: 'enemy' });
+
+      const enemyPhoenix = Matter.Body.create({
+          parts: [aiCore, aiLeftWing, aiRightWing],
           label: 'enemy',
           plugin: {
               data: {
@@ -596,12 +630,14 @@ export class GameComponent implements OnInit, OnDestroy {
           const currentAiY = aiStartY + (aiEndY - aiStartY) * easeProgress;
           
           // Override AI physics position
+          this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentAiY });
           Matter.Body.setPosition(enemyPhoenix, { x: window.innerWidth / 2, y: currentAiY });
           Matter.Body.setVelocity(enemyPhoenix, { x: 0, y: 0 }); 
           
           if (progress < 1) {
               requestAnimationFrame(animateEntrance);
           } else {
+              this.gameState.aiPhoenixOverridePosition.set(null);
               this.triggerImpactEffect(window.innerWidth / 2, currentAiY, true); // AI flash effect on landing
           }
       };
@@ -889,9 +925,22 @@ export class GameComponent implements OnInit, OnDestroy {
             if (enemy.position.y > window.innerHeight - 100) Matter.Body.setPosition(enemy, { x: enemy.position.x, y: window.innerHeight - 100 });
         }
         if (data.type === 'enemy_phoenix') {
-            const aiSpeedLevel = ((this.aiStats?.speed || 1) - 1) * 10;
-            moveSpeed = 0.00025 + (Math.max(0, aiSpeedLevel) * 0.000005);
+            const aiSpeedMult = this.aiStats?.speed || 1;
+            const mouseSpeed = 3.0 * aiSpeedMult; 
+            const currentMouse = this.gameState.aiMousePos();
             
+            // Move AI virtual mouse towards player
+            const mouseForce = Matter.Vector.sub(this.playerBody.position, currentMouse);
+            if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
+                const mouseNorm = Matter.Vector.normalise(mouseForce);
+                this.gameState.aiMousePos.set({
+                    x: currentMouse.x + mouseNorm.x * mouseSpeed * delta * 60,
+                    y: currentMouse.y + mouseNorm.y * mouseSpeed * delta * 60
+                });
+            } else {
+                this.gameState.aiMousePos.set({ x: this.playerBody.position.x, y: this.playerBody.position.y });
+            }
+
             if (now - this.aiLastTapTime > (1500 / (this.aiStats?.attackSpeed || 1))) {
                 this.aiLastTapTime = now;
                 const hasTap = this.aiAbilities.some(a => ABILITIES[a]?.type === 'tap');
@@ -899,6 +948,11 @@ export class GameComponent implements OnInit, OnDestroy {
                     this.fireEnemyProjectile(enemy.position);
                 }
             }
+            
+            // Sync hitbox to EXACT visual 3D position of AI Phoenix
+            Matter.Body.setPosition(enemy, this.gameState.aiPhoenixScreenPos());
+            Matter.Body.setVelocity(enemy, { x: 0, y: 0 });
+            return; // Skip normal force-based movement
         }
         
         Matter.Body.applyForce(enemy, enemy.position, Matter.Vector.mult(normalized, moveSpeed));
@@ -999,23 +1053,91 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     Runner.run(this.runner, this.engine);
   }
 
+  private spendTokens(upgradeTokens: number, abilityTokens: number) {
+      const statOptions = ['maxHealth', 'speed', 'magnetism', 'damage', 'attackSpeed', 'attackRange', 'auraRadius', 'homingLevel'];
+      
+      for(let i=0; i<upgradeTokens; i++) {
+          let totalWeight = 0;
+          statOptions.forEach(opt => {
+              if (this.aiUpgradesWeights[opt] === undefined) this.aiUpgradesWeights[opt] = 100;
+              totalWeight += this.aiUpgradesWeights[opt];
+          });
+          
+          let rand = Math.random() * totalWeight;
+          let selectedOpt = statOptions[0];
+          for (let opt of statOptions) {
+              rand -= this.aiUpgradesWeights[opt];
+              if (rand <= 0) {
+                  selectedOpt = opt;
+                  break;
+              }
+          }
+          this.applyAiUpgrade(selectedOpt);
+      }
+      
+      for(let i=0; i<abilityTokens; i++) {
+          let totalWeight = 0;
+          this.aiAbilities.forEach(ab => {
+              const opt = `ability_${ab}`;
+              if (this.aiUpgradesWeights[opt] === undefined) this.aiUpgradesWeights[opt] = 100;
+              totalWeight += this.aiUpgradesWeights[opt];
+          });
+          
+          let rand = Math.random() * totalWeight;
+          let selectedOpt = this.aiAbilities[0];
+          for (let ab of this.aiAbilities) {
+              const opt = `ability_${ab}`;
+              rand -= this.aiUpgradesWeights[opt];
+              if (rand <= 0) {
+                  selectedOpt = ab;
+                  break;
+              }
+          }
+          this.applyAiUpgrade(`ability_${selectedOpt}`);
+      }
+  }
+
+  private applyAiUpgrade(selectedOpt: string) {
+      if (selectedOpt.startsWith('ability_')) {
+          const abId = selectedOpt.replace('ability_', '');
+          if (!this.aiStats.unlockedAbilities[abId]) {
+              this.aiStats.unlockedAbilities[abId] = { level: 1, modifiers: {} };
+          }
+          this.aiStats.unlockedAbilities[abId].level++;
+          this.aiStats.unlockedAbilities[abId].modifiers = this.gameState.generateAbilityUpgrade(abId, this.aiStats.unlockedAbilities[abId].level, this.aiStats.unlockedAbilities[abId].modifiers);
+      } else {
+          let step = 0;
+          if (selectedOpt === 'maxHealth') {
+              step = 10;
+              this.bossMaxHealth.set(this.aiStats.maxHealth + step);
+              this.bossHealth.update(h => h + step);
+          }
+          if (selectedOpt === 'speed') step = 0.1;
+          if (selectedOpt === 'magnetism') step = 0.1;
+          if (selectedOpt === 'damage') step = 1;
+          if (selectedOpt === 'attackSpeed') step = 0.1;
+          if (selectedOpt === 'attackRange') step = 50;
+          if (selectedOpt === 'auraRadius') step = 10;
+          if (selectedOpt === 'homingLevel') step = 1;
+          (this.aiStats as any)[selectedOpt] += step;
+      }
+      
+      this.aiUpgradesWeights[selectedOpt] = Math.max(10, (this.aiUpgradesWeights[selectedOpt] || 100) - 20);
+  }
+
   private tryPurchaseAiUpgrade() {
-      // Find all available upgrades and their base costs
       const upgradeOptions = [
-         { id: 'maxHealth', cost: 100 },
-         { id: 'speed', cost: 150 },
-         { id: 'magnetism', cost: 200 },
-         { id: 'damage', cost: 250 },
-         { id: 'attackSpeed', cost: 300 },
-         { id: 'attackRange', cost: 250 },
-         { id: 'auraRadius', cost: 400 },
-         { id: 'homingLevel', cost: 300 },
+         { id: 'maxHealth', cost: 100 }, { id: 'speed', cost: 150 }, { id: 'magnetism', cost: 200 },
+         { id: 'damage', cost: 250 }, { id: 'attackSpeed', cost: 300 }, { id: 'attackRange', cost: 250 },
+         { id: 'auraRadius', cost: 400 }, { id: 'homingLevel', cost: 300 },
       ];
       
-      // Calculate actual current cost for each option based on AI's current stats level
       const getAiCost = (stat: string, baseCost: number, step: number, offset: number) => {
           let currentVal = (this.aiStats as any)[stat] as number;
-          if (stat === 'maxHealth' || stat === 'speed') currentVal = (BASE_STATS as any)[stat];
+          if (stat === 'maxHealth') {
+             // Since aiStats.maxHealth is 10x the player's, normalize it for cost calculation
+             currentVal = currentVal / 10;
+          }
           const level = Math.max(0, (currentVal - offset) / step);
           return Math.floor(baseCost * Math.pow(1.5, level));
       };
@@ -1031,7 +1153,6 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           'homingLevel': getAiCost('homingLevel', 300, 1, 0),
       };
 
-      // Also add abilities to the pool
       this.aiAbilities.forEach(ab => {
           const level = this.aiStats.unlockedAbilities[ab]?.level || 1;
           const baseAbilityCost = ABILITIES[ab].upgradeCost;
@@ -1039,7 +1160,6 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           upgradeOptions.push({ id: `ability_${ab}`, cost: baseAbilityCost });
       });
 
-      // Find max cost available
       const maxCost = Math.max(...Object.values(aiCosts));
       const fullPickOverride = this.aiCoins >= maxCost * 1.5;
 
@@ -1050,7 +1170,6 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           boughtSomething = false;
           attempts++;
           
-          // Weighted random selection
           let totalWeight = 0;
           const validOptions = upgradeOptions.filter(opt => {
               if (this.aiUpgradesWeights[opt.id] === undefined) this.aiUpgradesWeights[opt.id] = 100;
@@ -1076,30 +1195,12 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               this.aiCoins -= actualCost;
               boughtSomething = true;
               
-              // Apply Upgrade
               if (selectedOpt.startsWith('ability_')) {
-                  const abId = selectedOpt.replace('ability_', '');
-                  if (!this.aiStats.unlockedAbilities[abId]) {
-                      this.aiStats.unlockedAbilities[abId] = { level: 1, modifiers: {} };
-                  }
-                  this.aiStats.unlockedAbilities[abId].level++;
-                  this.aiStats.unlockedAbilities[abId].modifiers = this.gameState.generateAbilityUpgrade(abId, this.aiStats.unlockedAbilities[abId].level, this.aiStats.unlockedAbilities[abId].modifiers);
+                  this.aiAbilityTokensBox++;
               } else {
-                  // Global stat increment based on standard steps
-                  let step = 0;
-                  if (selectedOpt === 'maxHealth') step = 10;
-                  if (selectedOpt === 'speed') step = 0.1;
-                  if (selectedOpt === 'magnetism') step = 0.1;
-                  if (selectedOpt === 'damage') step = 1;
-                  if (selectedOpt === 'attackSpeed') step = 0.1;
-                  if (selectedOpt === 'attackRange') step = 50;
-                  if (selectedOpt === 'auraRadius') step = 10;
-                  if (selectedOpt === 'homingLevel') step = 1;
-                  (this.aiStats as any)[selectedOpt] += step;
+                  this.aiUpgradeTokensBox++;
               }
-              
-              // Reduce weight to prevent spamming same upgrade
-              this.aiUpgradesWeights[selectedOpt] = Math.max(10, this.aiUpgradesWeights[selectedOpt] - 20);
+              this.applyAiUpgrade(selectedOpt);
           }
       }
   }
@@ -1796,17 +1897,21 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           // AI Phoenix Death Logic
           if (this.aiAbilities.includes('rebirth')) {
               // Revive via rebirth
-              data.health = data.maxHealth;
+              this.setupAiPhoenix(true);
+              data.health = this.aiStats.maxHealth;
+              data.maxHealth = this.aiStats.maxHealth;
               this.bossHealth.set(data.maxHealth);
               this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // big shockwave
               return;
           } else {
               // Auto drop and respawn
               this.triggerBattleDrop(enemy.position.x, enemy.position.y, true);
-              data.health = data.maxHealth;
+              this.setupAiPhoenix(true);
+              data.health = this.aiStats.maxHealth;
+              data.maxHealth = this.aiStats.maxHealth;
               this.bossHealth.set(data.maxHealth);
               this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // rebirth effect
-              Matter.Body.setPosition(enemy, { x: 500, y: 100 });
+              Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: -200 }); // reset off-screen
               Matter.Body.setVelocity(enemy, { x: 0, y: 0 });
               return;
           }

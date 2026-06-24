@@ -64,7 +64,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   private cosmicTrailMesh!: THREE.Points;
   private animationId!: number;
   
-  private bird!: PhoenixState;
+  private aiBird!: PhoenixState;
   private readonly MAX_HISTORY = 600;
   
   private boundX = 15;
@@ -91,6 +91,10 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     this.bird = this.createBirdState('orange');
     this.initHistory(this.bird);
     this.createPhoenixMesh(this.bird);
+    
+    this.aiBird = this.createBirdState('crimson'); // Different theme for AI
+    this.initHistory(this.aiBird);
+    this.createPhoenixMesh(this.aiBird);
     
     this.updateColors(this.gameState.worlds[this.gameState.selectedWorldIndex()].theme);
 
@@ -146,6 +150,22 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
       else { bColors[idx] = p3[0]; bColors[idx+1] = p3[1]; bColors[idx+2] = p3[2]; }
     }
     this.bird.particles.geometry.attributes['color'].needsUpdate = true;
+
+    // AI Bird uses Crimson theme statically to differentiate
+    const aiColors = this.aiBird.particles.geometry.attributes['color'].array as Float32Array;
+    const aiPositions = this.aiBird.particles.geometry.attributes['position'].array as Float32Array;
+    for (let i = 0; i < count; i++) {
+      const idx = i * 3;
+      const x = aiPositions[idx];
+      const z = aiPositions[idx+2];
+      const distFromCenter = Math.sqrt(x*x + z*z);
+      
+      if (distFromCenter < 2 && z < 2) { aiColors[idx] = 1.0; aiColors[idx+1] = 0.2; aiColors[idx+2] = 0.2; }
+      else if (distFromCenter < 5 && z < 6) { aiColors[idx] = 0.8; aiColors[idx+1] = 0.0; aiColors[idx+2] = 0.0; }
+      else { aiColors[idx] = 0.5; aiColors[idx+1] = 0.0; aiColors[idx+2] = 0.0; }
+    }
+    this.aiBird.particles.geometry.attributes['color'].needsUpdate = true;
+
 
     if (this.bgGlow) {
         const mat = this.bgGlow.material as THREE.MeshBasicMaterial;
@@ -395,42 +415,69 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
         const screenFactor = Math.max(1.0, 1000 / (window.innerWidth || 1000));
         const speed = 0.068 * this.gameState.currentStats().speed * screenFactor; 
-        const bird = this.bird;
+        this.updateBirdPhysics(this.bird, this.mouseTarget, speed, screenFactor, false);
         
-        // --- ONLY UPDATE BIRD PHYSICS IF NOT PAUSED ---
+        // Hide AI Bird if not in battle mode
+        const isBattle = this.gameState.currentGameMode() === 'battle';
+        this.aiBird.group.visible = isBattle;
+        if (isBattle) {
+            const aiMouse = this.gameState.aiMousePos();
+            const aiVec = new THREE.Vector3(
+                (aiMouse.x / window.innerWidth) * 2 - 1,
+                -(aiMouse.y / window.innerHeight) * 2 + 1,
+                0.5
+            );
+            aiVec.unproject(this.camera);
+            aiVec.sub(this.camera.position).normalize();
+            const dist = (-15 - this.camera.position.z) / aiVec.z;
+            const aiTarget3D = this.camera.position.clone().add(aiVec.multiplyScalar(dist));
+            
+            this.updateBirdPhysics(this.aiBird, aiTarget3D, speed, screenFactor, true);
+        }
+
+        this.syncEntities();
+
+        this.renderer.render(this.scene, this.camera);
+        this.animationId = requestAnimationFrame(render);
+      };
+      render();
+    });
+  }
+
+  private updateBirdPhysics(bird: PhoenixState, targetWaypoint: THREE.Vector3, speed: number, screenFactor: number, isAi: boolean) {
         if (!this.gameState.isPaused()) {
-          // Cinematic Override
-          const overridePos = this.gameState.phoenixOverridePosition();
-          if (overridePos) {
-            this.updateMouseTarget(overridePos.x, overridePos.y);
+          // Cinematic Override logic applies to player
+          if (!isAi) {
+              const overridePos = this.gameState.phoenixOverridePosition();
+              if (overridePos) {
+                this.updateMouseTarget(overridePos.x, overridePos.y);
+                targetWaypoint = this.mouseTarget; // Force to overridden target
+              }
           }
 
-          // State transition check for Rebirth snap-back
-          const isRebirthingNow = this.gameState.isRebirthing();
+          const isRebirthingNow = this.gameState.isRebirthing() && !isAi;
 
           const mat = bird.particles.material as THREE.PointsMaterial;
           if (isRebirthingNow) {
               mat.color.setRGB(0.2, 0.2, 0.2); // Ash color
-              // Freeze in place completely
               bird.velocity.set(0, 0, 0);
           } else {
-              if (this.gameState.isDrilling()) {
-                  mat.color.setRGB(1.5, 0.3, 0.3); // Intense red glow
-              } else {
-                  mat.color.setRGB(1, 1, 1); // Normal color
-              }
-
-              // Flash during immortality (500ms full cycle = 10 flashes over 5 seconds)
-              if (Date.now() < this.gameState.immortalUntil) {
-                  mat.opacity = Math.floor(Date.now() / 250) % 2 === 0 ? 0.1 : 0.9;
-              } else {
-                  mat.opacity = 0.9;
+              if (!isAi) {
+                  if (this.gameState.isDrilling()) {
+                      mat.color.setRGB(1.5, 0.3, 0.3); // Intense red glow
+                  } else {
+                      mat.color.setRGB(1, 1, 1); // Normal color
+                  }
+                  if (Date.now() < this.gameState.immortalUntil) {
+                      mat.opacity = Math.floor(Date.now() / 250) % 2 === 0 ? 0.1 : 0.9;
+                  } else {
+                      mat.opacity = 0.9;
+                  }
               }
 
               bird.flapTime += 0.04;
               
-              // Track Mouse
-              bird.targetWaypoint.lerp(this.mouseTarget, 0.1);
+              bird.targetWaypoint.lerp(targetWaypoint, 0.1);
 
               const directToTarget = bird.targetWaypoint.clone().sub(bird.position);
               
@@ -440,14 +487,18 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
                 directToTarget.normalize().multiplyScalar(0.015);
               }
 
-              let speedMult = this.gameState.currentStats().speed;
-              if (Date.now() < this.gameState.speedBoostUntil) {
-                  speedMult *= 2.0;
+              let speedMult = 1.0; 
+              if (!isAi) {
+                  speedMult = this.gameState.currentStats().speed;
+                  if (Date.now() < this.gameState.speedBoostUntil) speedMult *= 2.0;
+                  if (this.gameState.isDrilling()) {
+                      const modifiers = this.gameState.currentStats().unlockedAbilities['drill_attack']?.modifiers;
+                      if (modifiers && modifiers['speed']) speedMult *= modifiers['speed'];
+                  }
+              } else {
+                  speedMult = 1.2; 
               }
-              if (this.gameState.isDrilling()) {
-                  const modifiers = this.gameState.currentStats().unlockedAbilities['drill_attack']?.modifiers;
-                  if (modifiers && modifiers['speed']) speedMult *= modifiers['speed'];
-              }
+
               const maxTurnForce = (0.002 / this.birdScale) * speedMult * screenFactor; 
               const desiredVelocity = bird.velocity.clone().add(directToTarget.multiplyScalar(speedMult)).normalize().multiplyScalar(speed * speedMult);
               const steering = desiredVelocity.sub(bird.velocity);
@@ -459,13 +510,17 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
           }
         }
         
-        // --- Output 2D screen coordinate for Matter.js sync ---
+        // Output screen coords for syncing to physics engine
         const screenPos = bird.position.clone();
         screenPos.project(this.camera);
         const x2d = (screenPos.x * .5 + .5) * window.innerWidth;
         const y2d = (screenPos.y * -.5 + .5) * window.innerHeight;
-        this.gameState.phoenixScreenPos.set({x: x2d, y: y2d});
-        // ------------------------------------------------------
+        
+        if (isAi) {
+            this.gameState.aiPhoenixScreenPos.set({x: x2d, y: y2d});
+        } else {
+            this.gameState.phoenixScreenPos.set({x: x2d, y: y2d});
+        }
 
         const lookTarget = bird.position.clone().add(bird.velocity.clone().multiplyScalar(100));
         const dummy = new THREE.Object3D();
@@ -477,7 +532,6 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         targetQuat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
         
         if (bird.historyQuat.length > 0) {
-            // Slerp at 0.075 instead of 0.15 to make visual turning 50% slower without affecting the physical turn radius
             dummy.quaternion.copy(bird.historyQuat[0]).slerp(targetQuat, 0.075);
         } else {
             dummy.quaternion.copy(targetQuat);
@@ -488,10 +542,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         let targetBank = vDiff.dot(right) * 600; 
         targetBank = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, targetBank));
         
-        if (this.gameState.isDrilling()) {
-            bird.currentBank += 0.5; // Continuous barrel roll
+        if (!isAi && this.gameState.isDrilling()) {
+            bird.currentBank += 0.5;
         } else {
-            // Bank interpolation at 0.025 instead of 0.05 for 50% slower banking visually
             bird.currentBank += (targetBank - bird.currentBank) * 0.025;
         }
         
@@ -504,17 +557,16 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
             bird.historyPos.pop(); bird.historyQuat.pop();
         }
 
-        if (!this.gameState.isPaused() && !this.gameState.isRebirthing()) {
+        if (!this.gameState.isPaused() && (!this.gameState.isRebirthing() || isAi)) {
             bird.flapTime += 0.04;
         }
         const pPositions = bird.particles.geometry.attributes['position'].array as Float32Array;
         
-        if (this.gameState.isRebirthing()) {
-            // Crumble into falling ash
+        if (!isAi && this.gameState.isRebirthing()) {
             for (let k = 0; k < bird.phoenixCount; k++) {
                 const idx = k * 3;
                 pPositions[idx] += (Math.random() - 0.5) * 0.05;
-                pPositions[idx+1] -= Math.random() * 0.1; // fall down
+                pPositions[idx+1] -= Math.random() * 0.1;
                 pPositions[idx+2] += (Math.random() - 0.5) * 0.05;
             }
         } else {
@@ -560,85 +612,64 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         }
         bird.particles.geometry.attributes['position'].needsUpdate = true;
         
-        // --- Render Cosmetics ---
-        if (this.goldenAuraMesh) {
-            this.goldenAuraMesh.visible = this.gameState.hasGoldenAura() && this.gameState.toggleGoldenAura() && !this.gameState.isRebirthing();
-            if (this.goldenAuraMesh.visible) {
-                this.goldenAuraMesh.position.copy(bird.position);
-                this.goldenAuraMesh.quaternion.copy(dummy.quaternion);
-                
-                // Animate aura particles
-                const auraPos = this.goldenAuraMesh.geometry.attributes['position'].array as Float32Array;
-                const auraBase = this.goldenAuraMesh.geometry.attributes['basePosition'].array as Float32Array;
-                const time = Date.now() * 0.002;
-                
-                for (let i = 0; i < auraPos.length / 3; i++) {
-                    const bx = auraBase[i*3];
-                    const by = auraBase[i*3+1];
-                    const bz = auraBase[i*3+2];
-                    
-                    // Swirling effect
-                    const angle = time + by * 0.5;
-                    const cosA = Math.cos(angle);
-                    const sinA = Math.sin(angle);
-                    
-                    auraPos[i*3] = bx * cosA - bz * sinA;
-                    auraPos[i*3+1] = by + Math.sin(time * 2 + i) * 0.5; // Bob up and down
-                    auraPos[i*3+2] = bx * sinA + bz * cosA;
+        // Only render cosmetics for player
+        if (!isAi) {
+            if (this.goldenAuraMesh) {
+                this.goldenAuraMesh.visible = this.gameState.hasGoldenAura() && this.gameState.toggleGoldenAura() && !this.gameState.isRebirthing();
+                if (this.goldenAuraMesh.visible) {
+                    this.goldenAuraMesh.position.copy(bird.position);
+                    this.goldenAuraMesh.quaternion.copy(dummy.quaternion);
+                    const auraPos = this.goldenAuraMesh.geometry.attributes['position'].array as Float32Array;
+                    const auraBase = this.goldenAuraMesh.geometry.attributes['basePosition'].array as Float32Array;
+                    const time = Date.now() * 0.002;
+                    for (let i = 0; i < auraPos.length / 3; i++) {
+                        const bx = auraBase[i*3];
+                        const by = auraBase[i*3+1];
+                        const bz = auraBase[i*3+2];
+                        const angle = time + by * 0.5;
+                        const cosA = Math.cos(angle);
+                        const sinA = Math.sin(angle);
+                        auraPos[i*3] = bx * cosA - bz * sinA;
+                        auraPos[i*3+1] = by + Math.sin(time * 2 + i) * 0.5;
+                        auraPos[i*3+2] = bx * sinA + bz * cosA;
+                    }
+                    this.goldenAuraMesh.geometry.attributes['position'].needsUpdate = true;
                 }
-                this.goldenAuraMesh.geometry.attributes['position'].needsUpdate = true;
+            }
+
+            if (this.celestialShieldMesh) {
+                this.celestialShieldMesh.visible = this.gameState.hasCelestialShield() && this.gameState.toggleCelestialShield() && !this.gameState.isRebirthing();
+                if (this.celestialShieldMesh.visible) {
+                    const targetPos = (this.celestialShieldMesh as any).targetPos;
+                    targetPos.lerp(bird.position, 0.1);
+                    this.celestialShieldMesh.position.copy(targetPos);
+                    this.celestialShieldMesh.rotation.y += 0.01;
+                    this.celestialShieldMesh.rotation.x += 0.005;
+                    const shieldPos = this.celestialShieldMesh.geometry.attributes['position'].array as Float32Array;
+                    const shieldBase = this.celestialShieldMesh.geometry.attributes['basePosition'].array as Float32Array;
+                    const pulse = 1 + Math.sin(Date.now() * 0.003) * 0.05;
+                    for (let i = 0; i < shieldPos.length; i++) {
+                        shieldPos[i] = shieldBase[i] * pulse;
+                    }
+                    this.celestialShieldMesh.geometry.attributes['position'].needsUpdate = true;
+                }
+            }
+
+            if (this.cosmicTrailMesh) {
+                this.cosmicTrailMesh.visible = this.gameState.hasCosmicTrail() && this.gameState.toggleCosmicTrail() && !this.gameState.isRebirthing();
+                if (this.cosmicTrailMesh.visible) {
+                    const tPos = this.cosmicTrailMesh.geometry.attributes['position'].array as Float32Array;
+                    for (let i = tPos.length - 1; i >= 3; i--) {
+                        tPos[i] = tPos[i - 3];
+                    }
+                    const backward = new THREE.Vector3(0, 0, 1).applyQuaternion(dummy.quaternion).multiplyScalar(2);
+                    tPos[0] = bird.position.x + backward.x + (Math.random() - 0.5) * 1.5;
+                    tPos[1] = bird.position.y + backward.y + (Math.random() - 0.5) * 1.5;
+                    tPos[2] = bird.position.z + backward.z + (Math.random() - 0.5) * 1.5;
+                    this.cosmicTrailMesh.geometry.attributes['position'].needsUpdate = true;
+                }
             }
         }
-
-        if (this.celestialShieldMesh) {
-            this.celestialShieldMesh.visible = this.gameState.hasCelestialShield() && this.gameState.toggleCelestialShield() && !this.gameState.isRebirthing();
-            if (this.celestialShieldMesh.visible) {
-                // Smooth follow (lerp)
-                const targetPos = (this.celestialShieldMesh as any).targetPos;
-                targetPos.lerp(bird.position, 0.1);
-                this.celestialShieldMesh.position.copy(targetPos);
-                
-                this.celestialShieldMesh.rotation.y += 0.01;
-                this.celestialShieldMesh.rotation.x += 0.005;
-                
-                // Pulse shield particles slightly
-                const shieldPos = this.celestialShieldMesh.geometry.attributes['position'].array as Float32Array;
-                const shieldBase = this.celestialShieldMesh.geometry.attributes['basePosition'].array as Float32Array;
-                const pulse = 1 + Math.sin(Date.now() * 0.003) * 0.05;
-                
-                for (let i = 0; i < shieldPos.length; i++) {
-                    shieldPos[i] = shieldBase[i] * pulse;
-                }
-                this.celestialShieldMesh.geometry.attributes['position'].needsUpdate = true;
-            }
-        }
-
-        if (this.cosmicTrailMesh) {
-            this.cosmicTrailMesh.visible = this.gameState.hasCosmicTrail() && this.gameState.toggleCosmicTrail() && !this.gameState.isRebirthing();
-            if (this.cosmicTrailMesh.visible) {
-                const tPos = this.cosmicTrailMesh.geometry.attributes['position'].array as Float32Array;
-                // Shift all particles back
-                for (let i = tPos.length - 1; i >= 3; i--) {
-                    tPos[i] = tPos[i - 3];
-                }
-                // Add new particle at bird position with slight scatter behind bird
-                // Push it back slightly using bird's backward vector
-                const backward = new THREE.Vector3(0, 0, 1).applyQuaternion(dummy.quaternion).multiplyScalar(2);
-                
-                tPos[0] = bird.position.x + backward.x + (Math.random() - 0.5) * 1.5;
-                tPos[1] = bird.position.y + backward.y + (Math.random() - 0.5) * 1.5;
-                tPos[2] = bird.position.z + backward.z + (Math.random() - 0.5) * 1.5;
-                this.cosmicTrailMesh.geometry.attributes['position'].needsUpdate = true;
-            }
-        }
-
-        this.syncEntities();
-
-        this.renderer.render(this.scene, this.camera);
-        this.animationId = requestAnimationFrame(render);
-      };
-      render();
-    });
   }
 
   private syncEntities() {
@@ -657,6 +688,8 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
     // Add/Update active entities
     for (const data of active) {
+      if (data.type === 'enemy_phoenix') continue; // Handled by aiBird
+      
       let entity = this.entityPool.get(data.id);
       if (!entity) {
         entity = this.createEntityMesh(data);

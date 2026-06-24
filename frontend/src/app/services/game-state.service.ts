@@ -165,6 +165,18 @@ export class GameStateService {
   public toggleCelestialShield = signal<boolean>(true);
   public speedBoostUntil = 0;
   public immortalUntil = 0;
+  
+  public phoenixScreenPos = signal<{x: number, y: number}>({x: window.innerWidth / 2, y: window.innerHeight / 2});
+  public phoenixOverridePosition = signal<{x: number, y: number} | null>(null);
+  
+  public aiPhoenixScreenPos = signal<{x: number, y: number}>({x: window.innerWidth / 2, y: 100});
+  public aiMousePos = signal<{x: number, y: number}>({x: window.innerWidth / 2, y: 100});
+
+  public isPaused = signal<boolean>(false);
+  public isRebirthing = signal<boolean>(false);
+  public isDrilling = signal<boolean>(false);
+  public isDeadMenuOpen = signal<boolean>(false);
+  public activeEntities = signal<PhysicsEntity[]>([]);
 
   private router = inject(Router);
 
@@ -494,6 +506,7 @@ export class GameStateService {
 
   // Phoenix Automation State
   public phoenixOverridePosition = signal<{x: number, y: number} | null>(null);
+  public aiPhoenixOverridePosition = signal<{x: number, y: number} | null>(null);
   public phoenixScreenPos = signal<{x: number, y: number}>({x: 0, y: 0});
   public activeEntities = signal<PhysicsEntity[]>([]);
   public isPaused = signal<boolean>(false);
