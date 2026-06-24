@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, tap, catchError, of } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
@@ -53,13 +53,15 @@ export class AuthService {
         if (user) {
           this.currentUser.set({ ...user, acceptedLegalPolicies: true });
         }
-      })
+      }),
+      catchError(err => of(null))
     );
   }
 
   deleteAccount(): Observable<any> {
     return this.http.delete(`${this.apiUrl}/user`).pipe(
-      tap(() => this.currentUser.set(null))
+      tap(() => this.currentUser.set(null)),
+      catchError(err => of(null))
     );
   }
 
@@ -94,17 +96,20 @@ export class AuthService {
     }
   }
 
-  checkStatus(): Observable<User> {
+  checkStatus(): Observable<User | null> {
     return this.http.get<User>(`${this.apiUrl}/user`).pipe(
       tap({
         next: user => this.currentUser.set(user),
         error: () => this.currentUser.set(null)
-      })
+      }),
+      catchError(err => of(null))
     );
   }
 
   logout(): void {
-    this.http.get(`${this.apiUrl}/logout`).subscribe(() => {
+    this.http.get(`${this.apiUrl}/logout`).pipe(
+      catchError(err => of(null))
+    ).subscribe(() => {
       this.currentUser.set(null);
     });
   }

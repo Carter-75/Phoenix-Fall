@@ -137,6 +137,7 @@ app.use(
     cookie: {
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
+      partitioned: isProd,
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     }
   })
