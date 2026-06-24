@@ -894,7 +894,7 @@ export class ShopComponent implements OnInit, OnDestroy {
               flashEndTime = Date.now() + (15 * 60 * 1000); // 15 minutes from now
               localStorage.setItem('phoenix_flash_sale_end', flashEndTime.toString());
           }
-      }
+      } 
 
       this.timerInterval = setInterval(() => {
           if (flashEndTime > 0) {
