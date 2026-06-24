@@ -6,6 +6,7 @@ import { AudioService } from '../../services/audio.service';
 import { SettingsComponent } from '../settings/settings.component';
 import * as Matter from 'matter-js';
 import anime from 'animejs';
+import { MlAiService } from '../../services/ml-ai.service';
 
 interface EnemyData {
   id: string;
@@ -235,6 +236,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
   public gameState = inject(GameStateService);
   private audioService = inject(AudioService);
+  public mlAi = inject(MlAiService);
   public Math = Math;
   public currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
   
@@ -287,8 +289,9 @@ export class GameComponent implements OnInit, OnDestroy {
   public screenFlash = signal<boolean>(false);
   public battleStartCoins = 0;
   public battleStartXp = 0;
+  public battleCoinsCollected = signal<number>(0);
   
-  public currentBattleCoinsGained = computed(() => Math.max(0, this.gameState.coins() - this.battleStartCoins));
+  public currentBattleCoinsGained = computed(() => this.battleCoinsCollected());
   public currentBattleScore = computed(() => {
       const xpGained = Math.max(0, this.gameState.xp() - this.battleStartXp);
       return Math.floor(this.battleTimer() * 10) + (this.currentBattleCoinsGained() * 10) + Math.floor(xpGained * 5);
@@ -589,6 +592,7 @@ export class GameComponent implements OnInit, OnDestroy {
       
       this.battleStartCoins = this.gameState.coins();
       this.battleStartXp = this.gameState.xp();
+      this.battleCoinsCollected.set(0);
       
       // Spawn AI Phoenix off-screen top
       const scale = this.screenScale;
@@ -630,8 +634,9 @@ export class GameComponent implements OnInit, OnDestroy {
           
           const currentAiY = aiStartY + (aiEndY - aiStartY) * easeProgress;
           
-          // Override AI physics position
+          // Override AI physics position and lock mouse to top
           this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentAiY });
+          this.gameState.aiMousePos.set({ x: window.innerWidth / 2, y: 50 });
           Matter.Body.setPosition(enemyPhoenix, { x: window.innerWidth / 2, y: currentAiY });
           Matter.Body.setVelocity(enemyPhoenix, { x: 0, y: 0 }); 
           
@@ -742,7 +747,13 @@ export class GameComponent implements OnInit, OnDestroy {
                 let val = data.value || 0;
                 if (this.gameState.hasGoldenAura() && Math.random() < 0.1) val *= 5;
                 const scale = 3 * Math.max(0.2, 1 - (this.progressPercent() / 100));
-                this.gameState.coins.update(c => c + (val * scale * this.gameState.coinMultiplier() * 3));
+                const totalGained = Math.floor(val * scale * this.gameState.coinMultiplier() * 3);
+                
+                if (this.gameState.currentGameMode() === 'battle') {
+                    this.battleCoinsCollected.update(c => c + totalGained);
+                } else {
+                    this.gameState.coins.update(c => c + totalGained);
+                }
             }
             if (data.type === 'gem') {
                 const scale = 3 * Math.max(0.2, 1 - (this.progressPercent() / 100));
@@ -824,6 +835,14 @@ export class GameComponent implements OnInit, OnDestroy {
             if (other.label === 'boss' || other.label === 'enemy') {
                 const otherData = other.plugin['data'] as EnemyData;
                 if (otherData && otherData.type === 'enemy_phoenix' && this.gameState.currentGameMode() === 'battle') {
+                    // Penalty! AI got hit by player projectile
+                    this.mlAi.recordExperience({
+                        aiX: other.position.x, aiY: other.position.y,
+                        playerX: this.playerBody.position.x, playerY: this.playerBody.position.y,
+                        threatX: projectile.position.x, threatY: projectile.position.y
+                    }, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y }, -10);
+                    this.mlAi.trainOnMemory();
+
                     if (this.battleDropReady() && !this.battleDropGrace()) {
                         this.resolveBattleDrop(true, other.position.x, other.position.y);
                     }
@@ -930,40 +949,35 @@ export class GameComponent implements OnInit, OnDestroy {
             const mouseSpeed = 3.0 * aiSpeedMult; 
             const currentMouse = this.gameState.aiMousePos();
             
-            const optimalRange = this.aiStats?.attackRange || 300;
-            const distToPlayer = Matter.Vector.magnitude(Matter.Vector.sub(this.playerBody.position, enemy.position));
-            
-            let targetPosition = { x: this.playerBody.position.x, y: this.playerBody.position.y };
-            
-            if (distToPlayer < optimalRange - 50) {
-                const runDir = Matter.Vector.normalise(Matter.Vector.sub(enemy.position, this.playerBody.position));
-                targetPosition = Matter.Vector.add(enemy.position, Matter.Vector.mult(runDir, 200));
-            } else if (distToPlayer > optimalRange + 50) {
-                targetPosition = this.playerBody.position;
-            } else {
-                const timeAngle = now / 1000;
-                targetPosition = {
-                     x: this.playerBody.position.x + Math.cos(timeAngle) * optimalRange,
-                     y: this.playerBody.position.y + Math.sin(timeAngle) * optimalRange
-                };
-            }
-            
-            let dodgeVector = { x: 0, y: 0 };
-            let threats = 0;
+            // Find closest threat for ML input
+            let threatX = 0, threatY = 0;
+            let minDist = Infinity;
             const allBodies = Matter.Composite.allBodies(this.engine.world);
             for (let b of allBodies) {
                 if (b.label === 'projectile' && b.plugin['data']?.type === 'projectile_player') {
                     const distToProj = Matter.Vector.magnitude(Matter.Vector.sub(enemy.position, b.position));
-                    if (distToProj < 250) {
-                        const fleeForce = Matter.Vector.normalise(Matter.Vector.sub(enemy.position, b.position));
-                        const weight = (250 - distToProj) / 250;
-                        dodgeVector = Matter.Vector.add(dodgeVector, Matter.Vector.mult(fleeForce, weight * 400));
-                        threats++;
+                    if (distToProj < minDist) {
+                        minDist = distToProj;
+                        threatX = b.position.x;
+                        threatY = b.position.y;
                     }
                 }
             }
-            if (threats > 0) {
-                 targetPosition = Matter.Vector.add(targetPosition, dodgeVector);
+
+            const state = {
+                aiX: enemy.position.x, aiY: enemy.position.y,
+                playerX: this.playerBody.position.x, playerY: this.playerBody.position.y,
+                threatX: minDist < 300 ? threatX : 0,
+                threatY: minDist < 300 ? threatY : 0
+            };
+            
+            // Machine Learning Prediction!
+            let mlAction = this.mlAi.predictTarget(state);
+            let targetPosition = { x: mlAction.targetX, y: mlAction.targetY };
+            
+            // Periodically reward survival
+            if (Math.random() < 0.05) {
+                this.mlAi.recordExperience(state, mlAction, 1);
             }
             
             targetPosition.x = Math.max(100, Math.min(window.innerWidth - 100, targetPosition.x));
@@ -1814,7 +1828,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, source));
     const damage = this.aiStats?.damage || 10;
     
-    const projectile = Matter.Bodies.circle(source.x, source.y, 10, {
+    const projectile = Matter.Bodies.circle(source.x, source.y, 8, {
       label: 'projectile',
       isSensor: true,
       plugin: {
@@ -1822,9 +1836,9 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       }
     });
 
-    Matter.Body.setVelocity(projectile, Matter.Vector.mult(dir, 8)); // Slower than player projectiles
+    Matter.Body.setVelocity(projectile, Matter.Vector.mult(dir, 15));
     Matter.Composite.add(this.engine.world, projectile);
-    setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 3000);
+    setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 2000);
   }
 
   private spawnMinion(x: number, y: number) {
@@ -2255,6 +2269,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 });
     
     if (this.gameState.currentGameMode() === 'battle') {
+        this.gameState.coins.update(c => c + this.battleCoinsCollected());
         this.gameState.syncProgressToServer({
             battleHighscore: this.currentBattleScore(),
             battleBestTime: this.battleTimer(),
@@ -2527,6 +2542,10 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
   public quitGame() { 
       if (this.gameState.currentGameMode() === 'battle') {
+          // If we quit without dying, still add the collected coins
+          if (!this.isDead()) {
+              this.gameState.coins.update(c => c + this.battleCoinsCollected());
+          }
           this.gameState.syncProgressToServer({
               battleHighscore: this.currentBattleScore(),
               battleBestTime: this.battleTimer(),

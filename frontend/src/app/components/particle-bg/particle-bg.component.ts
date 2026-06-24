@@ -866,7 +866,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     else if (data.type === 'golem') color.setHex(0x7f1d1d); // Dark Red Golem
     else if (data.type === 'boss') color.setHex(0xf97316); // Orange fiery Boss
     else if (data.type === 'projectile_player') color.setHex(0xfbbf24);
-    else if (data.type === 'projectile_enemy') color.setHex(0xef4444);
+    else if (data.type === 'projectile_enemy') color.setHex(0xfbbf24);
     else if (data.type === 'aura') color.setHex(0x06b6d4);
     else if (data.type === 'coin') color.setHex(0xfacc15); // Yellow
     else if (data.type === 'gem') color.setHex(0xc084fc); // Purple
