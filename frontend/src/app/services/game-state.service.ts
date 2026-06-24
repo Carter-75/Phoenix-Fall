@@ -505,14 +505,7 @@ export class GameStateService {
   });
 
   // Phoenix Automation State
-  public phoenixOverridePosition = signal<{x: number, y: number} | null>(null);
   public aiPhoenixOverridePosition = signal<{x: number, y: number} | null>(null);
-  public phoenixScreenPos = signal<{x: number, y: number}>({x: 0, y: 0});
-  public activeEntities = signal<PhysicsEntity[]>([]);
-  public isPaused = signal<boolean>(false);
-  public isDrilling = signal<boolean>(false);
-  public isRebirthing = signal<boolean>(false);
-  public isDeadMenuOpen = signal<boolean>(false);
 
   // Sync with DB User
   syncWithUser(user: any) {

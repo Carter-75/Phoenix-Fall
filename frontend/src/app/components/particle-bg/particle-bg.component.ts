@@ -64,6 +64,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   private cosmicTrailMesh!: THREE.Points;
   private animationId!: number;
   
+  private bird!: PhoenixState;
   private aiBird!: PhoenixState;
   private readonly MAX_HISTORY = 600;
   
