@@ -567,6 +567,7 @@ export class GameComponent implements OnInit, OnDestroy {
           this.spendTokens(this.aiUpgradeTokensBox, this.aiAbilityTokensBox);
           // (Weights are preserved across respawns)
       }
+      this.gameState.aiPhoenixSpeed.set(this.aiStats.speed);
   }
 
   private initBattleMode() {
@@ -929,8 +930,46 @@ export class GameComponent implements OnInit, OnDestroy {
             const mouseSpeed = 3.0 * aiSpeedMult; 
             const currentMouse = this.gameState.aiMousePos();
             
-            // Move AI virtual mouse towards player
-            const mouseForce = Matter.Vector.sub(this.playerBody.position, currentMouse);
+            const optimalRange = this.aiStats?.attackRange || 300;
+            const distToPlayer = Matter.Vector.magnitude(Matter.Vector.sub(this.playerBody.position, enemy.position));
+            
+            let targetPosition = { x: this.playerBody.position.x, y: this.playerBody.position.y };
+            
+            if (distToPlayer < optimalRange - 50) {
+                const runDir = Matter.Vector.normalise(Matter.Vector.sub(enemy.position, this.playerBody.position));
+                targetPosition = Matter.Vector.add(enemy.position, Matter.Vector.mult(runDir, 200));
+            } else if (distToPlayer > optimalRange + 50) {
+                targetPosition = this.playerBody.position;
+            } else {
+                const timeAngle = now / 1000;
+                targetPosition = {
+                     x: this.playerBody.position.x + Math.cos(timeAngle) * optimalRange,
+                     y: this.playerBody.position.y + Math.sin(timeAngle) * optimalRange
+                };
+            }
+            
+            let dodgeVector = { x: 0, y: 0 };
+            let threats = 0;
+            const allBodies = Matter.Composite.allBodies(this.engine.world);
+            for (let b of allBodies) {
+                if (b.label === 'projectile' && b.plugin['data']?.type === 'projectile_player') {
+                    const distToProj = Matter.Vector.magnitude(Matter.Vector.sub(enemy.position, b.position));
+                    if (distToProj < 250) {
+                        const fleeForce = Matter.Vector.normalise(Matter.Vector.sub(enemy.position, b.position));
+                        const weight = (250 - distToProj) / 250;
+                        dodgeVector = Matter.Vector.add(dodgeVector, Matter.Vector.mult(fleeForce, weight * 400));
+                        threats++;
+                    }
+                }
+            }
+            if (threats > 0) {
+                 targetPosition = Matter.Vector.add(targetPosition, dodgeVector);
+            }
+            
+            targetPosition.x = Math.max(100, Math.min(window.innerWidth - 100, targetPosition.x));
+            targetPosition.y = Math.max(100, Math.min(window.innerHeight - 100, targetPosition.y));
+            
+            const mouseForce = Matter.Vector.sub(targetPosition, currentMouse);
             if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
                 const mouseNorm = Matter.Vector.normalise(mouseForce);
                 this.gameState.aiMousePos.set({
@@ -938,15 +977,12 @@ export class GameComponent implements OnInit, OnDestroy {
                     y: currentMouse.y + mouseNorm.y * mouseSpeed * delta * 60
                 });
             } else {
-                this.gameState.aiMousePos.set({ x: this.playerBody.position.x, y: this.playerBody.position.y });
+                this.gameState.aiMousePos.set({ x: targetPosition.x, y: targetPosition.y });
             }
 
             if (now - this.aiLastTapTime > (1500 / (this.aiStats?.attackSpeed || 1))) {
                 this.aiLastTapTime = now;
-                const hasTap = this.aiAbilities.some(a => ABILITIES[a]?.type === 'tap');
-                if (hasTap) {
-                    this.fireEnemyProjectile(enemy.position);
-                }
+                this.fireEnemyProjectile(enemy.position);
             }
             
             // Sync hitbox to EXACT visual 3D position of AI Phoenix
@@ -1111,8 +1147,14 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               step = 10;
               this.bossMaxHealth.set(this.aiStats.maxHealth + step);
               this.bossHealth.update(h => h + step);
+              
+              const aiBody = this.enemies.find(e => e.label === 'enemy' && e.plugin['data']?.type === 'enemy_phoenix');
+              if (aiBody) {
+                  aiBody.plugin['data'].maxHealth += step;
+                  aiBody.plugin['data'].health += step;
+              }
           }
-          if (selectedOpt === 'speed') step = 0.1;
+          if (selectedOpt === 'speed') { step = 0.1; }
           if (selectedOpt === 'magnetism') step = 0.1;
           if (selectedOpt === 'damage') step = 1;
           if (selectedOpt === 'attackSpeed') step = 0.1;
@@ -1120,6 +1162,10 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           if (selectedOpt === 'auraRadius') step = 10;
           if (selectedOpt === 'homingLevel') step = 1;
           (this.aiStats as any)[selectedOpt] += step;
+          
+          if (selectedOpt === 'speed') {
+              this.gameState.aiPhoenixSpeed.set(this.aiStats.speed);
+          }
       }
       
       this.aiUpgradesWeights[selectedOpt] = Math.max(10, (this.aiUpgradesWeights[selectedOpt] || 100) - 20);
@@ -1766,12 +1812,13 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
   private fireEnemyProjectile(source: Matter.Vector) {
     const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, source));
+    const damage = this.aiStats?.damage || 10;
     
     const projectile = Matter.Bodies.circle(source.x, source.y, 10, {
       label: 'projectile',
       isSensor: true,
       plugin: {
-          data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1 } as EnemyData
+          data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData
       }
     });
 

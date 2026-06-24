@@ -418,8 +418,8 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         const speed = 0.068 * this.gameState.currentStats().speed * screenFactor; 
         this.updateBirdPhysics(this.bird, this.mouseTarget, speed, screenFactor, false);
         
-        // Hide AI Bird if not in battle mode
-        const isBattle = this.gameState.currentGameMode() === 'battle';
+        // Hide AI Bird if not in battle mode or not playing
+        const isBattle = this.gameState.currentGameMode() === 'battle' && this.gameState.activeScreen() === 'game';
         this.aiBird.group.visible = isBattle;
         if (isBattle) {
             const aiMouse = this.gameState.aiMousePos();
@@ -447,13 +447,17 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
   private updateBirdPhysics(bird: PhoenixState, targetWaypoint: THREE.Vector3, speed: number, screenFactor: number, isAi: boolean) {
         if (!this.gameState.isPaused()) {
-          // Cinematic Override logic applies to player
-          if (!isAi) {
-              const overridePos = this.gameState.phoenixOverridePosition();
-              if (overridePos) {
-                this.updateMouseTarget(overridePos.x, overridePos.y);
-                targetWaypoint = this.mouseTarget; // Force to overridden target
-              }
+          const overridePos = isAi ? this.gameState.aiPhoenixOverridePosition() : this.gameState.phoenixOverridePosition();
+          if (overridePos) {
+              const vec = new THREE.Vector3(
+                  (overridePos.x / window.innerWidth) * 2 - 1,
+                  -(overridePos.y / window.innerHeight) * 2 + 1,
+                  0.5
+              );
+              vec.unproject(this.camera);
+              vec.sub(this.camera.position).normalize();
+              const dist = (-15 - this.camera.position.z) / vec.z;
+              targetWaypoint = this.camera.position.clone().add(vec.multiplyScalar(dist));
           }
 
           const isRebirthingNow = this.gameState.isRebirthing() && !isAi;
@@ -497,7 +501,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
                       if (modifiers && modifiers['speed']) speedMult *= modifiers['speed'];
                   }
               } else {
-                  speedMult = 1.2; 
+                  speedMult = this.gameState.aiPhoenixSpeed(); 
               }
 
               const maxTurnForce = (0.002 / this.birdScale) * speedMult * screenFactor; 

@@ -506,6 +506,7 @@ export class GameStateService {
 
   // Phoenix Automation State
   public aiPhoenixOverridePosition = signal<{x: number, y: number} | null>(null);
+  public aiPhoenixSpeed = signal<number>(1.2);
 
   // Sync with DB User
   syncWithUser(user: any) {
