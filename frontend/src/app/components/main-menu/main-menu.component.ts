@@ -131,14 +131,16 @@ import { SettingsComponent } from '../settings/settings.component';
           </div>
           
           <!-- Play Button -->
-          <button (click)="startGame('battle')" 
+          <button (mousedown)="startBattleHold()" (mouseup)="endBattleHold()" (mouseleave)="endBattleHold()"
+                  (touchstart)="startBattleHold()" (touchend)="endBattleHold()" (touchcancel)="endBattleHold()"
+                  (click)="startGame('battle')" 
                   class="relative group mt-8 transition-transform hover:scale-105 active:scale-95"
                   [class.opacity-50]="!isBattleWorldUnlocked()"
                   [class.grayscale]="!isBattleWorldUnlocked()">
             <div class="absolute inset-0 bg-red-600/20 rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity"></div>
             <img src="assets/play_button.png" alt="Play" class="relative w-32 h-32 md:w-40 md:h-40 drop-shadow-[0_0_30px_rgba(255,0,0,0.8)]" style="filter: hue-rotate(320deg) saturate(2)" />
             <p class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-red-400 font-bold tracking-widest uppercase text-sm w-max">
-              {{ isBattleWorldUnlocked() ? 'Click to Duel' : 'Coming Soon' }}
+              {{ isBattleWorldUnlocked() ? 'Click to Duel (Hold for AI Test)' : 'Coming Soon' }}
             </p>
           </button>
         </div>
@@ -169,6 +171,8 @@ export class MainMenuComponent {
   activeMenuMode: 'campaign' | 'battle' = this.gameState.currentGameMode();
   
   private touchStartY = 0;
+  private battleHoldTimer: any;
+  private holdFired = false;
 
   onTouchStart(event: TouchEvent) {
     if (event.touches.length > 0) {
@@ -244,13 +248,36 @@ export class MainMenuComponent {
     this.gameState.activeScreen.set('leaderboard');
   }
 
-  startGame(mode: 'campaign' | 'battle') {
-    if (mode === 'battle' && this.isBattleWorldUnlocked()) {
-      this.gameState.selectedWorldIndex.set(this.selectedBattleWorldIndex());
-      this.gameState.startGame(mode);
-    } else if (mode === 'campaign' && this.isWorldUnlocked()) {
-      this.gameState.selectedWorldIndex.set(this.campaignWorldIndex());
-      this.gameState.startGame(mode);
+  startBattleHold() {
+    this.holdFired = false;
+    this.battleHoldTimer = setTimeout(() => {
+        this.holdFired = true;
+        this.startGame('ai_vs_ai');
+    }, 2000);
+  }
+
+  endBattleHold() {
+    if (this.battleHoldTimer) {
+        clearTimeout(this.battleHoldTimer);
     }
+  }
+
+  startGame(mode: 'campaign' | 'battle' | 'ai_vs_ai') {
+    if (mode === 'campaign' && !this.isWorldUnlocked()) return;
+    if ((mode === 'battle' || mode === 'ai_vs_ai') && !this.isBattleWorldUnlocked()) return;
+    if (this.holdFired && mode === 'battle') return; // Prevent click firing after hold
+
+    this.audio.playSFX('select');
+    this.gameState.currentGameMode.set(mode);
+    if (mode === 'campaign') {
+        this.gameState.selectedWorldIndex.set(this.currentWorld().id);
+    } else {
+        this.gameState.selectedWorldIndex.set(this.currentBattleWorld().id);
+    }
+    
+    // Slight delay so button sound plays before routing
+    setTimeout(() => {
+        this.gameState.activeScreen.set('game');
+    }, 100);
   }
 }

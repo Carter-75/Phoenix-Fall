@@ -29,13 +29,13 @@ interface EnemyData {
       
       <!-- Progress Bar Overlay -->
       <div class="absolute top-8 left-1/2 -translate-x-1/2 w-[80%] max-w-2xl flex flex-col items-center gap-2 pointer-events-auto">
-        @if (gameState.currentGameMode() === 'battle') {
-           <span class="text-white font-bold tracking-widest uppercase drop-shadow-md text-xl">BATTLE MODE</span>
+        @if (gameState.currentGameMode() === 'battle' || gameState.currentGameMode() === 'ai_vs_ai') {
+           <span class="text-white font-bold tracking-widest uppercase drop-shadow-md text-xl">{{ gameState.currentGameMode() === 'ai_vs_ai' ? 'AI VS AI' : 'BATTLE MODE' }}</span>
            <span class="text-white/90 font-mono text-2xl font-bold">{{ formatTime(battleTimer()) }}</span>
            
-           <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4">AI PHOENIX</span>
+           <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4">AI 1 (TOP) PHOENIX</span>
            <div class="w-full h-4 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,0,0,0.2)]">
-              <div class="h-full bg-gradient-to-r from-red-600 to-fuchsia-600 transition-all duration-300"
+              <div class="h-full bg-gradient-to-r from-cyan-600 to-blue-600 transition-all duration-300"
                    [style.width]="bossHealthPercent() + '%'"></div>
            </div>
         } @else {
@@ -61,6 +61,18 @@ interface EnemyData {
         }
       </div>
       
+      <!-- AI vs AI Scoreboard UI -->
+      @if (gameState.currentGameMode() === 'ai_vs_ai') {
+          <div class="absolute bottom-20 right-4 md:right-8 flex flex-col gap-1 pointer-events-auto z-10 p-4 bg-black/50 border border-white/10 rounded-2xl backdrop-blur-sm">
+             <div class="text-white/80 font-bold text-xs tracking-widest uppercase mb-1 text-right">AI 1 (Top) Wins</div>
+             <div class="text-3xl font-black text-cyan-400 drop-shadow-md text-right">{{ gameState.ai1Wins() }}</div>
+          </div>
+          <div class="absolute bottom-20 left-4 md:left-8 flex flex-col gap-1 pointer-events-auto z-10 p-4 bg-black/50 border border-white/10 rounded-2xl backdrop-blur-sm">
+             <div class="text-white/80 font-bold text-xs tracking-widest uppercase mb-1">AI 2 (Bottom) Wins</div>
+             <div class="text-3xl font-black text-fuchsia-400 drop-shadow-md">{{ gameState.ai2Wins() }}</div>
+          </div>
+      }
+
       <!-- Battle Score UI -->
       @if (gameState.currentGameMode() === 'battle') {
           <div class="absolute bottom-20 left-4 md:left-8 flex flex-col gap-1 pointer-events-auto z-10 p-4 bg-black/50 border border-white/10 rounded-2xl backdrop-blur-sm">
@@ -77,8 +89,11 @@ interface EnemyData {
       
       <!-- Health Bar -->
       <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-48 md:w-64 flex flex-col items-center gap-2 pointer-events-auto">
+        @if (gameState.currentGameMode() === 'ai_vs_ai') {
+            <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4 text-xs">AI 2 (BOTTOM) PHOENIX</span>
+        }
         <div class="w-full h-4 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,0,0,0.2)]">
-           <div class="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
+           <div class="h-full bg-gradient-to-r from-red-600 to-fuchsia-600 transition-all duration-300"
                 [style.width]="(currentHealth() / maxHealth()) * 100 + '%'"></div>
         </div>
         <span class="text-red-400 font-bold text-sm">{{ currentHealth() }} / {{ maxHealth() }}</span>
@@ -140,6 +155,11 @@ interface EnemyData {
             <button (click)="showSettings = true" class="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/20 rounded-2xl text-white font-bold text-lg transition">
               Settings
             </button>
+            @if (gameState.currentGameMode() === 'ai_vs_ai') {
+                <button (click)="mlAi.downloadWeights()" class="w-full py-4 bg-blue-900/50 hover:bg-blue-800/50 border border-blue-500/50 rounded-2xl text-white font-bold text-lg transition">
+                  Download AI Weights
+                </button>
+            }
             <button (click)="quitFromPause()" class="w-full py-4 bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 rounded-2xl text-white/50 hover:text-white transition">
               Quit to Menu
             </button>
@@ -244,7 +264,11 @@ export class GameComponent implements OnInit, OnDestroy {
       return Math.max(0.4, Math.min(1.0, window.innerWidth / 1000));
   }
   
-  public maxHealth = computed(() => this.gameState.currentStats().maxHealth);
+  public maxHealth = computed(() => {
+      let hp = this.gameState.currentStats().maxHealth;
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') hp *= 10;
+      return hp;
+  });
   public currentHealth = signal<number>(this.maxHealth());
   public damageFlash = signal<boolean>(false);
   public reviveCount = 0;
@@ -482,7 +506,7 @@ export class GameComponent implements OnInit, OnDestroy {
     this.initPhysics();
     this.startGameLoop();
     
-    if (this.gameState.currentGameMode() === 'battle') {
+    if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') {
         this.initBattleMode();
     }
     
@@ -574,6 +598,10 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private initBattleMode() {
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+          this.gameState.ai1Wins.set(0);
+          this.gameState.ai2Wins.set(0);
+      }
       this.aiUpgradeTokensBox = 0;
       this.aiAbilityTokensBox = 0;
       this.aiUpgradesWeights = {};
@@ -872,6 +900,64 @@ export class GameComponent implements OnInit, OnDestroy {
       if (!this.isDead()) {
          const pxPos = this.gameState.phoenixScreenPos();
          Matter.Body.setPosition(this.playerBody, pxPos);
+      }
+      
+      // 1.5 AI vs AI Bot Logic for Player
+      if (this.gameState.currentGameMode() === 'ai_vs_ai' && !this.isDead()) {
+          const ai2SpeedMult = this.gameState.currentStats().speed || 1;
+          const mouseSpeed = 3.0 * ai2SpeedMult;
+          const currentMouse = this.gameState.ai2MousePos();
+          
+          let threatX = 0, threatY = 0;
+          let minDist = Infinity;
+          const allBodies = Matter.Composite.allBodies(this.engine.world);
+          for (let b of allBodies) {
+              if (b.label === 'projectile' && b.plugin['data']?.type === 'projectile_enemy') {
+                  const distToProj = Matter.Vector.magnitude(Matter.Vector.sub(this.playerBody.position, b.position));
+                  if (distToProj < minDist) {
+                      minDist = distToProj;
+                      threatX = b.position.x;
+                      threatY = b.position.y;
+                  }
+              }
+          }
+
+          const enemyTarget = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
+          const state = {
+              aiX: this.playerBody.position.x, aiY: this.playerBody.position.y,
+              playerX: enemyTarget?.position.x || window.innerWidth / 2, playerY: enemyTarget?.position.y || 100,
+              threatX: minDist < 300 ? threatX : 0,
+              threatY: minDist < 300 ? threatY : 0
+          };
+          
+          let mlAction = this.mlAi.predictTarget(state);
+          // Periodically reward survival
+          if (Math.random() < 0.05) this.mlAi.recordExperience(state, mlAction, 1);
+          
+          let targetPosition = { x: mlAction.targetX, y: mlAction.targetY };
+          targetPosition.x = Math.max(100, Math.min(window.innerWidth - 100, targetPosition.x));
+          targetPosition.y = Math.max(100, Math.min(window.innerHeight - 100, targetPosition.y));
+          
+          const mouseForce = Matter.Vector.sub(targetPosition, currentMouse);
+          if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
+              const mouseNorm = Matter.Vector.normalise(mouseForce);
+              this.gameState.ai2MousePos.set({
+                  x: currentMouse.x + mouseNorm.x * mouseSpeed * delta * 60,
+                  y: currentMouse.y + mouseNorm.y * mouseSpeed * delta * 60
+              });
+          } else {
+              this.gameState.ai2MousePos.set({ x: targetPosition.x, y: targetPosition.y });
+          }
+
+          // Auto-fire
+          if (now - this.lastClickTime > (1500 / (this.gameState.currentStats().attackSpeed || 1))) {
+              this.lastClickTime = now;
+              const ability = this.gameState.currentStats().activeTapAbility;
+              if (ability === 'burst') this.triggerBurst();
+              else if (ability === 'drill_attack') this.triggerDrillAttack();
+              else if (ability === 'fire_breath') this.triggerFireBreath();
+              else this.fireProjectile();
+          }
       }
 
       // 2. Track Hold-Still for Aura
@@ -1956,6 +2042,17 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       
       if (data.type === 'enemy_phoenix') {
           // AI Phoenix Death Logic
+          if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+              this.audioService.playSFX('explosion');
+              this.triggerImpactEffect(enemy.position.x, enemy.position.y, true);
+              this.gameState.ai2Wins.update(w => w + 1);
+              data.health = data.maxHealth;
+              this.bossHealth.set(data.maxHealth);
+              Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: -200 }); // reset off-screen
+              Matter.Body.setVelocity(enemy, { x: 0, y: 0 });
+              return;
+          }
+
           if (this.aiAbilities.includes('rebirth')) {
               // Revive via rebirth
               this.setupAiPhoenix(true);
@@ -2194,6 +2291,14 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
              }
          }, 3000);
          return;
+      }
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+          this.audioService.playSFX('explosion');
+          this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
+          this.gameState.ai1Wins.update(w => w + 1);
+          this.currentHealth.set(this.maxHealth());
+          this.gameState.ai2MousePos.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 }); // reset off-screen bottom
+          return;
       }
       this.triggerDeathSequence();
     }

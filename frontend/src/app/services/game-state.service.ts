@@ -141,7 +141,7 @@ export class GameStateService {
   public activeScreen = signal<'menu' | 'game' | 'shop' | 'login' | 'profile' | 'leaderboard' | 'codex' | 'crate_opening'>('menu');
   public unlockedWorlds = signal<number[]>([0]); // IDs of unlocked worlds
   public selectedWorldIndex = signal<number>(0);
-  public currentGameMode = signal<'campaign' | 'battle'>('campaign');
+  public currentGameMode = signal<'campaign' | 'battle' | 'ai_vs_ai'>('campaign');
   public crazyDealTimer = signal<number>(0);
   public crazyDealExpiresAt = signal<number | null>(null);
   public coinMultiplier = signal<number>(1);
@@ -166,17 +166,20 @@ export class GameStateService {
   public speedBoostUntil = 0;
   public immortalUntil = 0;
   
-  public phoenixScreenPos = signal<{x: number, y: number}>({x: window.innerWidth / 2, y: window.innerHeight / 2});
+  public mousePos = signal<{x: number, y: number}>({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   public phoenixOverridePosition = signal<{x: number, y: number} | null>(null);
-  
-  public aiPhoenixScreenPos = signal<{x: number, y: number}>({x: window.innerWidth / 2, y: 100});
-  public aiMousePos = signal<{x: number, y: number}>({x: window.innerWidth / 2, y: 100});
+  public aiMousePos = signal<{x: number, y: number}>({ x: window.innerWidth / 2, y: 100 });
+  public ai2MousePos = signal<{x: number, y: number}>({ x: window.innerWidth / 2, y: window.innerHeight - 100 });
 
   public isPaused = signal<boolean>(false);
   public isRebirthing = signal<boolean>(false);
   public isDrilling = signal<boolean>(false);
   public isDeadMenuOpen = signal<boolean>(false);
   public activeEntities = signal<PhysicsEntity[]>([]);
+
+  // AI vs AI Scoreboard
+  public ai1Wins = signal<number>(0);
+  public ai2Wins = signal<number>(0);
 
   private router = inject(Router);
 
@@ -495,6 +498,12 @@ export class GameStateService {
   public worlds = WORLDS;
 
   // Computed helper for current world's stats, falling back to defaults for any newly added stats missing in local storage
+  public phoenixScreenPos = computed(() => {
+    if (this.currentGameMode() === 'ai_vs_ai') return this.ai2MousePos();
+    if (this.phoenixOverridePosition()) return this.phoenixOverridePosition()!;
+    return this.mousePos();
+  });
+
   public currentStats = computed(() => {
       const stats = this.worldUpgrades()[this.selectedWorldIndex()];
       return { 

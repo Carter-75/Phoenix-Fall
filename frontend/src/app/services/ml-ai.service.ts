@@ -28,10 +28,43 @@ export class MlAiService {
     private isTrained = false;
     private memory: Experience[] = [];
     private maxMemory = 100;
-    
-    // Some pre-training so it isn't completely stupid at start
+    private positionHistory: {x: number, y: number}[] = [];
+    private actionHistory: MLAction[] = [];
+    private historySize = 60; // 1 second at 60fps
+
     constructor() {
-        this.preTrain();
+        this.loadWeights();
+        if (!this.isTrained) {
+            this.preTrain();
+        }
+    }
+
+    public saveWeights() {
+        if (this.isTrained) {
+            localStorage.setItem('phoenix_ml_weights', JSON.stringify(this.net.toJSON()));
+        }
+    }
+
+    private loadWeights() {
+        const saved = localStorage.getItem('phoenix_ml_weights');
+        if (saved) {
+            try {
+                this.net.fromJSON(JSON.parse(saved));
+                this.isTrained = true;
+            } catch (e) {
+                console.error("Failed to load ML weights", e);
+            }
+        }
+    }
+
+    public downloadWeights() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.net.toJSON()));
+        const dlAnchorElem = document.createElement('a');
+        dlAnchorElem.setAttribute("href", dataStr);
+        dlAnchorElem.setAttribute("download", "phoenix_ml_weights.json");
+        document.body.appendChild(dlAnchorElem);
+        dlAnchorElem.click();
+        dlAnchorElem.remove();
     }
     
     private normalizeState(s: MLState) {
@@ -91,7 +124,58 @@ export class MlAiService {
         if (!this.isTrained) return { targetX: state.playerX, targetY: state.playerY };
         const input = this.normalizeState(state);
         const output = this.net.run(input) as any;
-        return this.denormalizeAction(output);
+        const action = this.denormalizeAction(output);
+        
+        // Track history for penalties
+        this.positionHistory.push({ x: state.aiX, y: state.aiY });
+        if (this.positionHistory.length > this.historySize) this.positionHistory.shift();
+        
+        this.actionHistory.push(action);
+        if (this.actionHistory.length > this.historySize) this.actionHistory.shift();
+        
+        return action;
+    }
+    
+    public checkAdvancedPenalties(state: MLState, action: MLAction) {
+        if (this.positionHistory.length < this.historySize) return;
+
+        // 1. Detect Camping (variance in position over last 60 frames)
+        let sumX = 0, sumY = 0;
+        this.positionHistory.forEach(p => { sumX += p.x; sumY += p.y; });
+        const avgX = sumX / this.historySize;
+        const avgY = sumY / this.historySize;
+        
+        let varX = 0, varY = 0;
+        this.positionHistory.forEach(p => {
+            varX += Math.pow(p.x - avgX, 2);
+            varY += Math.pow(p.y - avgY, 2);
+        });
+        
+        const variance = (varX + varY) / this.historySize;
+        if (variance < 100) { // Extremely still
+            this.recordExperience(state, action, -5);
+            this.trainOnMemory();
+            this.positionHistory = []; // clear to prevent continuous spam
+            return;
+        }
+        
+        // 2. Detect tight circles (rapid extreme changes in action target direction)
+        let dirChanges = 0;
+        for (let i = 1; i < this.actionHistory.length; i++) {
+            const prev = this.actionHistory[i - 1];
+            const curr = this.actionHistory[i];
+            const dist = Math.hypot(curr.targetX - prev.targetX, curr.targetY - prev.targetY);
+            if (dist > window.innerWidth / 2) {
+                dirChanges++;
+            }
+        }
+        
+        // If it wildly changed targets across the screen more than 10 times in 1 second
+        if (dirChanges > 10) {
+            this.recordExperience(state, action, -5);
+            this.trainOnMemory();
+            this.actionHistory = []; // clear
+        }
     }
     
     public recordExperience(state: MLState, action: MLAction, reward: number) {
