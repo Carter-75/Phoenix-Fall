@@ -157,13 +157,13 @@ export class MainMenuComponent {
   auth = inject(AuthService);
   audio = inject(AudioService);
 
-  campaignWorldIndex = 0;
-  currentWorld = computed(() => this.gameState.worlds[this.campaignWorldIndex]);
-  isWorldUnlocked = computed(() => this.campaignWorldIndex === 0);
+  campaignWorldIndex = signal(0);
+  currentWorld = computed(() => this.gameState.worlds[this.campaignWorldIndex()]);
+  isWorldUnlocked = computed(() => this.campaignWorldIndex() === 0);
   
-  selectedBattleWorldIndex = 0;
-  currentBattleWorld = computed(() => this.gameState.worlds[this.selectedBattleWorldIndex]);
-  isBattleWorldUnlocked = computed(() => this.selectedBattleWorldIndex === 0);
+  selectedBattleWorldIndex = signal(0);
+  currentBattleWorld = computed(() => this.gameState.worlds[this.selectedBattleWorldIndex()]);
+  isBattleWorldUnlocked = computed(() => this.selectedBattleWorldIndex() === 0);
   
   showSettings = false;
   activeMenuMode: 'campaign' | 'battle' = 'campaign';
@@ -201,27 +201,27 @@ export class MainMenuComponent {
   }
 
   nextWorld() {
-    let idx = this.campaignWorldIndex + 1;
+    let idx = this.campaignWorldIndex() + 1;
     if (idx >= this.gameState.worlds.length) idx = 0;
-    this.campaignWorldIndex = idx;
+    this.campaignWorldIndex.set(idx);
   }
 
   prevWorld() {
-    let idx = this.campaignWorldIndex - 1;
+    let idx = this.campaignWorldIndex() - 1;
     if (idx < 0) idx = this.gameState.worlds.length - 1;
-    this.campaignWorldIndex = idx;
+    this.campaignWorldIndex.set(idx);
   }
 
   nextBattleWorld() {
-    let idx = this.selectedBattleWorldIndex + 1;
+    let idx = this.selectedBattleWorldIndex() + 1;
     if (idx >= this.gameState.worlds.length) idx = 0;
-    this.selectedBattleWorldIndex = idx;
+    this.selectedBattleWorldIndex.set(idx);
   }
 
   prevBattleWorld() {
-    let idx = this.selectedBattleWorldIndex - 1;
+    let idx = this.selectedBattleWorldIndex() - 1;
     if (idx < 0) idx = this.gameState.worlds.length - 1;
-    this.selectedBattleWorldIndex = idx;
+    this.selectedBattleWorldIndex.set(idx);
   }
 
   openShop() {
@@ -246,10 +246,10 @@ export class MainMenuComponent {
 
   startGame(mode: 'campaign' | 'battle') {
     if (mode === 'battle' && this.isBattleWorldUnlocked()) {
-      this.gameState.selectedWorldIndex.set(this.selectedBattleWorldIndex);
+      this.gameState.selectedWorldIndex.set(this.selectedBattleWorldIndex());
       this.gameState.startGame(mode);
     } else if (mode === 'campaign' && this.isWorldUnlocked()) {
-      this.gameState.selectedWorldIndex.set(this.campaignWorldIndex);
+      this.gameState.selectedWorldIndex.set(this.campaignWorldIndex());
       this.gameState.startGame(mode);
     }
   }
