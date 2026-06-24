@@ -1,4 +1,4 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { GameStateService } from '../../services/game-state.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
