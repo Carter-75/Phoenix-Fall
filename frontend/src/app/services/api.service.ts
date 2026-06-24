@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, tap, catchError, of } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 @Injectable({
@@ -40,7 +40,8 @@ export class ApiService {
       tap({
         next: user => this.currentUser.set(user),
         error: () => this.currentUser.set(null)
-      })
+      }),
+      catchError(err => of(null))
     );
   }
 

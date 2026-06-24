@@ -20,7 +20,7 @@ const logger = require('morgan');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const helmet = require('helmet');
-const session = require('express-session');
+// session removed
 const passport = require('passport');
 
 const app = express();
@@ -120,32 +120,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-const connectMongo = require('connect-mongo');
-const MongoStore = connectMongo.default || connectMongo.MongoStore || connectMongo;
-
-// Sessions
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'secret',
-    resave: false,
-    saveUninitialized: false,
-    store: mongoURI ? MongoStore.create({
-      clientPromise: mongoose.connection.asPromise().then(m => m.getClient()),
-      collectionName: 'sessions',
-      autoRemove: 'native'
-    }) : undefined,
-    cookie: {
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-      partitioned: isProd,
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-    }
-  })
-);
+// Session and MongoStore removed for JWT
 
 // Passport
 app.use(passport.initialize());
-app.use(passport.session());
+// app.use(passport.session()); removed since we use JWT
 
 app.get('/', (req, res) => {
   res.send(`API for ${PROJECT_NAME} is running`);

@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap, catchError, of } from 'rxjs';
+import { Observable, tap, catchError, of, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
@@ -60,20 +60,31 @@ export class AuthService {
 
   deleteAccount(): Observable<any> {
     return this.http.delete(`${this.apiUrl}/user`).pipe(
-      tap(() => this.currentUser.set(null)),
+      tap(() => {
+        localStorage.removeItem('auth_token');
+        this.currentUser.set(null);
+      }),
       catchError(err => of(null))
     );
   }
 
-  register(data: any): Observable<User> {
-    return this.http.post<User>(`${this.apiUrl}/register`, data).pipe(
-      tap(user => this.currentUser.set(user))
+  register(credentials: any): Observable<User> {
+    return this.http.post<{user: User, token: string}>(`${this.apiUrl}/register`, credentials).pipe(
+      tap(res => {
+        if (res.token) localStorage.setItem('auth_token', res.token);
+        this.currentUser.set(res.user);
+      }),
+      map(res => res.user)
     );
   }
 
   completeSignup(username: string): Observable<User> {
-    return this.http.post<User>(`${this.apiUrl}/complete-signup`, { username }).pipe(
-      tap(user => this.currentUser.set(user))
+    return this.http.post<{user: User, token: string}>(`${this.apiUrl}/complete-signup`, { username }).pipe(
+      tap(res => {
+        if (res.token) localStorage.setItem('auth_token', res.token);
+        this.currentUser.set(res.user);
+      }),
+      map(res => res.user)
     );
   }
 
@@ -97,10 +108,19 @@ export class AuthService {
   }
 
   checkStatus(): Observable<User | null> {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      this.currentUser.set(null);
+      return of(null);
+    }
+    
     return this.http.get<User>(`${this.apiUrl}/user`).pipe(
       tap({
         next: user => this.currentUser.set(user),
-        error: () => this.currentUser.set(null)
+        error: () => {
+           localStorage.removeItem('auth_token');
+           this.currentUser.set(null);
+        }
       }),
       catchError(err => of(null))
     );
@@ -110,6 +130,7 @@ export class AuthService {
     this.http.get(`${this.apiUrl}/logout`).pipe(
       catchError(err => of(null))
     ).subscribe(() => {
+      localStorage.removeItem('auth_token');
       this.currentUser.set(null);
     });
   }

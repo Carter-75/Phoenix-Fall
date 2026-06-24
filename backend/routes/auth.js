@@ -3,6 +3,16 @@ const passport = require('passport');
 const router = express.Router();
 const User = require('../models/user');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const secret = process.env.SESSION_SECRET || 'secret';
+
+function generateToken(user) {
+  if (user.isTemp) {
+     // Sign plain object for temp user
+     return jwt.sign(user, secret, { expiresIn: '1h' });
+  }
+  return jwt.sign({ id: user._id }, secret, { expiresIn: '30d' });
+}
 
 // --- Local Auth ---
 router.post('/register', async (req, res) => {
@@ -25,11 +35,8 @@ router.post('/register', async (req, res) => {
         password: hashedPassword
     };
     
-    req.login(tempUser, (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      req.session.cookie.maxAge = 60 * 60 * 1000; // 1 hour for temp
-      res.status(201).json(tempUser);
-    });
+    const token = generateToken(tempUser);
+    res.status(201).json({ user: tempUser, token });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -39,11 +46,8 @@ router.post('/login', (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
     if (err) return next(err);
     if (!user) return res.status(401).json({ message: info.message || 'Login failed' });
-    req.login(user, (err) => {
-      if (err) return next(err);
-      req.session.cookie.maxAge = user.isTemp ? 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
-      res.json(user);
-    });
+    const token = generateToken(user);
+    res.json({ user, token });
   })(req, res, next);
 });
 
@@ -73,11 +77,8 @@ router.post('/complete-signup', async (req, res) => {
 
         const newUser = await User.create(newUserConfig);
         
-        req.login(newUser, (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-            res.json(newUser);
-        });
+        const token = generateToken(newUser);
+        res.json({ user: newUser, token });
     } catch(err) {
         res.status(500).json({ error: err.message });
     }
@@ -94,14 +95,11 @@ router.get('/google/callback', (req, res, next) => {
       return res.redirect(`${frontendUrl}?error=google`);
     }
     
-    req.login(user, (err) => {
-      if (err) return next(err);
-      req.session.cookie.maxAge = user.isTemp ? 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
-      if (user.isTemp) {
-          return res.redirect(`${frontendUrl}?mode=set-username`);
-      }
-      res.redirect(`${frontendUrl}`);
-    });
+    const token = generateToken(user);
+    if (user.isTemp) {
+        return res.redirect(`${frontendUrl}?mode=set-username&token=${token}`);
+    }
+    res.redirect(`${frontendUrl}?token=${token}`);
   })(req, res, next);
 });
 
@@ -141,17 +139,11 @@ router.post('/google/native', async (req, res) => {
                 googleId: payload.sub,
                 email: payload.email,
             };
-            req.login(tempUser, (err) => {
-                if (err) return res.status(500).json({ error: err.message });
-                req.session.cookie.maxAge = 60 * 60 * 1000; // 1 hour for temp
-                return res.json(tempUser);
-            });
+            const token = generateToken(tempUser);
+            return res.json({ user: tempUser, token });
         } else {
-            req.login(user, (err) => {
-                if (err) return res.status(500).json({ error: err.message });
-                req.session.cookie.maxAge = user.isTemp ? 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
-                return res.json(user);
-            });
+            const token = generateToken(user);
+            return res.json({ user, token });
         }
     } catch (err) {
         console.error('Native Google Auth Error:', err);
@@ -161,13 +153,11 @@ router.post('/google/native', async (req, res) => {
 
 
 // --- Common ---
-router.get('/user', (req, res) => {
-  if (req.isAuthenticated()) res.json(req.user);
-  else res.status(401).json({ message: 'Not authenticated' });
+router.get('/user', passport.authenticate('jwt', { session: false }), (req, res) => {
+  res.json(req.user);
 });
 
-router.post('/sync', async (req, res) => {
-  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
+router.post('/sync', passport.authenticate('jwt', { session: false }), async (req, res) => {
   try {
     const user = req.user;
     
@@ -214,15 +204,12 @@ router.post('/sync', async (req, res) => {
   }
 });
 
-router.get('/logout', (req, res, next) => {
-  req.logout((err) => {
-    if (err) return next(err);
-    res.json({ message: 'Logged out' });
-  });
+router.get('/logout', (req, res) => {
+  // Client is responsible for deleting the token
+  res.json({ message: 'Logged out' });
 });
 
-router.post('/accept-policies', async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
+router.post('/accept-policies', passport.authenticate('jwt', { session: false }), async (req, res) => {
     try {
         req.user.acceptedLegalPolicies = true;
         await req.user.save();
@@ -232,14 +219,10 @@ router.post('/accept-policies', async (req, res) => {
     }
 });
 
-router.delete('/user', async (req, res, next) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
+router.delete('/user', passport.authenticate('jwt', { session: false }), async (req, res) => {
     try {
         await User.findByIdAndDelete(req.user._id);
-        req.logout((err) => {
-            if (err) return next(err);
-            res.json({ message: 'Account deleted successfully' });
-        });
+        res.json({ message: 'Account deleted successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

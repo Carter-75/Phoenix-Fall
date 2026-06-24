@@ -61,6 +61,14 @@ import { AuthService } from './services/auth.service';
 })
 export class App {
   constructor(public gameState: GameStateService, private auth: AuthService) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      if (token) {
+          localStorage.setItem('auth_token', token);
+          const mode = urlParams.get('mode');
+          window.history.replaceState({}, document.title, window.location.pathname + (mode ? `?mode=${mode}` : ''));
+      }
+
       this.auth.checkStatus().subscribe(user => {
           if (user) {
               if (user.isTemp) {
@@ -71,7 +79,6 @@ export class App {
           }
       });
 
-      const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('mode') === 'set-username') {
           this.gameState.activeScreen.set('login');
       }
