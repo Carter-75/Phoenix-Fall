@@ -11,7 +11,7 @@ import { SettingsComponent } from '../settings/settings.component';
   imports: [CommonModule, SettingsComponent],
   template: `
     <div class="fixed inset-0 w-full h-[200vh] transition-transform duration-500 ease-in-out"
-         [style.transform]="activeMenuMode === 'campaign' ? 'translateY(0)' : 'translateY(-50vh)'"
+         [style.transform]="activeMenuMode === 'campaign' ? 'translateY(0)' : 'translateY(-50%)'"
          (touchstart)="onTouchStart($event)"
          (touchend)="onTouchEnd($event)"
          (wheel)="onWheel($event)">
@@ -116,29 +116,29 @@ import { SettingsComponent } from '../settings/settings.component';
           
           <!-- World Selector -->
           <div class="flex items-center gap-6 mt-4 bg-black/40 backdrop-blur-md px-6 py-3 rounded-full border border-red-500/20 shadow-[0_0_15px_rgba(255,0,0,0.2)]">
-            <button (click)="prevWorld()" class="text-red-500/50 hover:text-red-400 transition text-2xl hover:-translate-x-1">&larr;</button>
+            <button (click)="prevBattleWorld()" class="text-red-500/50 hover:text-red-400 transition text-2xl hover:-translate-x-1">&larr;</button>
             <div class="w-48 text-center flex flex-col items-center justify-center">
-              <span class="text-sm text-red-400/50 uppercase tracking-widest font-bold">Realm {{ currentWorld().id + 1 }}</span>
+              <span class="text-sm text-red-400/50 uppercase tracking-widest font-bold">Realm {{ currentBattleWorld().id + 1 }}</span>
               <span class="text-xl font-black tracking-wider transition-colors duration-300 text-transparent bg-clip-text bg-gradient-to-r"
-                    [ngClass]="currentWorld().textColorClass">
-                {{ currentWorld().name }}
+                    [ngClass]="currentBattleWorld().textColorClass">
+                {{ currentBattleWorld().name }}
               </span>
-              @if (!isWorldUnlocked()) {
+              @if (!isBattleWorldUnlocked()) {
                 <span class="absolute -top-3 -right-6 text-xs text-orange-400 font-bold uppercase tracking-widest animate-pulse border border-orange-500/30 bg-black/50 px-2 py-1 rounded-md">Soon</span>
               }
             </div>
-            <button (click)="nextWorld()" class="text-red-500/50 hover:text-red-400 transition text-2xl hover:translate-x-1">&rarr;</button>
+            <button (click)="nextBattleWorld()" class="text-red-500/50 hover:text-red-400 transition text-2xl hover:translate-x-1">&rarr;</button>
           </div>
           
           <!-- Play Button -->
           <button (click)="startGame('battle')" 
                   class="relative group mt-8 transition-transform hover:scale-105 active:scale-95"
-                  [class.opacity-50]="!isWorldUnlocked()"
-                  [class.grayscale]="!isWorldUnlocked()">
+                  [class.opacity-50]="!isBattleWorldUnlocked()"
+                  [class.grayscale]="!isBattleWorldUnlocked()">
             <div class="absolute inset-0 bg-red-600/20 rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity"></div>
             <img src="assets/play_button.png" alt="Play" class="relative w-32 h-32 md:w-40 md:h-40 drop-shadow-[0_0_30px_rgba(255,0,0,0.8)]" style="filter: hue-rotate(320deg) saturate(2)" />
             <p class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-red-400 font-bold tracking-widest uppercase text-sm w-max">
-              {{ isWorldUnlocked() ? 'Click to Duel' : 'Coming Soon' }}
+              {{ isBattleWorldUnlocked() ? 'Click to Duel' : 'Coming Soon' }}
             </p>
           </button>
         </div>
@@ -157,8 +157,13 @@ export class MainMenuComponent {
   auth = inject(AuthService);
   audio = inject(AudioService);
 
-  currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
-  isWorldUnlocked = computed(() => this.gameState.selectedWorldIndex() === 0);
+  campaignWorldIndex = 0;
+  currentWorld = computed(() => this.gameState.worlds[this.campaignWorldIndex]);
+  isWorldUnlocked = computed(() => this.campaignWorldIndex === 0);
+  
+  selectedBattleWorldIndex = 0;
+  currentBattleWorld = computed(() => this.gameState.worlds[this.selectedBattleWorldIndex]);
+  isBattleWorldUnlocked = computed(() => this.selectedBattleWorldIndex === 0);
   
   showSettings = false;
   activeMenuMode: 'campaign' | 'battle' = 'campaign';
@@ -196,15 +201,27 @@ export class MainMenuComponent {
   }
 
   nextWorld() {
-    let idx = this.gameState.selectedWorldIndex() + 1;
+    let idx = this.campaignWorldIndex + 1;
     if (idx >= this.gameState.worlds.length) idx = 0;
-    this.gameState.selectedWorldIndex.set(idx);
+    this.campaignWorldIndex = idx;
   }
 
   prevWorld() {
-    let idx = this.gameState.selectedWorldIndex() - 1;
+    let idx = this.campaignWorldIndex - 1;
     if (idx < 0) idx = this.gameState.worlds.length - 1;
-    this.gameState.selectedWorldIndex.set(idx);
+    this.campaignWorldIndex = idx;
+  }
+
+  nextBattleWorld() {
+    let idx = this.selectedBattleWorldIndex + 1;
+    if (idx >= this.gameState.worlds.length) idx = 0;
+    this.selectedBattleWorldIndex = idx;
+  }
+
+  prevBattleWorld() {
+    let idx = this.selectedBattleWorldIndex - 1;
+    if (idx < 0) idx = this.gameState.worlds.length - 1;
+    this.selectedBattleWorldIndex = idx;
   }
 
   openShop() {
@@ -228,7 +245,11 @@ export class MainMenuComponent {
   }
 
   startGame(mode: 'campaign' | 'battle') {
-    if (this.isWorldUnlocked()) {
+    if (mode === 'battle' && this.isBattleWorldUnlocked()) {
+      this.gameState.selectedWorldIndex.set(this.selectedBattleWorldIndex);
+      this.gameState.startGame(mode);
+    } else if (mode === 'campaign' && this.isWorldUnlocked()) {
+      this.gameState.selectedWorldIndex.set(this.campaignWorldIndex);
       this.gameState.startGame(mode);
     }
   }
