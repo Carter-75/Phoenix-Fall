@@ -18,6 +18,7 @@ interface EnemyData {
   burstDamage?: number; // Custom damage payload
   value?: number;
   aiAbilities?: { id: string; level: number }[]; // For Battle Mode
+  owner?: 'player' | 'enemy';
 }
 
 @Component({
@@ -831,7 +832,9 @@ export class GameComponent implements OnInit, OnDestroy {
             if (data.type !== 'boss') {
                 Matter.Body.applyForce(otherBody, otherBody.position, Matter.Vector.mult(normalized, -0.05));
             }
-          } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy' || data.type === 'annihilation_fire')) {
+          } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy' || data.type === 'annihilation_fire' || data.type === 'fire' || data.type === 'aura')) {
+            if (data.owner === 'player') continue;
+            
             if (data.type === 'projectile_enemy' && this.gameState.currentGameMode() === 'battle') {
                 if (this.battleDropReady() && !this.battleDropGrace()) {
                     this.resolveBattleDrop(false, this.playerBody.position.x, this.playerBody.position.y);
@@ -846,6 +849,10 @@ export class GameComponent implements OnInit, OnDestroy {
                         }
                     }, 500);
                 }
+            } else if (data.type === 'fire') {
+                this.takeDamage(data.burstDamage || 10);
+            } else if (data.type === 'aura') {
+                this.takeDamage(5);
             } else {
                 this.takeDamage(15);
             }
@@ -922,7 +929,7 @@ export class GameComponent implements OnInit, OnDestroy {
           
           if (other.label === 'enemy' || other.label === 'boss') {
             const projData = projectile.plugin['data'] as EnemyData;
-            if (!projData || projData.type === 'projectile_enemy') continue;
+            if (!projData || projData.type === 'projectile_enemy' || projData.owner === 'enemy') continue;
 
             if (projData.type === 'egg' || projData.type === 'turret') {
                 projData.health -= (other.label === 'boss' ? 50 : 10);
