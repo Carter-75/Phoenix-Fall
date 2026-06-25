@@ -418,7 +418,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         const speed = 0.068 * this.gameState.currentStats().speed * screenFactor; 
         
         let targetForMainBird = this.mouseTarget;
-        if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+        if (this.gameState.currentGameMode() === 'ai_vs_ai' && this.gameState.activeScreen() === 'game') {
             const ai2Mouse = this.gameState.ai2MousePos();
             const ai2Vec = new THREE.Vector3(
                 (ai2Mouse.x / window.innerWidth) * 2 - 1,
