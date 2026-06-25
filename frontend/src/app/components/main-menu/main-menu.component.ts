@@ -30,13 +30,13 @@ import { SettingsComponent } from '../settings/settings.component';
         <button (click)="openCodex()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md text-amber-400">
           Codex
         </button>
-        <button (click)="openLeaderboard()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
+        <button (click)="openLeaderboard()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md text-white">
           Leaderboard
         </button>
-        <button (click)="openProfile()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
+        <button (click)="openProfile()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md text-white">
           {{ auth.currentUser() ? (auth.currentUser()!.isTemp ? 'Finish Signup' : auth.currentUser()!.username) : 'Sign In' }}
         </button>
-        <button (click)="openShop()" class="transition hover:scale-110 active:scale-95">
+        <button (click)="openShop()" class="transition hover:scale-110 active:scale-95 text-white">
           <img src="assets/shop_icon.png" alt="Shop" class="w-12 h-12 md:w-16 md:h-16 drop-shadow-xl" />
         </button>
       </div>

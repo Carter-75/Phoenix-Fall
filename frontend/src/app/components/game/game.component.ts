@@ -1,6 +1,6 @@
 import { Component, ElementRef, OnInit, OnDestroy, ViewChild, inject, NgZone, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GameStateService, PhysicsEntity, ABILITIES, WorldStats, BASE_STATS } from '../../services/game-state.service';
+import { GameStateService, PhysicsEntity, ABILITIES, WorldStats, BASE_STATS, REALM_ABILITIES } from '../../services/game-state.service';
 import { Capacitor } from '@capacitor/core';
 import { AudioService } from '../../services/audio.service';
 import { SettingsComponent } from '../settings/settings.component';
@@ -265,12 +265,8 @@ export class GameComponent implements OnInit, OnDestroy {
       return Math.max(0.4, Math.min(1.0, window.innerWidth / 1000));
   }
   
-  public maxHealth = computed(() => {
-      let hp = this.gameState.currentStats().maxHealth;
-      if (this.gameState.currentGameMode() === 'ai_vs_ai') hp *= 10;
-      return hp;
-  });
-  public currentHealth = signal<number>(this.maxHealth());
+  public maxHealth = signal<number>(100);
+  public currentHealth = signal<number>(100);
   public damageFlash = signal<boolean>(false);
   public reviveCount = 0;
   public celestialShieldActive = signal<boolean>(true);
@@ -306,6 +302,14 @@ export class GameComponent implements OnInit, OnDestroy {
   public aiLastHoldTime: number = 0;
   public aiUpgradeTokensBox: number = 0;
   public aiAbilityTokensBox: number = 0;
+
+  public ai2Stats!: WorldStats;
+  public ai2Abilities: string[] = [];
+  public ai2LastAbilityTime: number = 0;
+  public ai2UpgradesWeights: Record<string, number> = {};
+  public ai2Coins: number = 0;
+  public ai2UpgradeTokensBox: number = 0;
+  public ai2AbilityTokensBox: number = 0;
   
   public battleTimer = signal<number>(0);
   public battleDropReady = signal<boolean>(false);
@@ -577,7 +581,10 @@ export class GameComponent implements OnInit, OnDestroy {
     this.inBossDefeatSequence.set(false);
     this.gameState.isDeadMenuOpen.set(false);
     
-    this.currentHealth.set(this.maxHealth());
+    let hp = this.gameState.currentStats().maxHealth;
+    if (this.gameState.currentGameMode() === 'ai_vs_ai') hp *= 10;
+    this.maxHealth.set(hp);
+    this.currentHealth.set(hp);
     this.gameState.sessionPlayTime.set(0);
     this.gameState.sessionKills.set({});
     this.gameState.heartsCollected.set(0);
@@ -642,9 +649,11 @@ export class GameComponent implements OnInit, OnDestroy {
       this.aiStats = JSON.parse(JSON.stringify(playerStats));
       this.aiStats.maxHealth *= 10; // Scale base health x10 for Battle Mode boss pool
       
-      const unlockedKeys = Object.keys(playerStats.unlockedAbilities);
-      const tapAbilities = unlockedKeys.filter(k => ABILITIES[k]?.type === 'tap' && k !== 'rebirth');
-      const holdAbilities = unlockedKeys.filter(k => ABILITIES[k]?.type === 'hold' && k !== 'rebirth');
+      const worldId = this.gameState.selectedWorldIndex();
+      const realmAbilities = REALM_ABILITIES[worldId] || ['burst', 'aura'];
+      
+      const tapAbilities = realmAbilities.filter(k => ABILITIES[k]?.type === 'tap' && k !== 'rebirth');
+      const holdAbilities = realmAbilities.filter(k => ABILITIES[k]?.type === 'hold' && k !== 'rebirth');
       
       let tap = tapAbilities.length > 0 ? tapAbilities[Math.floor(Math.random() * tapAbilities.length)] : 'burst';
       let hold = holdAbilities.length > 0 ? holdAbilities[Math.floor(Math.random() * holdAbilities.length)] : 'aura';
@@ -675,14 +684,50 @@ export class GameComponent implements OnInit, OnDestroy {
           }
           
           // Spend tokens
-          this.spendTokens(initialUpgradeTokens, initialAbilityTokens);
+          this.spendTokens(initialUpgradeTokens, initialAbilityTokens, 'ai1');
           this.aiUpgradesWeights = {}; // reset weights after init
       } else {
           // On respawn, spend accumulated tokens from boxes
-          this.spendTokens(this.aiUpgradeTokensBox, this.aiAbilityTokensBox);
+          this.spendTokens(this.aiUpgradeTokensBox, this.aiAbilityTokensBox, 'ai1');
           // (Weights are preserved across respawns)
       }
       this.gameState.aiPhoenixSpeed.set(this.aiStats.speed);
+  }
+
+  private setupAi2Phoenix(isRespawn: boolean) {
+      const playerStats = this.gameState.currentStats();
+      this.ai2Stats = JSON.parse(JSON.stringify(playerStats));
+      this.ai2Stats.maxHealth *= 10; // AI2 gets x10 health as well
+      
+      let tap = playerStats.activeTapAbility || 'burst';
+      let hold = playerStats.activeHoldAbility || 'aura';
+      
+      this.ai2Abilities = [tap, hold];
+      
+      const playerTapLevel = playerStats.activeTapAbility ? (playerStats.unlockedAbilities[playerStats.activeTapAbility]?.level || 1) : 1;
+      const playerHoldLevel = playerStats.activeHoldAbility ? (playerStats.unlockedAbilities[playerStats.activeHoldAbility]?.level || 1) : 1;
+      const avgPlayerLevel = Math.max(1, Math.floor((playerTapLevel + playerHoldLevel) / 2));
+      
+      this.ai2Abilities.forEach(id => {
+          this.ai2Stats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
+          this.ai2Stats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
+      });
+
+      if (!isRespawn) {
+          const statCount = 8;
+          let initialUpgradeTokens = 0;
+          for(let i=0; i<statCount; i++) {
+              initialUpgradeTokens += Math.floor(Math.random() * 5) + 1;
+          }
+          
+          let initialAbilityTokens = 0;
+          for(let i=0; i<2; i++) {
+              initialAbilityTokens += Math.floor(Math.random() * 5) + 1;
+          }
+          
+          this.spendTokens(initialUpgradeTokens, initialAbilityTokens, 'ai2');
+          this.ai2UpgradesWeights = {}; 
+      }
   }
 
   private initBattleMode() {
@@ -694,9 +739,17 @@ export class GameComponent implements OnInit, OnDestroy {
       this.aiAbilityTokensBox = 0;
       this.aiUpgradesWeights = {};
       
+      this.ai2UpgradeTokensBox = 0;
+      this.ai2AbilityTokensBox = 0;
+      this.ai2UpgradesWeights = {};
+      
       this.setupAiPhoenix(false);
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+          this.setupAi2Phoenix(false);
+      }
       
       this.aiCoins = 0;
+      this.ai2Coins = 0;
       this.aiCoinGainRate = 2;
       this.nextDropIndex = 0;
       this.battleDropReady.set(false);
@@ -1074,31 +1127,25 @@ export class GameComponent implements OnInit, OnDestroy {
               this.gameState.ai2MousePos.set({ x: targetPosition.x, y: targetPosition.y });
           }
 
-          // Use ML abilities
+          // Use ML abilities for Bottom AI
           if (enemyTarget) {
-              // We temporarily spoof the mouse coordinates so the player abilities aim at the enemy
-              const realMouseX = this.mouseX;
-              const realMouseY = this.mouseY;
-              this.mouseX = enemyTarget.position.x;
-              this.mouseY = enemyTarget.position.y;
-
-              if (mlAction.useTap > 0.5 && this.tapCooldown() === 0 && this.gameState.currentStats().activeTapAbility) {
-                  const ability = this.gameState.currentStats().activeTapAbility;
-                  if (ability === 'burst') this.triggerBurst();
-                  else if (ability === 'drill_attack') this.triggerDrillAttack();
-                  else if (ability === 'fire_breath') this.triggerFireBreath();
+              const now = Date.now();
+              if (!this.ai2LastAbilityTime || now - this.ai2LastAbilityTime > 3000) {
+                  let used = false;
+                  if (mlAction.useTap > 0.5) {
+                      const ability = this.ai2Abilities.find(ab => ABILITIES[ab]?.type === 'tap') || 'burst';
+                      this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.ai2Stats, 'player');
+                      used = true;
+                  } else if (mlAction.useHold > 0.5) {
+                      const ability = this.ai2Abilities.find(ab => ABILITIES[ab]?.type === 'hold') || 'aura';
+                      this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.ai2Stats, 'player');
+                      used = true;
+                  }
+                  
+                  if (used) {
+                      this.ai2LastAbilityTime = now;
+                  }
               }
-
-              if (mlAction.useHold > 0.5 && this.holdCooldown() === 0 && this.gameState.currentStats().activeHoldAbility) {
-                  const ability = this.gameState.currentStats().activeHoldAbility;
-                  if (ability === 'drill_attack') this.triggerDrillAttack();
-                  else if (ability === 'fire_breath') this.triggerFireBreath();
-                  else if (ability === 'phoenix_turret') this.triggerPhoenixTurret();
-                  else if (ability === 'aura') this.triggerAura();
-              }
-
-              this.mouseX = realMouseX;
-              this.mouseY = realMouseY;
           }
 
           // Auto-fire (Normal projectiles)
@@ -1119,8 +1166,9 @@ export class GameComponent implements OnInit, OnDestroy {
             this.holdTimer += delta * 1000;
             if (this.holdTimer >= 3000 && this.holdCooldown() <= 0) {
                 const ability = this.gameState.currentStats().activeHoldAbility;
-                if (ability === 'aura') this.triggerAura();
-                else if (ability === 'phoenix_turret') this.triggerPhoenixTurret();
+                if (ability) {
+                    this.triggerAbility(ability, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
+                }
                 
                 this.holdTimer = 0;
             }
@@ -1232,43 +1280,15 @@ export class GameComponent implements OnInit, OnDestroy {
                     const holdAb = this.aiAbilities.find(ab => ABILITIES[ab]?.type === 'hold');
                     
                     if (mlAction.useTap > 0.5 && tapAb) {
-                        this.triggerEnemyAbility(tapAb, enemy, this.playerBody.position);
+                        this.triggerAbility(tapAb, enemy, mlAction.targetX, mlAction.targetY, this.aiStats, 'enemy');
                         used = true;
                     } else if (mlAction.useHold > 0.5 && holdAb) {
-                        this.triggerEnemyAbility(holdAb, enemy, this.playerBody.position);
+                        this.triggerAbility(holdAb, enemy, mlAction.targetX, mlAction.targetY, this.aiStats, 'enemy');
                         used = true;
                     }
                     
                     if (used) {
                         eAny.lastAbilityTime = now;
-                    }
-                }
-            }
-                
-            // Process ML Abilities for Bottom AI (Player AI)
-            if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-                const now = Date.now();
-                if (!eAny.lastPlayerAbilityTime || now - eAny.lastPlayerAbilityTime > 3000) {
-                    let usedPlayer = false;
-                    this.mouseX = enemy.position.x;
-                    this.mouseY = enemy.position.y;
-
-                    const activeTap = this.gameState.currentStats().activeTapAbility;
-                    const activeHold = this.gameState.currentStats().activeHoldAbility;
-
-                    if (mlAction.useTap > 0.5 && activeTap && this.tapCooldown() === 0) {
-                        if (activeTap === 'drill_attack') this.triggerDrillAttack();
-                        else if (activeTap === 'burst') this.triggerBurst();
-                        else if (activeTap === 'fire_breath') this.triggerFireBreath();
-                        usedPlayer = true;
-                    } else if (mlAction.useHold > 0.5 && activeHold && this.holdCooldown() === 0) {
-                        if (activeHold === 'aura') this.triggerAura();
-                        else if (activeHold === 'phoenix_turret') this.triggerPhoenixTurret();
-                        usedPlayer = true;
-                    }
-                    
-                    if (usedPlayer) {
-                        eAny.lastPlayerAbilityTime = now;
                     }
                 }
             }
@@ -1401,99 +1421,113 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     Runner.run(this.runner, this.engine);
   }
 
-  private spendTokens(upgradeTokens: number, abilityTokens: number) {
+  private spendTokens(upgradeTokens: number, abilityTokens: number, target: 'ai1' | 'ai2') {
       const statOptions = ['maxHealth', 'speed', 'magnetism', 'damage', 'attackSpeed', 'attackRange', 'auraRadius', 'homingLevel'];
+      const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
+      const abilities = target === 'ai1' ? this.aiAbilities : this.ai2Abilities;
       
       for(let i=0; i<upgradeTokens; i++) {
           let totalWeight = 0;
           statOptions.forEach(opt => {
-              if (this.aiUpgradesWeights[opt] === undefined) this.aiUpgradesWeights[opt] = 100;
-              totalWeight += this.aiUpgradesWeights[opt];
+              if (weights[opt] === undefined) weights[opt] = 100;
+              totalWeight += weights[opt];
           });
           
           let rand = Math.random() * totalWeight;
           let selectedOpt = statOptions[0];
           for (let opt of statOptions) {
-              rand -= this.aiUpgradesWeights[opt];
+              rand -= weights[opt];
               if (rand <= 0) {
                   selectedOpt = opt;
                   break;
               }
           }
-          this.applyAiUpgrade(selectedOpt);
+          this.applyAiUpgrade(selectedOpt, target);
       }
       
       for(let i=0; i<abilityTokens; i++) {
           let totalWeight = 0;
-          this.aiAbilities.forEach(ab => {
+          abilities.forEach(ab => {
               const opt = `ability_${ab}`;
-              if (this.aiUpgradesWeights[opt] === undefined) this.aiUpgradesWeights[opt] = 100;
-              totalWeight += this.aiUpgradesWeights[opt];
+              if (weights[opt] === undefined) weights[opt] = 100;
+              totalWeight += weights[opt];
           });
           
           let rand = Math.random() * totalWeight;
-          let selectedOpt = this.aiAbilities[0];
-          for (let ab of this.aiAbilities) {
+          let selectedOpt = abilities[0];
+          for (let ab of abilities) {
               const opt = `ability_${ab}`;
-              rand -= this.aiUpgradesWeights[opt];
+              rand -= weights[opt];
               if (rand <= 0) {
                   selectedOpt = ab;
                   break;
               }
           }
-          this.applyAiUpgrade(`ability_${selectedOpt}`);
+          this.applyAiUpgrade(`ability_${selectedOpt}`, target);
       }
   }
 
-  private applyAiUpgrade(selectedOpt: string) {
+  private applyAiUpgrade(selectedOpt: string, target: 'ai1' | 'ai2') {
+      const stats = target === 'ai1' ? this.aiStats : this.ai2Stats;
+      const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
+
       if (selectedOpt.startsWith('ability_')) {
           const abId = selectedOpt.replace('ability_', '');
-          if (!this.aiStats.unlockedAbilities[abId]) {
-              this.aiStats.unlockedAbilities[abId] = { level: 1, modifiers: {} };
+          if (!stats.unlockedAbilities[abId]) {
+              stats.unlockedAbilities[abId] = { level: 1, modifiers: {} };
           }
-          this.aiStats.unlockedAbilities[abId].level++;
-          this.aiStats.unlockedAbilities[abId].modifiers = this.gameState.generateAbilityUpgrade(abId, this.aiStats.unlockedAbilities[abId].level, this.aiStats.unlockedAbilities[abId].modifiers);
+          stats.unlockedAbilities[abId].level++;
+          stats.unlockedAbilities[abId].modifiers = this.gameState.generateAbilityUpgrade(abId, stats.unlockedAbilities[abId].level, stats.unlockedAbilities[abId].modifiers);
       } else {
           let step = 0;
           if (selectedOpt === 'maxHealth') {
               step = 10;
-              this.bossMaxHealth.set(this.aiStats.maxHealth + step);
-              this.bossHealth.update(h => h + step);
-              
-              const aiBody = this.enemies.find(e => e.label === 'enemy' && e.plugin['data']?.type === 'enemy_phoenix');
-              if (aiBody) {
-                  aiBody.plugin['data'].maxHealth += step;
-                  aiBody.plugin['data'].health += step;
+              if (target === 'ai1') {
+                  this.bossMaxHealth.set(stats.maxHealth + step);
+                  this.bossHealth.update(h => h + step);
+                  
+                  const aiBody = this.enemies.find(e => e.label === 'enemy' && e.plugin['data']?.type === 'enemy_phoenix');
+                  if (aiBody) {
+                      aiBody.plugin['data'].maxHealth += step;
+                      aiBody.plugin['data'].health += step;
+                  }
+              } else {
+                  this.maxHealth.update(h => h + step);
+                  this.currentHealth.update(h => h + step);
               }
           }
-          if (selectedOpt === 'speed') { step = 0.1; }
+          if (selectedOpt === 'speed') step = 0.1;
           if (selectedOpt === 'magnetism') step = 0.1;
           if (selectedOpt === 'damage') step = 1;
           if (selectedOpt === 'attackSpeed') step = 0.1;
           if (selectedOpt === 'attackRange') step = 50;
           if (selectedOpt === 'auraRadius') step = 10;
           if (selectedOpt === 'homingLevel') step = 1;
-          (this.aiStats as any)[selectedOpt] += step;
+          (stats as any)[selectedOpt] += step;
           
-          if (selectedOpt === 'speed') {
-              this.gameState.aiPhoenixSpeed.set(this.aiStats.speed);
+          if (selectedOpt === 'speed' && target === 'ai1') {
+              this.gameState.aiPhoenixSpeed.set(stats.speed);
           }
       }
       
-      this.aiUpgradesWeights[selectedOpt] = Math.max(10, (this.aiUpgradesWeights[selectedOpt] || 100) - 20);
+      weights[selectedOpt] = Math.max(10, (weights[selectedOpt] || 100) - 20);
   }
 
-  private tryPurchaseAiUpgrade() {
+  private tryPurchaseAiUpgrade(target: 'ai1' | 'ai2') {
       const upgradeOptions = [
          { id: 'maxHealth', cost: 100 }, { id: 'speed', cost: 150 }, { id: 'magnetism', cost: 200 },
          { id: 'damage', cost: 250 }, { id: 'attackSpeed', cost: 300 }, { id: 'attackRange', cost: 250 },
          { id: 'auraRadius', cost: 400 }, { id: 'homingLevel', cost: 300 },
       ];
       
+      const stats = target === 'ai1' ? this.aiStats : this.ai2Stats;
+      const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
+      const abilities = target === 'ai1' ? this.aiAbilities : this.ai2Abilities;
+      
       const getAiCost = (stat: string, baseCost: number, step: number, offset: number) => {
-          let currentVal = (this.aiStats as any)[stat] as number;
+          let currentVal = (stats as any)[stat] as number;
           if (stat === 'maxHealth') {
-             // Since aiStats.maxHealth is 10x the player's, normalize it for cost calculation
+             // Since stats.maxHealth is 10x the player's, normalize it for cost calculation
              currentVal = currentVal / 10;
           }
           const level = Math.max(0, (currentVal - offset) / step);
@@ -1511,15 +1545,16 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           'homingLevel': getAiCost('homingLevel', 300, 1, 0),
       };
 
-      this.aiAbilities.forEach(ab => {
-          const level = this.aiStats.unlockedAbilities[ab]?.level || 1;
+      abilities.forEach(ab => {
+          const level = stats.unlockedAbilities[ab]?.level || 1;
           const baseAbilityCost = ABILITIES[ab].upgradeCost;
           aiCosts[`ability_${ab}`] = Math.floor(baseAbilityCost * Math.pow(1.5, level - 1));
           upgradeOptions.push({ id: `ability_${ab}`, cost: baseAbilityCost });
       });
 
       const maxCost = Math.max(...Object.values(aiCosts));
-      const fullPickOverride = this.aiCoins >= maxCost * 1.5;
+      const coins = target === 'ai1' ? this.aiCoins : this.ai2Coins;
+      const fullPickOverride = coins >= maxCost * 1.5;
 
       let boughtSomething = true;
       let attempts = 0;
@@ -1530,18 +1565,18 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           
           let totalWeight = 0;
           const validOptions = upgradeOptions.filter(opt => {
-              if (this.aiUpgradesWeights[opt.id] === undefined) this.aiUpgradesWeights[opt.id] = 100;
-              return this.aiUpgradesWeights[opt.id] > 0;
+              if (weights[opt.id] === undefined) weights[opt.id] = 100;
+              return weights[opt.id] > 0;
           });
           
           if (validOptions.length === 0) break;
           
-          validOptions.forEach(opt => totalWeight += fullPickOverride ? 100 : this.aiUpgradesWeights[opt.id]);
+          validOptions.forEach(opt => totalWeight += fullPickOverride ? 100 : weights[opt.id]);
           let rand = Math.random() * totalWeight;
           let selectedOpt = validOptions[0].id;
           
           for (let opt of validOptions) {
-              rand -= (fullPickOverride ? 100 : this.aiUpgradesWeights[opt.id]);
+              rand -= (fullPickOverride ? 100 : weights[opt.id]);
               if (rand <= 0) {
                   selectedOpt = opt.id;
                   break;
@@ -1549,16 +1584,20 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           }
           
           const actualCost = aiCosts[selectedOpt];
-          if (this.aiCoins >= actualCost) {
-              this.aiCoins -= actualCost;
+          if ((target === 'ai1' ? this.aiCoins : this.ai2Coins) >= actualCost) {
+              if (target === 'ai1') this.aiCoins -= actualCost;
+              else this.ai2Coins -= actualCost;
+              
               boughtSomething = true;
               
               if (selectedOpt.startsWith('ability_')) {
-                  this.aiAbilityTokensBox++;
+                  if (target === 'ai1') this.aiAbilityTokensBox++;
+                  else this.ai2AbilityTokensBox++;
               } else {
-                  this.aiUpgradeTokensBox++;
+                  if (target === 'ai1') this.aiUpgradeTokensBox++;
+                  else this.ai2UpgradeTokensBox++;
               }
-              this.applyAiUpgrade(selectedOpt);
+              this.applyAiUpgrade(selectedOpt, target);
           }
       }
   }
@@ -1587,7 +1626,12 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           
           // AI Economy TICK
           this.aiCoins += this.aiCoinGainRate;
-          this.tryPurchaseAiUpgrade();
+          this.tryPurchaseAiUpgrade('ai1');
+          
+          if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+              this.ai2Coins += this.aiCoinGainRate;
+              this.tryPurchaseAiUpgrade('ai2');
+          }
           
           // Drop Event TICK
           const nextDropTime = this.getNextDropTime(this.nextDropIndex);
@@ -1632,83 +1676,69 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
 
 
-  private triggerDrillAttack() {
-      if (this.gameState.isRebirthing()) return;
-      
-      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['drill_attack'];
+  private triggerDrillAttack(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+      const abilityData = stats.unlockedAbilities['drill_attack'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
       const duration = 600 * mods['duration'];
 
-      this.tapCooldown.set(3 * mods['cooldown']);
-      this.tapAbilityEndTime = Date.now() + duration;
       this.audioService.playSFX('shoot');
       
-      const dir = Matter.Vector.normalise(Matter.Vector.sub({ x: this.mouseX, y: this.mouseY }, this.playerBody.position));
-      Matter.Body.setVelocity(this.playerBody, Matter.Vector.mult(dir, 40 * mods['speed']));
+      const dir = Matter.Vector.normalise(Matter.Vector.sub({ x: targetX, y: targetY }, sourceBody.position));
+      Matter.Body.setVelocity(sourceBody, Matter.Vector.mult(dir, 40 * mods['speed']));
       
-      this.gameState.isDrilling.set(true);
+      if (ownerId === 'player') this.gameState.isDrilling.set(true);
       setTimeout(() => {
-          this.gameState.isDrilling.set(false);
-          Matter.Body.setVelocity(this.playerBody, { x: 0, y: 0 });
+          if (ownerId === 'player') this.gameState.isDrilling.set(false);
+          if (sourceBody.parent) Matter.Body.setVelocity(sourceBody, { x: 0, y: 0 });
       }, duration);
   }
 
-  private triggerFireBreath() {
-      if (this.gameState.isRebirthing()) return;
-
-      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['fire_breath'];
+  private triggerFireBreath(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+      const abilityData = stats.unlockedAbilities['fire_breath'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0, ammo: 1.0 };
       
-      // Proximity check - only trigger if an enemy is near
       let nearest = null;
       let minDist = Infinity;
-      if (this.enemies.length > 0) {
-          nearest = this.enemies[0];
-          this.enemies.forEach(e => {
-              const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
+      const validTargets = ownerId === 'player' ? this.enemies : [this.playerBody];
+      if (validTargets.length > 0) {
+          nearest = validTargets[0];
+          validTargets.forEach(e => {
+              const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, sourceBody.position));
               if (dist < minDist) { minDist = dist; nearest = e; }
           });
       }
       if (minDist > 500 || !nearest) return; 
 
-      // Ammo-based firing over time
       const ammo = Math.floor(20 * (mods['ammo'] || 1.0));
       const fireIntervalMs = 50;
       const firingDurationSec = (ammo * fireIntervalMs) / 1000;
       
-      // Cooldown includes firing duration so it effectively begins after completion
-      this.tapCooldown.set(firingDurationSec + (8 * mods['cooldown']));
-      this.tapAbilityEndTime = Date.now() + (ammo * fireIntervalMs);
-      const damage = this.gameState.currentStats().damage * 0.5 * mods['damage'];
+      const damage = stats.damage * 0.5 * mods['damage'];
       const range = 12 * mods['range'];
       
-      // Smart targeting: Track expected damage to prevent overkill
       const incomingDamage = new Map<string, number>();
 
       for(let i=0; i<ammo; i++) {
           setTimeout(() => {
-              if (this.isDead() || this.gameState.isRebirthing()) return;
+              if (!sourceBody.parent || (ownerId === 'player' && (this.isDead() || this.gameState.isRebirthing()))) return;
               
-              // Recalculate target for EACH projectile individually
               let target: any = null;
               let bestDist = Infinity;
               
-              if (this.enemies.length > 0) {
-                  this.enemies.forEach(e => {
+              if (validTargets.length > 0) {
+                  validTargets.forEach(e => {
                       const data = e.plugin['data'] as EnemyData;
                       if (!data) return;
                       const currentIncoming = incomingDamage.get(data.id) || 0;
-                      // Don't target enemies that will already die from previous projectiles
                       if (data.health - currentIncoming > 0 || data.type === 'boss') {
-                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
+                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, sourceBody.position));
                           if (dist < bestDist) { bestDist = dist; target = e; }
                       }
                   });
                   
-                  // Fallback: If all enemies are marked as "dead", just shoot the closest one anyway
                   if (!target) {
-                      this.enemies.forEach(e => {
-                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
+                      validTargets.forEach(e => {
+                          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, sourceBody.position));
                           if (dist < bestDist) { bestDist = dist; target = e; }
                       });
                   }
@@ -1716,13 +1746,11 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               
               let fireAngle = 0;
               if (target) {
-                  const dirVec = Matter.Vector.sub(target.position, this.playerBody.position);
+                  const dirVec = Matter.Vector.sub(target.position, sourceBody.position);
                   fireAngle = Math.atan2(dirVec.y, dirVec.x);
                   
                   const data = target.plugin['data'] as EnemyData;
-                  if (data) {
-                      incomingDamage.set(data.id, (incomingDamage.get(data.id) || 0) + damage);
-                  }
+                  if (data) incomingDamage.set(data.id, (incomingDamage.get(data.id) || 0) + damage);
               }
 
               this.audioService.playSFX('shoot');
@@ -1730,9 +1758,9 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               const spreadAngle = (Math.random() - 0.5) * 0.5;
               const angle = fireAngle + spreadAngle;
               const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
-              const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 15, {
+              const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 15, {
                   isSensor: true, label: 'projectile',
-                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData }
+                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: damage, owner: ownerId } as EnemyData }
               });
               Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, range));
               Matter.Composite.add(this.engine.world, proj);
@@ -1741,19 +1769,19 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       }
   }
 
-  private triggerPhoenixTurret() {
-      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['phoenix_turret'];
+  private triggerPhoenixTurret(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+      const abilityData = stats.unlockedAbilities['phoenix_turret'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
       
       const seekRange = 500 * (mods['range'] || 1.0);
       const tetherRange = 100 * (mods['range'] || 1.0);
       const duration = 6000 * mods['duration'];
-      const baseDamage = this.gameState.currentStats().damage * mods['damage'];
+      const baseDamage = stats.damage * mods['damage'];
       
       this.holdCooldown.set(10 * mods['cooldown']);
-      this.holdAbilityEndTime = Date.now() + duration + 2000; // Freeze CD during duration + return
+      this.holdAbilityEndTime = Date.now() + duration + 2000; 
       
-      const egg = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 20, {
+      const egg = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 20, {
           isStatic: true, isSensor: true, label: 'projectile',
           plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1000, maxHealth: 1000, size: 20, aggroTarget: null } as any }
       });
@@ -1788,7 +1816,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                   const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
                   const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 15, {
                       isSensor: true, label: 'projectile',
-                      plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage * 5, owner: 'player' } as EnemyData }
+                      plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage * 5, owner: ownerId } as EnemyData }
                   });
                   Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, speed));
                   Matter.Composite.add(this.engine.world, proj);
@@ -1831,14 +1859,14 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                   combinedForce.x += wanderForce.x * 0.5;
                   combinedForce.y += wanderForce.y * 0.5;
                   
-                  let nearest = null;
-                  if (this.enemies.length > 0) {
+                  const validTargets = ownerId === 'player' ? this.enemies : [this.playerBody];
+                  if (validTargets.length > 0) {
                       if (eggData && eggData.aggroTarget && eggData.aggroTarget.parent) {
                           nearest = eggData.aggroTarget;
                       } else {
-                          nearest = this.enemies[0];
+                          nearest = validTargets[0];
                           let minDist = Infinity;
-                          this.enemies.forEach(e => {
+                          validTargets.forEach(e => {
                               const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
                               if (dist < minDist) { minDist = dist; nearest = e; }
                           });
@@ -1946,25 +1974,23 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       }, 2000);
   }
 
-  private triggerBurst() {
-      if (this.gameState.isRebirthing()) return;
-
-      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['burst'];
+  private triggerBurst(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+      const abilityData = stats.unlockedAbilities['burst'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
 
       this.tapCooldown.set(5 * mods['cooldown']);
-      const damage = this.gameState.currentStats().burstDamage * mods['damage'];
+      const damage = stats.burstDamage * mods['damage'];
       const radius = 10 * mods['radius'];
       this.audioService.playSFX('shoot');
       
       for(let i=0; i<8; i++) {
           const angle = (i / 8) * Math.PI * 2;
           const dir = { x: Math.cos(angle), y: Math.sin(angle) };
-          const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, radius, {
+          const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, radius, {
               isSensor: true,
               label: 'projectile',
               plugin: {
-                  data: { id: Math.random().toString(), type: 'projectile_player', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData
+                  data: { id: Math.random().toString(), type: 'projectile_player', health: 1, maxHealth: 1, burstDamage: damage, owner: ownerId } as EnemyData
               }
           });
           Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 15));
@@ -1973,96 +1999,41 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       }
   }
 
-  private triggerAura() {
-      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities['aura'];
+  private triggerAura(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+      const abilityData = stats.unlockedAbilities['aura'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
       
       this.holdCooldown.set(15 * mods['cooldown']);
-      const radius = this.gameState.currentStats().auraRadius * mods['radius'];
+      const radius = stats.auraRadius * mods['radius'];
       
-      const aura = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, radius, {
+      const aura = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, radius, {
           isSensor: true,
           label: 'projectile',
           plugin: {
-             data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: radius } as EnemyData
+             data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: radius, owner: ownerId } as EnemyData
           }
       });
       Matter.Composite.add(this.engine.world, aura);
       
-      // Damage everything inside
-      this.enemies.forEach(e => {
+      const validTargets = ownerId === 'player' ? this.enemies : [this.playerBody];
+      validTargets.forEach(e => {
           const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, aura.position));
           if (dist < radius + (e.circleRadius || 0)) {
-              this.damageEnemy(e, this.gameState.currentStats().damage * 5 * mods['damage']);
+              this.damageEnemy(e, stats.damage * 5 * mods['damage']);
           }
       });
 
       setTimeout(() => Matter.Composite.remove(this.engine.world, aura), 500); 
   }
 
-  private triggerEnemyAbility(ability: string, sourceBody: Matter.Body, targetPos: {x: number, y: number}) {
-      this.audioService.playSFX('shoot');
-      if (ability === 'drill_attack') {
-          const dir = Matter.Vector.normalise(Matter.Vector.sub(targetPos, sourceBody.position));
-          Matter.Body.setVelocity(sourceBody, Matter.Vector.mult(dir, 30));
-      } else if (ability === 'burst') {
-          for(let i=0; i<8; i++) {
-              const angle = (i / 8) * Math.PI * 2;
-              const dir = { x: Math.cos(angle), y: Math.sin(angle) };
-              const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 10, {
-                  isSensor: true, label: 'projectile',
-                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 20, owner: 'enemy' } as EnemyData }
-              });
-              Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 10));
-              Matter.Composite.add(this.engine.world, proj);
-              setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1000);
-          }
-      } else if (ability === 'fire_breath') {
-          const dir = Matter.Vector.normalise(Matter.Vector.sub(targetPos, sourceBody.position));
-          for(let i=0; i<10; i++) {
-              setTimeout(() => {
-                  if (!sourceBody.parent) return;
-                  const spread = (Math.random() - 0.5) * 0.5;
-                  const angle = Math.atan2(dir.y, dir.x) + spread;
-                  const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
-                  const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 10, {
-                      isSensor: true, label: 'projectile',
-                      plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 10, owner: 'enemy' } as EnemyData }
-                  });
-                  Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 12));
-                  Matter.Composite.add(this.engine.world, proj);
-                  setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1000);
-              }, i * 100);
-          }
-      } else if (ability === 'aura') {
-          const aura = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 150, {
-              isSensor: true, label: 'projectile',
-              plugin: { data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: 150, owner: 'enemy' } as EnemyData }
-          });
-          Matter.Composite.add(this.engine.world, aura);
-          setTimeout(() => { if (aura.parent) Matter.Composite.remove(this.engine.world, aura) }, 500);
-      } else if (ability === 'phoenix_turret') {
-          // Just spawn a small turret that shoots 1 burst
-          const egg = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y + 30, 15, {
-              isStatic: true, isSensor: true, label: 'projectile',
-              plugin: { data: { id: Math.random().toString(), type: 'egg', health: 100, maxHealth: 100, size: 15, owner: 'enemy' } as any }
-          });
-          Matter.Composite.add(this.engine.world, egg);
-          setTimeout(() => {
-             if (egg.parent) Matter.Composite.remove(this.engine.world, egg);
-             for(let i=0; i<8; i++) {
-                 const angle = (i / 8) * Math.PI * 2;
-                 const dir = { x: Math.cos(angle), y: Math.sin(angle) };
-                 const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 10, {
-                     isSensor: true, label: 'projectile',
-                     plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 15, owner: 'enemy' } as EnemyData }
-                 });
-                 Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 8));
-                 Matter.Composite.add(this.engine.world, proj);
-                 setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1000);
-             }
-          }, 1500);
-      }
+  private triggerAbility(ability: string, sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+      if (ownerId === 'player' && this.gameState.isRebirthing()) return;
+      
+      if (ability === 'drill_attack') this.triggerDrillAttack(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'burst') this.triggerBurst(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'fire_breath') this.triggerFireBreath(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'phoenix_turret') this.triggerPhoenixTurret(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'aura') this.triggerAura(sourceBody, targetX, targetY, stats, ownerId);
   }
 
   private createEnemyBody(x: number, y: number, size: number, type: string, data: any): Matter.Body {
@@ -2490,6 +2461,9 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
   }
 
   private dropItem(x: number, y: number, type: 'coin' | 'gem' | 'heart' | 'crate', value: number) {
+      if (this.gameState.currentGameMode() === 'ai_vs_ai' && (type === 'coin' || type === 'gem' || type === 'crate')) {
+          return;
+      }
       const item = Matter.Bodies.circle(x, y, type === 'gem' ? 15 : (type === 'crate' ? 25 : 10), {
           isSensor: true,
           label: 'item',
@@ -3005,9 +2979,9 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       const now = Date.now();
       if (now - this.lastClickTime < 300 && this.tapCooldown() <= 0 && !this.gameState.isPaused()) {
           const ability = this.gameState.currentStats().activeTapAbility;
-          if (ability === 'burst') this.triggerBurst();
-          else if (ability === 'drill_attack') this.triggerDrillAttack();
-          else if (ability === 'fire_breath') this.triggerFireBreath();
+          if (ability) {
+              this.triggerAbility(ability, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
+          }
       }
       this.lastClickTime = now;
   }

@@ -71,6 +71,10 @@ export const ABILITIES: Record<string, { id: string, type: 'tap' | 'hold', name:
   'aura': { id: 'aura', type: 'hold', name: 'Aura', desc: 'Continuous damage zone', icon: '🌀', unlockCost: 0, upgradeCost: 400 },
 };
 
+export const REALM_ABILITIES: Record<number, string[]> = {
+  0: ['drill_attack', 'fire_breath', 'burst', 'phoenix_turret', 'rebirth', 'aura']
+};
+
 export const BASE_STATS: WorldStats = { 
   maxHealth: 100, speed: 2.0, magnetism: 1.0, damage: 10, attackSpeed: 1.0, 
   burstDamage: 20, auraRadius: 250, homingLevel: 0, attackRange: 400,
