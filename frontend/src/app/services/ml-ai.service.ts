@@ -178,6 +178,15 @@ export class MlAiService {
         }
     }
     
+    public addReward(reward: number) {
+        if (this.memory.length > 0) {
+            this.memory[this.memory.length - 1].reward += reward;
+            if (this.memory[this.memory.length - 1].reward >= 5 || this.memory[this.memory.length - 1].reward <= -5) {
+                this.trainOnMemory();
+            }
+        }
+    }
+    
     public recordExperience(state: MLState, action: MLAction, reward: number) {
         this.memory.push({ state, action, reward });
         if (this.memory.length > this.maxMemory) {

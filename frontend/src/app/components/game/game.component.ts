@@ -827,6 +827,9 @@ export class GameComponent implements OnInit, OnDestroy {
             if (data.type === 'coin' || data.type === 'gem') {
                 this.audioService.playSFX('drop');
             }
+            if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+                this.mlAi.addReward(1);
+            }
             Matter.Composite.remove(this.engine.world, otherBody);
             this.items = this.items.filter(i => i !== otherBody);
           }
@@ -1035,9 +1038,9 @@ export class GameComponent implements OnInit, OnDestroy {
             const mouseSpeed = 3.0 * aiSpeedMult; 
             const currentMouse = this.gameState.aiMousePos();
             
-            // Find closest threat for ML input
             let threatX = 0, threatY = 0;
             let minDist = Infinity;
+            let inDanger = false;
             const allBodies = Matter.Composite.allBodies(this.engine.world);
             for (let b of allBodies) {
                 if (b.label === 'projectile' && b.plugin['data']?.type === 'projectile_player') {
@@ -1047,7 +1050,18 @@ export class GameComponent implements OnInit, OnDestroy {
                         threatX = b.position.x;
                         threatY = b.position.y;
                     }
+                    if (distToProj < 120) {
+                        inDanger = true;
+                    }
                 }
+            }
+            
+            if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+                const eAny = enemy as any;
+                if (eAny.lastDangerState && !inDanger) {
+                    this.mlAi.addReward(2); // Dodged!
+                }
+                eAny.lastDangerState = inDanger;
             }
 
             const state = {
@@ -1355,13 +1369,14 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     if (this.timerInterval) clearInterval(this.timerInterval);
     if (this.spawnInterval) clearTimeout(this.spawnInterval);
     if (this.attackInterval) clearInterval(this.attackInterval);
+    if ((this as any).aiAbilityInterval) clearInterval((this as any).aiAbilityInterval);
     
     this.timerInterval = setInterval(() => {
       if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
       
       this.gameState.sessionPlayTime.update(t => t + 1);
       
-      if (this.gameState.currentGameMode() === 'battle') {
+      if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') {
           this.battleTimer.set(this.gameState.sessionPlayTime());
           
           // AI Economy TICK
@@ -1403,6 +1418,39 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       this.fireProjectile();
     }, 1000 / attackSpeed);
     
+    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+        (this as any).aiAbilityInterval = setInterval(() => {
+            if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
+            
+            const topAi = this.enemies.find(e => e.label === 'enemy' && e.plugin['data']?.type === 'enemy_phoenix');
+            if (topAi && this.aiAbilities.length > 0) {
+                const distToPlayer = Matter.Vector.magnitude(Matter.Vector.sub(topAi.position, this.playerBody.position));
+                if (distToPlayer < 600 && Math.random() < 0.5) {
+                    const ability = this.aiAbilities[Math.floor(Math.random() * this.aiAbilities.length)];
+                    this.triggerEnemyAbility(ability, topAi, this.playerBody.position);
+                }
+            }
+            
+            if (Math.random() < 0.5 && topAi) {
+                const distToAi = Matter.Vector.magnitude(Matter.Vector.sub(this.playerBody.position, topAi.position));
+                if (distToAi < 600) {
+                    const unlocked = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities || {};
+                    const available = Object.keys(unlocked).filter(k => unlocked[k].level > 0);
+                    if (available.length > 0) {
+                        const ability = available[Math.floor(Math.random() * available.length)];
+                        this.mouseX = topAi.position.x;
+                        this.mouseY = topAi.position.y;
+                        
+                        if (ability === 'drill_attack' && this.tapCooldown() === 0) this.triggerDrillAttack();
+                        else if (ability === 'fire_breath' && this.tapCooldown() === 0) this.triggerFireBreath();
+                        else if (ability === 'burst' && this.tapCooldown() === 0) this.triggerBurst();
+                        else if (ability === 'phoenix_turret' && this.holdCooldown() === 0) this.triggerPhoenixTurret();
+                        else if (ability === 'aura' && this.holdCooldown() === 0) this.triggerAura();
+                    }
+                }
+            }
+        }, 2000);
+    }
   }
 
 
@@ -1775,6 +1823,71 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       setTimeout(() => Matter.Composite.remove(this.engine.world, aura), 500); 
   }
 
+  private triggerEnemyAbility(ability: string, sourceBody: Matter.Body, targetPos: {x: number, y: number}) {
+      this.audioService.playSFX('shoot');
+      if (ability === 'drill_attack') {
+          const dir = Matter.Vector.normalise(Matter.Vector.sub(targetPos, sourceBody.position));
+          Matter.Body.setVelocity(sourceBody, Matter.Vector.mult(dir, 30));
+      } else if (ability === 'burst') {
+          for(let i=0; i<8; i++) {
+              const angle = (i / 8) * Math.PI * 2;
+              const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+              const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 10, {
+                  isSensor: true, label: 'projectile',
+                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 20 } as EnemyData }
+              });
+              Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 10));
+              Matter.Composite.add(this.engine.world, proj);
+              setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1000);
+          }
+      } else if (ability === 'fire_breath') {
+          const dir = Matter.Vector.normalise(Matter.Vector.sub(targetPos, sourceBody.position));
+          for(let i=0; i<10; i++) {
+              setTimeout(() => {
+                  if (!sourceBody.parent) return;
+                  const spread = (Math.random() - 0.5) * 0.5;
+                  const angle = Math.atan2(dir.y, dir.x) + spread;
+                  const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+                  const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 10, {
+                      isSensor: true, label: 'projectile',
+                      plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 10 } as EnemyData }
+                  });
+                  Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 12));
+                  Matter.Composite.add(this.engine.world, proj);
+                  setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1000);
+              }, i * 100);
+          }
+      } else if (ability === 'aura') {
+          const aura = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 150, {
+              isSensor: true, label: 'projectile',
+              plugin: { data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: 150 } as EnemyData }
+          });
+          Matter.Composite.add(this.engine.world, aura);
+          setTimeout(() => { if (aura.parent) Matter.Composite.remove(this.engine.world, aura) }, 500);
+      } else if (ability === 'phoenix_turret') {
+          // Just spawn a small turret that shoots 1 burst
+          const egg = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y + 30, 15, {
+              isStatic: true, isSensor: true, label: 'projectile',
+              plugin: { data: { id: Math.random().toString(), type: 'egg', health: 100, maxHealth: 100, size: 15 } as any }
+          });
+          Matter.Composite.add(this.engine.world, egg);
+          setTimeout(() => {
+             if (egg.parent) Matter.Composite.remove(this.engine.world, egg);
+             for(let i=0; i<8; i++) {
+                 const angle = (i / 8) * Math.PI * 2;
+                 const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+                 const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 10, {
+                     isSensor: true, label: 'projectile',
+                     plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 15 } as EnemyData }
+                 });
+                 Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 8));
+                 Matter.Composite.add(this.engine.world, proj);
+                 setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1000);
+             }
+          }, 1500);
+      }
+  }
+
   private createEnemyBody(x: number, y: number, size: number, type: string, data: any): Matter.Body {
       const options = {
           label: type === 'boss' ? 'boss' : 'enemy',
@@ -1819,7 +1932,10 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     }
     
     // Delay driven by audio intensity: lower intensity = longer delay
-    const progress = this.progressPercent();
+    let progress = this.progressPercent();
+    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+        progress = Math.min(100, this.gameState.sessionPlayTime() * 2);
+    }
     const intensity = this.audioService.getAudioIntensity(); // 0.0 to ~0.5 usually
     const baseDelay = Math.max(150, 1000 - (progress * 8.5));
     const intensityModifier = Math.max(0.1, 1.0 - (intensity * 2.5));
@@ -1844,7 +1960,15 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
         y = Math.random() * window.innerHeight;
     }
 
-    const progress = this.progressPercent();
+    let progress = this.progressPercent();
+    let difficultyMultiplier = 1.0;
+    
+    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+        const time = this.gameState.sessionPlayTime();
+        progress = (time % 60) * (100 / 60); 
+        difficultyMultiplier = Math.pow(1.5, Math.floor(time / 60)); 
+    }
+
     let type: 'bat' | 'slime' | 'golem' = 'slime';
     const scale = this.screenScale;
     let size = 20 * scale;
@@ -1858,7 +1982,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     }
 
     const worldIndex = this.gameState.selectedWorldIndex();
-    health = Math.floor(health * Math.pow(1.5, worldIndex));
+    health = Math.floor(health * Math.pow(1.5, worldIndex) * difficultyMultiplier);
 
     const data = { id: Math.random().toString(), type, health, maxHealth: health, lastAttackTime: Date.now() } as EnemyData;
     const enemy = this.createEnemyBody(x, y, size, type, data);
@@ -2046,6 +2170,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               this.audioService.playSFX('explosion');
               this.triggerImpactEffect(enemy.position.x, enemy.position.y, true);
               this.gameState.ai2Wins.update(w => w + 1);
+              this.mlAi.addReward(-100); // the one who died is top ai (enemy)
               data.health = data.maxHealth;
               this.bossHealth.set(data.maxHealth);
               Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: -200 }); // reset off-screen
@@ -2077,6 +2202,10 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       
       Matter.Composite.remove(this.engine.world, enemy);
       this.enemies = this.enemies.filter(e => e !== enemy);
+      
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+          this.mlAi.addReward(2);
+      }
       
       // Award XP
       let xp = 0;
@@ -2296,6 +2425,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           this.audioService.playSFX('explosion');
           this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
           this.gameState.ai1Wins.update(w => w + 1);
+          this.mlAi.addReward(100); // the one who died is player (ai 2), top ai wins!
           this.currentHealth.set(this.maxHealth());
           this.gameState.ai2MousePos.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 }); // reset off-screen bottom
           return;
