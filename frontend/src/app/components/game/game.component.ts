@@ -907,7 +907,7 @@ export class GameComponent implements OnInit, OnDestroy {
                     const topAiHpRatio = (otherData.health || 1) / (otherData.maxHealth || 1);
                     const playerHpRatio = this.currentHealth() / this.maxHealth();
                     const state = this.buildMLState(other, this.playerBody, topAiHpRatio, playerHpRatio, 'projectile_player');
-                    this.mlAi.recordExperience(state, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y, useDrill: 0, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 }, -10);
+                    this.mlAi.recordExperience(state, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y, abilityTriggers: Array(20).fill(0) }, -10);
 
                     if (this.battleDropReady() && !this.battleDropGrace()) {
                         this.resolveBattleDrop(true, other.position.x, other.position.y);
@@ -1113,11 +1113,17 @@ export class GameComponent implements OnInit, OnDestroy {
                 const now = Date.now();
                 if (!eAny.lastAbilityTime || now - eAny.lastAbilityTime > 3000) {
                     let used = false;
-                    if (mlAction.useDrill > 0.5 && this.aiAbilities.includes('drill_attack')) { this.triggerEnemyAbility('drill_attack', enemy, this.playerBody.position); used = true; }
-                    else if (mlAction.useBurst > 0.5 && this.aiAbilities.includes('burst')) { this.triggerEnemyAbility('burst', enemy, this.playerBody.position); used = true; }
-                    else if (mlAction.useFire > 0.5 && this.aiAbilities.includes('fire_breath')) { this.triggerEnemyAbility('fire_breath', enemy, this.playerBody.position); used = true; }
-                    else if (mlAction.useAura > 0.5 && this.aiAbilities.includes('aura')) { this.triggerEnemyAbility('aura', enemy, this.playerBody.position); used = true; }
-                    else if (mlAction.useTurret > 0.5 && this.aiAbilities.includes('phoenix_turret')) { this.triggerEnemyAbility('phoenix_turret', enemy, this.playerBody.position); used = true; }
+                    const allSortedAbilities = Object.keys(ABILITIES).sort();
+                    
+                    for (let i = 0; i < allSortedAbilities.length; i++) {
+                        if (i >= 20) break;
+                        const ab = allSortedAbilities[i];
+                        if (mlAction.abilityTriggers[i] > 0.5 && this.aiAbilities.includes(ab)) {
+                            this.triggerEnemyAbility(ab, enemy, this.playerBody.position);
+                            used = true;
+                            break;
+                        }
+                    }
                     
                     if (used) {
                         eAny.lastAbilityTime = now;
@@ -1136,13 +1142,24 @@ export class GameComponent implements OnInit, OnDestroy {
                     this.mouseX = enemy.position.x;
                     this.mouseY = enemy.position.y;
 
-                    // Since we want the bottom AI to be smart too, we can let it piggyback off the same ML action (mirrored)
-                    // Or simply use the MLAction outputs directly
-                    if (mlAction.useDrill > 0.5 && available.includes('drill_attack') && this.tapCooldown() === 0) { this.triggerDrillAttack(); usedPlayer = true; }
-                    else if (mlAction.useBurst > 0.5 && available.includes('burst') && this.tapCooldown() === 0) { this.triggerBurst(); usedPlayer = true; }
-                    else if (mlAction.useFire > 0.5 && available.includes('fire_breath') && this.tapCooldown() === 0) { this.triggerFireBreath(); usedPlayer = true; }
-                    else if (mlAction.useAura > 0.5 && available.includes('aura') && this.holdCooldown() === 0) { this.triggerAura(); usedPlayer = true; }
-                    else if (mlAction.useTurret > 0.5 && available.includes('phoenix_turret') && this.holdCooldown() === 0) { this.triggerPhoenixTurret(); usedPlayer = true; }
+                    const allSortedAbilities = Object.keys(ABILITIES).sort();
+                    for (let i = 0; i < allSortedAbilities.length; i++) {
+                        if (i >= 20) break;
+                        const ab = allSortedAbilities[i];
+                        if (mlAction.abilityTriggers[i] > 0.5 && available.includes(ab)) {
+                            const isHold = ABILITIES[ab].type === 'hold';
+                            const cd = isHold ? this.holdCooldown() : this.tapCooldown();
+                            if (cd === 0) {
+                                if (ab === 'drill_attack') this.triggerDrillAttack();
+                                else if (ab === 'burst') this.triggerBurst();
+                                else if (ab === 'fire_breath') this.triggerFireBreath();
+                                else if (ab === 'aura') this.triggerAura();
+                                else if (ab === 'phoenix_turret') this.triggerPhoenixTurret();
+                                usedPlayer = true;
+                                break;
+                            }
+                        }
+                    }
                     
                     if (usedPlayer) {
                         eAny.lastPlayerAbilityTime = now;

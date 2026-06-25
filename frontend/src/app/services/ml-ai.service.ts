@@ -16,11 +16,7 @@ export interface MLState {
 export interface MLAction {
     targetX: number;
     targetY: number;
-    useDrill: number;
-    useBurst: number;
-    useFire: number;
-    useAura: number;
-    useTurret: number;
+    abilityTriggers: number[]; // 20 slots
 }
 
 export interface Experience {
@@ -38,6 +34,9 @@ export class MlAiService {
     
     private replayBuffer: Experience[] = [];
     private maxBufferSize = 500;
+    
+    // X, Y, plus 20 generic ability slots
+    private readonly OUTPUT_UNITS = 2 + 20;
 
     constructor() {
         this.initModel();
@@ -48,7 +47,7 @@ export class MlAiService {
         this.model = tf.sequential();
         this.model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [18] }));
         this.model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
-        this.model.add(tf.layers.dense({ units: 7, activation: 'sigmoid' }));
+        this.model.add(tf.layers.dense({ units: this.OUTPUT_UNITS, activation: 'sigmoid' }));
         this.model.compile({ optimizer: this.optimizer, loss: 'meanSquaredError' });
     }
 
@@ -56,9 +55,14 @@ export class MlAiService {
         this.http.get<{weights: any, version: number}>(`${environment.apiUrl}/api/ai/weights`).subscribe({
             next: (res) => {
                 if (res.weights && Array.isArray(res.weights) && res.weights.length > 0) {
-                    this.setWeightsFromArray(res.weights);
-                    this.isTrained = true;
-                    console.log('Loaded global TFJS weights v' + res.version);
+                    try {
+                        this.setWeightsFromArray(res.weights);
+                        this.isTrained = true;
+                        console.log('Loaded global TFJS weights v' + res.version);
+                    } catch (e) {
+                        console.warn('Global weights shape mismatch! Starting fresh for dynamic shape compatibility.');
+                        this.isTrained = true;
+                    }
                 } else {
                     this.isTrained = true; 
                     console.log('No valid weights found, starting fresh with random TFJS weights');
@@ -91,20 +95,17 @@ export class MlAiService {
     }
 
     private setWeightsFromArray(arr: number[]) {
-        try {
-            const currentWeights = this.model.getWeights();
-            let newWeights: tf.Tensor[] = [];
-            let offset = 0;
-            for (let w of currentWeights) {
-                const size = w.size;
-                const slice = arr.slice(offset, offset + size);
-                newWeights.push(tf.tensor(slice, w.shape, w.dtype));
-                offset += size;
-            }
-            this.model.setWeights(newWeights);
-        } catch (err) {
-            console.error('Failed to load TFJS array geometry, sticking to random weights', err);
+        const currentWeights = this.model.getWeights();
+        let newWeights: tf.Tensor[] = [];
+        let offset = 0;
+        for (let w of currentWeights) {
+            const size = w.size;
+            const slice = arr.slice(offset, offset + size);
+            if (slice.length !== size) throw new Error('Shape mismatch during array inflation');
+            newWeights.push(tf.tensor(slice, w.shape, w.dtype));
+            offset += size;
         }
+        this.model.setWeights(newWeights);
     }
 
     public downloadWeights() {
@@ -133,11 +134,7 @@ export class MlAiService {
             return {
                 targetX: state.playerX * window.innerWidth,
                 targetY: state.playerY * window.innerHeight,
-                useDrill: Math.random(),
-                useBurst: Math.random(),
-                useFire: Math.random(),
-                useAura: Math.random(),
-                useTurret: Math.random()
+                abilityTriggers: Array.from({length: 20}, () => Math.random())
             };
         }
         
@@ -147,21 +144,21 @@ export class MlAiService {
             const data = output.dataSync();
             
             const explore = Math.random() < 0.05;
+            
+            let abilities: number[] = [];
+            for (let i = 0; i < 20; i++) {
+                abilities.push(explore ? Math.random() : data[2 + i]);
+            }
 
             return {
                 targetX: (explore ? Math.random() : data[0]) * window.innerWidth,
                 targetY: (explore ? Math.random() : data[1]) * window.innerHeight,
-                useDrill: explore ? Math.random() : data[2],
-                useBurst: explore ? Math.random() : data[3],
-                useFire: explore ? Math.random() : data[4],
-                useAura: explore ? Math.random() : data[5],
-                useTurret: explore ? Math.random() : data[6]
+                abilityTriggers: abilities
             };
         });
     }
 
     public addReward(r: number) {
-        // Find last experience and boost it
         if (this.replayBuffer.length > 0) {
             this.replayBuffer[this.replayBuffer.length - 1].reward += r;
         }
@@ -185,24 +182,17 @@ export class MlAiService {
             
             let tx = exp.action.targetX / window.innerWidth;
             let ty = exp.action.targetY / window.innerHeight;
-            let ud = exp.action.useDrill;
-            let ub = exp.action.useBurst;
-            let uf = exp.action.useFire;
-            let ua = exp.action.useAura;
-            let ut = exp.action.useTurret;
+            
+            let abs = [...exp.action.abilityTriggers];
             
             if (exp.reward < 0) {
                 tx = 1.0 - tx;
                 ty = 1.0 - ty;
-                ud = ud > 0.5 ? 0 : 1;
-                ub = ub > 0.5 ? 0 : 1;
-                uf = uf > 0.5 ? 0 : 1;
-                ua = ua > 0.5 ? 0 : 1;
-                ut = ut > 0.5 ? 0 : 1;
-            } else if (exp.reward > 0) {
-                // Keep exactly what we did to reinforce it
+                for (let i = 0; i < abs.length; i++) {
+                    abs[i] = abs[i] > 0.5 ? 0 : 1;
+                }
             }
-            outputs.push([tx, ty, ud, ub, uf, ua, ut]);
+            outputs.push([tx, ty, ...abs]);
         }
         
         const x = tf.tensor2d(inputs);
