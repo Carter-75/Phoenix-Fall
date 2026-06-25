@@ -808,6 +808,7 @@ export class GameComponent implements OnInit, OnDestroy {
           const otherBody = bodyA.label === 'player' ? bodyB : bodyA;
           const data = otherBody.plugin['data'] as EnemyData;
           if (!data) continue;
+          if (otherBody.label === 'projectile' && data.burstDamage !== undefined && data.burstDamage <= 0) continue;
 
           if (otherBody.label === 'enemy' || otherBody.label === 'boss') {
             if (data.type === 'enemy_phoenix' && this.battleDropReady() && !this.battleDropGrace()) {
@@ -930,6 +931,7 @@ export class GameComponent implements OnInit, OnDestroy {
           if (other.label === 'enemy' || other.label === 'boss') {
             const projData = projectile.plugin['data'] as EnemyData;
             if (!projData || projData.type === 'projectile_enemy' || projData.owner === 'enemy') continue;
+            if (projData.burstDamage !== undefined && projData.burstDamage <= 0) continue;
 
             if (projData.type === 'egg' || projData.type === 'turret') {
                 projData.health -= (other.label === 'boss' ? 50 : 10);
@@ -948,7 +950,7 @@ export class GameComponent implements OnInit, OnDestroy {
             }
             
             this.triggerImpactEffect(other.position.x, other.position.y, other.label === 'boss');
-            const damage = projData.type === 'aura' ? this.gameState.currentStats().damage * 0.5 : this.gameState.currentStats().damage;
+            const damage = projData.type === 'aura' ? this.gameState.currentStats().damage * 0.5 : (projData.burstDamage || this.gameState.currentStats().damage);
             
             if (other.label === 'boss' || other.label === 'enemy') {
                 const otherData = other.plugin['data'] as EnemyData;
@@ -972,9 +974,22 @@ export class GameComponent implements OnInit, OnDestroy {
               if (pData && oData && pData.owner && oData.owner && pData.owner !== oData.owner) {
                   const destructible = ['fire', 'projectile_player', 'projectile_enemy'];
                   if (destructible.includes(pData.type) && destructible.includes(oData.type)) {
-                      Matter.Composite.remove(this.engine.world, projectile);
-                      Matter.Composite.remove(this.engine.world, other);
-                      this.triggerImpactEffect(projectile.position.x, projectile.position.y, false);
+                      const pDamage = pData.burstDamage || this.gameState.currentStats().damage;
+                      const oDamage = oData.burstDamage || (oData.type === 'fire' ? 10 : this.gameState.currentStats().damage);
+                      
+                      if (pDamage > 0 && oDamage > 0) {
+                          pData.burstDamage = pDamage - oDamage;
+                          oData.burstDamage = oDamage - pDamage;
+
+                          if (pData.burstDamage <= 0) {
+                              Matter.Composite.remove(this.engine.world, projectile);
+                              this.triggerImpactEffect(projectile.position.x, projectile.position.y, false);
+                          }
+                          if (oData.burstDamage <= 0) {
+                              Matter.Composite.remove(this.engine.world, other);
+                              this.triggerImpactEffect(other.position.x, other.position.y, false);
+                          }
+                      }
                   }
               }
           }
@@ -1743,7 +1758,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                   const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
                   const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 15, {
                       isSensor: true, label: 'projectile',
-                      plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage * 5 } as EnemyData }
+                      plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage * 5, owner: 'player' } as EnemyData }
                   });
                   Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, speed));
                   Matter.Composite.add(this.engine.world, proj);
@@ -2142,7 +2157,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       label: 'projectile',
       isSensor: true,
       plugin: {
-          data: { id: Math.random().toString(), type: 'projectile_player', health: 1, maxHealth: 1 } as EnemyData
+          data: { id: Math.random().toString(), type: 'projectile_player', health: 1, maxHealth: 1, owner: 'player', burstDamage: this.gameState.currentStats().damage } as EnemyData
       }
     });
 
@@ -2200,7 +2215,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           const dir = { x: Math.cos(angle), y: Math.sin(angle) };
           const proj = Matter.Bodies.circle(pos.x, pos.y, 15, {
               label: 'projectile', isSensor: true,
-              plugin: { data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1 } as EnemyData }
+              plugin: { data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1, owner: 'enemy', burstDamage: 10 } as EnemyData }
           });
           Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 8));
           Matter.Composite.add(this.engine.world, proj);
