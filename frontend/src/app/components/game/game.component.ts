@@ -1109,7 +1109,7 @@ export class GameComponent implements OnInit, OnDestroy {
             let targetPosition = { x: mlAction.targetX, y: mlAction.targetY };
             
             // Process ML Abilities for Top AI
-            if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+            if (this.gameState.currentGameMode() === 'ai_vs_ai' || this.gameState.currentGameMode() === 'battle') {
                 const now = Date.now();
                 if (!eAny.lastAbilityTime || now - eAny.lastAbilityTime > 3000) {
                     let used = false;
@@ -1123,8 +1123,11 @@ export class GameComponent implements OnInit, OnDestroy {
                         eAny.lastAbilityTime = now;
                     }
                 }
+            }
                 
-                // Process ML Abilities for Bottom AI (Player AI)
+            // Process ML Abilities for Bottom AI (Player AI)
+            if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+                const now = Date.now();
                 if (!eAny.lastPlayerAbilityTime || now - eAny.lastPlayerAbilityTime > 3000) {
                     let usedPlayer = false;
                     const unlocked = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities || {};
