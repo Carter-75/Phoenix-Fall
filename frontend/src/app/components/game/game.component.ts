@@ -907,7 +907,7 @@ export class GameComponent implements OnInit, OnDestroy {
                     const topAiHpRatio = (otherData.health || 1) / (otherData.maxHealth || 1);
                     const playerHpRatio = this.currentHealth() / this.maxHealth();
                     const state = this.buildMLState(other, this.playerBody, topAiHpRatio, playerHpRatio, 'projectile_player');
-                    this.mlAi.recordExperience(state, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y, abilityTriggers: Array(20).fill(0) }, -10);
+                    this.mlAi.recordExperience(state, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y, useTap: 0, useHold: 0 }, -10);
 
                     if (this.battleDropReady() && !this.battleDropGrace()) {
                         this.resolveBattleDrop(true, other.position.x, other.position.y);
@@ -1113,16 +1113,15 @@ export class GameComponent implements OnInit, OnDestroy {
                 const now = Date.now();
                 if (!eAny.lastAbilityTime || now - eAny.lastAbilityTime > 3000) {
                     let used = false;
-                    const allSortedAbilities = Object.keys(ABILITIES).sort();
+                    const tapAb = this.aiAbilities.find(ab => ABILITIES[ab]?.type === 'tap');
+                    const holdAb = this.aiAbilities.find(ab => ABILITIES[ab]?.type === 'hold');
                     
-                    for (let i = 0; i < allSortedAbilities.length; i++) {
-                        if (i >= 20) break;
-                        const ab = allSortedAbilities[i];
-                        if (mlAction.abilityTriggers[i] > 0.5 && this.aiAbilities.includes(ab)) {
-                            this.triggerEnemyAbility(ab, enemy, this.playerBody.position);
-                            used = true;
-                            break;
-                        }
+                    if (mlAction.useTap > 0.5 && tapAb) {
+                        this.triggerEnemyAbility(tapAb, enemy, this.playerBody.position);
+                        used = true;
+                    } else if (mlAction.useHold > 0.5 && holdAb) {
+                        this.triggerEnemyAbility(holdAb, enemy, this.playerBody.position);
+                        used = true;
                     }
                     
                     if (used) {
@@ -1136,29 +1135,21 @@ export class GameComponent implements OnInit, OnDestroy {
                 const now = Date.now();
                 if (!eAny.lastPlayerAbilityTime || now - eAny.lastPlayerAbilityTime > 3000) {
                     let usedPlayer = false;
-                    const unlocked = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities || {};
-                    const available = Object.keys(unlocked).filter(k => unlocked[k].level > 0);
-                    
                     this.mouseX = enemy.position.x;
                     this.mouseY = enemy.position.y;
 
-                    const allSortedAbilities = Object.keys(ABILITIES).sort();
-                    for (let i = 0; i < allSortedAbilities.length; i++) {
-                        if (i >= 20) break;
-                        const ab = allSortedAbilities[i];
-                        if (mlAction.abilityTriggers[i] > 0.5 && available.includes(ab)) {
-                            const isHold = ABILITIES[ab].type === 'hold';
-                            const cd = isHold ? this.holdCooldown() : this.tapCooldown();
-                            if (cd === 0) {
-                                if (ab === 'drill_attack') this.triggerDrillAttack();
-                                else if (ab === 'burst') this.triggerBurst();
-                                else if (ab === 'fire_breath') this.triggerFireBreath();
-                                else if (ab === 'aura') this.triggerAura();
-                                else if (ab === 'phoenix_turret') this.triggerPhoenixTurret();
-                                usedPlayer = true;
-                                break;
-                            }
-                        }
+                    const activeTap = this.gameState.currentStats().activeTapAbility;
+                    const activeHold = this.gameState.currentStats().activeHoldAbility;
+
+                    if (mlAction.useTap > 0.5 && activeTap && this.tapCooldown() === 0) {
+                        if (activeTap === 'drill_attack') this.triggerDrillAttack();
+                        else if (activeTap === 'burst') this.triggerBurst();
+                        else if (activeTap === 'fire_breath') this.triggerFireBreath();
+                        usedPlayer = true;
+                    } else if (mlAction.useHold > 0.5 && activeHold && this.holdCooldown() === 0) {
+                        if (activeHold === 'aura') this.triggerAura();
+                        else if (activeHold === 'phoenix_turret') this.triggerPhoenixTurret();
+                        usedPlayer = true;
                     }
                     
                     if (usedPlayer) {

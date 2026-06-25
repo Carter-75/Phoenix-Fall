@@ -16,7 +16,8 @@ export interface MLState {
 export interface MLAction {
     targetX: number;
     targetY: number;
-    abilityTriggers: number[]; // 20 slots
+    useTap: number;
+    useHold: number;
 }
 
 export interface Experience {
@@ -35,8 +36,8 @@ export class MlAiService {
     private replayBuffer: Experience[] = [];
     private maxBufferSize = 500;
     
-    // X, Y, plus 20 generic ability slots
-    private readonly OUTPUT_UNITS = 2 + 20;
+    // X, Y, useTap, useHold
+    private readonly OUTPUT_UNITS = 4;
 
     constructor() {
         this.initModel();
@@ -60,7 +61,7 @@ export class MlAiService {
                         this.isTrained = true;
                         console.log('Loaded global TFJS weights v' + res.version);
                     } catch (e) {
-                        console.warn('Global weights shape mismatch! Starting fresh for dynamic shape compatibility.');
+                        console.warn('Global weights shape mismatch! Starting fresh for 4-output controller layout.');
                         this.isTrained = true;
                     }
                 } else {
@@ -134,7 +135,8 @@ export class MlAiService {
             return {
                 targetX: state.playerX * window.innerWidth,
                 targetY: state.playerY * window.innerHeight,
-                abilityTriggers: Array.from({length: 20}, () => Math.random())
+                useTap: Math.random(),
+                useHold: Math.random()
             };
         }
         
@@ -145,15 +147,11 @@ export class MlAiService {
             
             const explore = Math.random() < 0.05;
             
-            let abilities: number[] = [];
-            for (let i = 0; i < 20; i++) {
-                abilities.push(explore ? Math.random() : data[2 + i]);
-            }
-
             return {
                 targetX: (explore ? Math.random() : data[0]) * window.innerWidth,
                 targetY: (explore ? Math.random() : data[1]) * window.innerHeight,
-                abilityTriggers: abilities
+                useTap: explore ? Math.random() : data[2],
+                useHold: explore ? Math.random() : data[3]
             };
         });
     }
@@ -182,17 +180,16 @@ export class MlAiService {
             
             let tx = exp.action.targetX / window.innerWidth;
             let ty = exp.action.targetY / window.innerHeight;
-            
-            let abs = [...exp.action.abilityTriggers];
+            let tTap = exp.action.useTap;
+            let tHold = exp.action.useHold;
             
             if (exp.reward < 0) {
                 tx = 1.0 - tx;
                 ty = 1.0 - ty;
-                for (let i = 0; i < abs.length; i++) {
-                    abs[i] = abs[i] > 0.5 ? 0 : 1;
-                }
+                tTap = tTap > 0.5 ? 0 : 1;
+                tHold = tHold > 0.5 ? 0 : 1;
             }
-            outputs.push([tx, ty, ...abs]);
+            outputs.push([tx, ty, tTap, tHold]);
         }
         
         const x = tf.tensor2d(inputs);
