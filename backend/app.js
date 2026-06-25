@@ -43,6 +43,7 @@ const indexRouter = require('./routes/index');
 const authRouter = require('./routes/auth');
 const leaderboardRouter = require('./routes/leaderboard');
 const notificationsRouter = require('./routes/notifications');
+const aiRouter = require('./routes/ai');
 
 // --- Diagnostic Routes ---
 app.get('/api/health', async (req, res) => {
@@ -142,6 +143,9 @@ app.use('/leaderboard', leaderboardRouter);
 
 app.use('/api/notifications', notificationsRouter);
 app.use('/notifications', notificationsRouter);
+
+app.use('/api/ai', aiRouter);
+app.use('/ai', aiRouter);
 
 // Error handler
 app.use((err, req, res, next) => {

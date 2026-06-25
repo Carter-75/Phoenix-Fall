@@ -1,4 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../environments/environment';
 import * as brain from 'brain.js';
 import * as Matter from 'matter-js';
 
@@ -31,12 +33,10 @@ export class MlAiService {
     private positionHistory: {x: number, y: number}[] = [];
     private actionHistory: MLAction[] = [];
     private historySize = 60; // 1 second at 60fps
+    private http = inject(HttpClient);
 
     constructor() {
-        this.loadWeights();
-        if (!this.isTrained) {
-            this.preTrain();
-        }
+        this.loadGlobalWeights();
     }
 
     public saveWeights() {
@@ -55,6 +55,29 @@ export class MlAiService {
                 console.error("Failed to load ML weights", e);
             }
         }
+    }
+
+    private loadGlobalWeights() {
+        this.http.get<{weights: any, version: number}>(`${environment.apiUrl}/api/ai/weights`).subscribe({
+            next: (res) => {
+                this.net.fromJSON(res.weights);
+                this.isTrained = true;
+                console.log('Loaded global AI weights v' + res.version);
+            },
+            error: (err) => {
+                console.log('No global weights found, falling back to local weights');
+                this.loadWeights();
+                if (!this.isTrained) this.preTrain();
+            }
+        });
+    }
+
+    public pushGlobalWeights() {
+        if (!this.isTrained) return;
+        this.http.post(`${environment.apiUrl}/api/ai/weights`, { weights: this.net.toJSON() }).subscribe({
+            next: () => console.log('Successfully pushed new weights globally!'),
+            error: (err) => console.error('Failed to push global weights', err)
+        });
     }
 
     public downloadWeights() {

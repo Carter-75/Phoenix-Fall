@@ -1393,6 +1393,10 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               setTimeout(() => this.battleDropGrace.set(false), 500);
               this.nextDropIndex++;
           }
+          
+          if (this.gameState.currentGameMode() === 'ai_vs_ai' && this.gameState.sessionPlayTime() % 60 === 0) {
+              this.mlAi.pushGlobalWeights();
+          }
       } else {
           this.timeRemaining.update(t => Math.max(0, Math.floor(t - 1)));
           if (this.timeRemaining() === 0 && this.bossSpawned() && !this.inBossDefeatSequence() && !this.isDead() && !this.rageModeActive()) {
