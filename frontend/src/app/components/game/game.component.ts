@@ -1064,17 +1064,62 @@ export class GameComponent implements OnInit, OnDestroy {
                 eAny.lastDangerState = inDanger;
             }
 
+            const eAny = enemy as any;
+            const topAiHpRatio = (data.health || 1) / (data.maxHealth || 1);
+            const playerHpRatio = this.currentHealth() / this.maxHealth();
+
             const state = {
                 aiX: enemy.position.x, aiY: enemy.position.y,
                 playerX: this.playerBody.position.x, playerY: this.playerBody.position.y,
                 threatX: minDist < 300 ? threatX : 0,
-                threatY: minDist < 300 ? threatY : 0
+                threatY: minDist < 300 ? threatY : 0,
+                hpRatio: topAiHpRatio,
+                playerHpRatio: playerHpRatio
             };
             
             // Machine Learning Prediction!
             let mlAction = this.mlAi.predictTarget(state);
             let targetPosition = { x: mlAction.targetX, y: mlAction.targetY };
             
+            // Process ML Abilities for Top AI
+            if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+                const now = Date.now();
+                if (!eAny.lastAbilityTime || now - eAny.lastAbilityTime > 3000) {
+                    let used = false;
+                    if (mlAction.useDrill > 0.5 && this.aiAbilities.includes('drill_attack')) { this.triggerEnemyAbility('drill_attack', enemy, this.playerBody.position); used = true; }
+                    else if (mlAction.useBurst > 0.5 && this.aiAbilities.includes('burst')) { this.triggerEnemyAbility('burst', enemy, this.playerBody.position); used = true; }
+                    else if (mlAction.useFire > 0.5 && this.aiAbilities.includes('fire_breath')) { this.triggerEnemyAbility('fire_breath', enemy, this.playerBody.position); used = true; }
+                    else if (mlAction.useAura > 0.5 && this.aiAbilities.includes('aura')) { this.triggerEnemyAbility('aura', enemy, this.playerBody.position); used = true; }
+                    else if (mlAction.useTurret > 0.5 && this.aiAbilities.includes('phoenix_turret')) { this.triggerEnemyAbility('phoenix_turret', enemy, this.playerBody.position); used = true; }
+                    
+                    if (used) {
+                        eAny.lastAbilityTime = now;
+                    }
+                }
+                
+                // Process ML Abilities for Bottom AI (Player AI)
+                if (!eAny.lastPlayerAbilityTime || now - eAny.lastPlayerAbilityTime > 3000) {
+                    let usedPlayer = false;
+                    const unlocked = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities || {};
+                    const available = Object.keys(unlocked).filter(k => unlocked[k].level > 0);
+                    
+                    this.mouseX = enemy.position.x;
+                    this.mouseY = enemy.position.y;
+
+                    // Since we want the bottom AI to be smart too, we can let it piggyback off the same ML action (mirrored)
+                    // Or simply use the MLAction outputs directly
+                    if (mlAction.useDrill > 0.5 && available.includes('drill_attack') && this.tapCooldown() === 0) { this.triggerDrillAttack(); usedPlayer = true; }
+                    else if (mlAction.useBurst > 0.5 && available.includes('burst') && this.tapCooldown() === 0) { this.triggerBurst(); usedPlayer = true; }
+                    else if (mlAction.useFire > 0.5 && available.includes('fire_breath') && this.tapCooldown() === 0) { this.triggerFireBreath(); usedPlayer = true; }
+                    else if (mlAction.useAura > 0.5 && available.includes('aura') && this.holdCooldown() === 0) { this.triggerAura(); usedPlayer = true; }
+                    else if (mlAction.useTurret > 0.5 && available.includes('phoenix_turret') && this.holdCooldown() === 0) { this.triggerPhoenixTurret(); usedPlayer = true; }
+                    
+                    if (usedPlayer) {
+                        eAny.lastPlayerAbilityTime = now;
+                    }
+                }
+            }
+
             // Periodically reward survival
             if (Math.random() < 0.05) {
                 this.mlAi.recordExperience(state, mlAction, 1);
@@ -1422,39 +1467,6 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       this.fireProjectile();
     }, 1000 / attackSpeed);
     
-    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-        (this as any).aiAbilityInterval = setInterval(() => {
-            if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
-            
-            const topAi = this.enemies.find(e => e.label === 'enemy' && e.plugin['data']?.type === 'enemy_phoenix');
-            if (topAi && this.aiAbilities.length > 0) {
-                const distToPlayer = Matter.Vector.magnitude(Matter.Vector.sub(topAi.position, this.playerBody.position));
-                if (distToPlayer < 600 && Math.random() < 0.5) {
-                    const ability = this.aiAbilities[Math.floor(Math.random() * this.aiAbilities.length)];
-                    this.triggerEnemyAbility(ability, topAi, this.playerBody.position);
-                }
-            }
-            
-            if (Math.random() < 0.5 && topAi) {
-                const distToAi = Matter.Vector.magnitude(Matter.Vector.sub(this.playerBody.position, topAi.position));
-                if (distToAi < 600) {
-                    const unlocked = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities || {};
-                    const available = Object.keys(unlocked).filter(k => unlocked[k].level > 0);
-                    if (available.length > 0) {
-                        const ability = available[Math.floor(Math.random() * available.length)];
-                        this.mouseX = topAi.position.x;
-                        this.mouseY = topAi.position.y;
-                        
-                        if (ability === 'drill_attack' && this.tapCooldown() === 0) this.triggerDrillAttack();
-                        else if (ability === 'fire_breath' && this.tapCooldown() === 0) this.triggerFireBreath();
-                        else if (ability === 'burst' && this.tapCooldown() === 0) this.triggerBurst();
-                        else if (ability === 'phoenix_turret' && this.holdCooldown() === 0) this.triggerPhoenixTurret();
-                        else if (ability === 'aura' && this.holdCooldown() === 0) this.triggerAura();
-                    }
-                }
-            }
-        }, 2000);
-    }
   }
 
 

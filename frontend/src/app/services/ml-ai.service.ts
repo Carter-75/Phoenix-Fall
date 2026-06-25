@@ -11,11 +11,18 @@ export interface MLState {
     playerY: number;
     threatX: number;
     threatY: number;
+    hpRatio: number;
+    playerHpRatio: number;
 }
 
 export interface MLAction {
     targetX: number;
     targetY: number;
+    useDrill: number;
+    useBurst: number;
+    useFire: number;
+    useAura: number;
+    useTurret: number;
 }
 
 interface Experience {
@@ -26,7 +33,7 @@ interface Experience {
 
 @Injectable({ providedIn: 'root' })
 export class MlAiService {
-    private net = new brain.NeuralNetwork({ hiddenLayers: [6, 6] });
+    private net = new brain.NeuralNetwork({ hiddenLayers: [12, 12] });
     private isTrained = false;
     private memory: Experience[] = [];
     private maxMemory = 100;
@@ -39,24 +46,6 @@ export class MlAiService {
         this.loadGlobalWeights();
     }
 
-    public saveWeights() {
-        if (this.isTrained) {
-            localStorage.setItem('phoenix_ml_weights', JSON.stringify(this.net.toJSON()));
-        }
-    }
-
-    private loadWeights() {
-        const saved = localStorage.getItem('phoenix_ml_weights');
-        if (saved) {
-            try {
-                this.net.fromJSON(JSON.parse(saved));
-                this.isTrained = true;
-            } catch (e) {
-                console.error("Failed to load ML weights", e);
-            }
-        }
-    }
-
     private loadGlobalWeights() {
         this.http.get<{weights: any, version: number}>(`${environment.apiUrl}/api/ai/weights`).subscribe({
             next: (res) => {
@@ -65,8 +54,7 @@ export class MlAiService {
                 console.log('Loaded global AI weights v' + res.version);
             },
             error: (err) => {
-                console.log('No global weights found, falling back to local weights');
-                this.loadWeights();
+                console.log('No global weights found, falling back to preTrain');
                 if (!this.isTrained) this.preTrain();
             }
         });
@@ -99,21 +87,33 @@ export class MlAiService {
             playerX: s.playerX / w,
             playerY: s.playerY / h,
             threatX: s.threatX / w,
-            threatY: s.threatY / h
+            threatY: s.threatY / h,
+            hpRatio: s.hpRatio,
+            playerHpRatio: s.playerHpRatio
         };
     }
     
     private normalizeAction(a: MLAction) {
         return {
             targetX: a.targetX / window.innerWidth,
-            targetY: a.targetY / window.innerHeight
+            targetY: a.targetY / window.innerHeight,
+            useDrill: a.useDrill,
+            useBurst: a.useBurst,
+            useFire: a.useFire,
+            useAura: a.useAura,
+            useTurret: a.useTurret
         };
     }
     
     private denormalizeAction(output: any): MLAction {
         return {
             targetX: output.targetX * window.innerWidth,
-            targetY: output.targetY * window.innerHeight
+            targetY: output.targetY * window.innerHeight,
+            useDrill: output.useDrill || 0,
+            useBurst: output.useBurst || 0,
+            useFire: output.useFire || 0,
+            useAura: output.useAura || 0,
+            useTurret: output.useTurret || 0
         };
     }
 
@@ -125,17 +125,22 @@ export class MlAiService {
         // Basic pre-training: If no threat, move towards player.
         for(let i=0; i<20; i++) {
             data.push({
-                input: { aiX: 0.1, aiY: 0.1, playerX: 0.9, playerY: 0.9, threatX: 0, threatY: 0 },
-                output: { targetX: 0.9, targetY: 0.9 }
+                input: { aiX: 0.1, aiY: 0.1, playerX: 0.9, playerY: 0.9, threatX: 0, threatY: 0, hpRatio: 1, playerHpRatio: 1 },
+                output: { targetX: 0.9, targetY: 0.9, useDrill: 0, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 }
             });
             data.push({
-                input: { aiX: 0.9, aiY: 0.9, playerX: 0.1, playerY: 0.1, threatX: 0, threatY: 0 },
-                output: { targetX: 0.1, targetY: 0.1 }
+                input: { aiX: 0.9, aiY: 0.9, playerX: 0.1, playerY: 0.1, threatX: 0, threatY: 0, hpRatio: 1, playerHpRatio: 1 },
+                output: { targetX: 0.1, targetY: 0.1, useDrill: 1, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 }
             });
-            // Dodge threat
+            // Dodge threat and defensive
             data.push({
-                input: { aiX: 0.5, aiY: 0.5, playerX: 0.5, playerY: 0.8, threatX: 0.5, threatY: 0.55 },
-                output: { targetX: 0.1, targetY: 0.5 } // Flee sideways
+                input: { aiX: 0.5, aiY: 0.5, playerX: 0.5, playerY: 0.8, threatX: 0.5, threatY: 0.55, hpRatio: 0.2, playerHpRatio: 1 },
+                output: { targetX: 0.1, targetY: 0.5, useDrill: 0, useBurst: 0, useFire: 0, useAura: 1, useTurret: 1 } // Flee sideways and use defensive skills
+            });
+            // Aggressive when player is low
+            data.push({
+                input: { aiX: 0.5, aiY: 0.5, playerX: 0.5, playerY: 0.8, threatX: 0, threatY: 0, hpRatio: 1, playerHpRatio: 0.2 },
+                output: { targetX: 0.5, targetY: 0.8, useDrill: 1, useBurst: 1, useFire: 1, useAura: 0, useTurret: 0 }
             });
         }
         
@@ -228,6 +233,11 @@ export class MlAiService {
                 // Learn to do the OPPOSITE
                 output.targetX = 1.0 - output.targetX;
                 output.targetY = 1.0 - output.targetY;
+                output.useDrill = output.useDrill > 0.5 ? 0 : 1;
+                output.useBurst = output.useBurst > 0.5 ? 0 : 1;
+                output.useFire = output.useFire > 0.5 ? 0 : 1;
+                output.useAura = output.useAura > 0.5 ? 0 : 1;
+                output.useTurret = output.useTurret > 0.5 ? 0 : 1;
             }
             return {
                 input: this.normalizeState(exp.state),
