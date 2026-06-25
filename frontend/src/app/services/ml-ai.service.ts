@@ -11,6 +11,8 @@ export interface MLState {
     hpRatio: number; playerHpRatio: number;
     radar0: number; radar1: number; radar2: number; radar3: number;
     radar4: number; radar5: number; radar6: number; radar7: number;
+    closestMobType: number; closestMobDist: number;
+    closestMobVelX: number; closestMobVelY: number;
 }
 
 export interface MLAction {
@@ -46,7 +48,7 @@ export class MlAiService {
 
     private initModel() {
         this.model = tf.sequential();
-        this.model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [18] }));
+        this.model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [22] }));
         this.model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
         this.model.add(tf.layers.dense({ units: this.OUTPUT_UNITS, activation: 'sigmoid' }));
         this.model.compile({ optimizer: this.optimizer, loss: 'meanSquaredError' });
@@ -126,7 +128,9 @@ export class MlAiService {
             s.playerX, s.playerY, s.playerVelX, s.playerVelY,
             s.hpRatio, s.playerHpRatio,
             s.radar0, s.radar1, s.radar2, s.radar3,
-            s.radar4, s.radar5, s.radar6, s.radar7
+            s.radar4, s.radar5, s.radar6, s.radar7,
+            s.closestMobType, s.closestMobDist,
+            s.closestMobVelX, s.closestMobVelY
         ];
     }
     

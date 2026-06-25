@@ -406,6 +406,45 @@ export class GameComponent implements OnInit, OnDestroy {
           }
       }
 
+      let closestMobType = 0;
+      let closestMobDist = 1.0;
+      let closestMobVelX = 0;
+      let closestMobVelY = 0;
+      let nearestBody: Matter.Body | null = null;
+      let minDistRaw = Infinity;
+
+      const allBodies = Matter.Composite.allBodies(this.engine.world);
+      for (let b of allBodies) {
+           if (b === actor || b === target) continue;
+           if (b.label === 'enemy' || b.label === 'boss' || b.label === 'projectile') {
+                const dist = Matter.Vector.magnitude(Matter.Vector.sub(actor.position, b.position));
+                if (dist < minDistRaw) {
+                    minDistRaw = dist;
+                    nearestBody = b;
+                }
+           }
+      }
+
+      if (nearestBody) {
+           closestMobDist = Math.min(1.0, minDistRaw / maxRange);
+           closestMobVelX = nearestBody.velocity.x;
+           closestMobVelY = nearestBody.velocity.y;
+           
+           const data = nearestBody.plugin['data'];
+           const typeStr = data ? data.type : nearestBody.label;
+           
+           if (typeStr === 'bat') closestMobType = 1;
+           else if (typeStr === 'slime') closestMobType = 2;
+           else if (typeStr === 'golem') closestMobType = 3;
+           else if (typeStr === 'boss') closestMobType = 4;
+           else if (typeStr === 'enemy_phoenix') closestMobType = 5;
+           else if (typeStr === 'projectile_enemy') closestMobType = 6;
+           else if (typeStr === 'projectile_player') closestMobType = 7;
+           else if (typeStr === 'fire') closestMobType = 8;
+           else if (typeStr === 'egg') closestMobType = 9;
+           else closestMobType = 10;
+      }
+
       return {
           aiX: actor.position.x, aiY: actor.position.y,
           aiVelX: actor.velocity.x, aiVelY: actor.velocity.y,
@@ -414,7 +453,11 @@ export class GameComponent implements OnInit, OnDestroy {
           hpRatio: hpRatio,
           playerHpRatio: targetHpRatio,
           radar0: radarDists[0], radar1: radarDists[1], radar2: radarDists[2], radar3: radarDists[3],
-          radar4: radarDists[4], radar5: radarDists[5], radar6: radarDists[6], radar7: radarDists[7]
+          radar4: radarDists[4], radar5: radarDists[5], radar6: radarDists[6], radar7: radarDists[7],
+          closestMobType: closestMobType / 10.0,
+          closestMobDist: closestMobDist,
+          closestMobVelX: closestMobVelX,
+          closestMobVelY: closestMobVelY
       };
   }
 
@@ -593,12 +636,14 @@ export class GameComponent implements OnInit, OnDestroy {
       this.aiStats = JSON.parse(JSON.stringify(playerStats));
       this.aiStats.maxHealth *= 10; // Scale base health x10 for Battle Mode boss pool
       
-      const allAbilities = Object.keys(ABILITIES);
-      for (let i = allAbilities.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [allAbilities[i], allAbilities[j]] = [allAbilities[j], allAbilities[i]];
-      }
-      this.aiAbilities = allAbilities.slice(0, 2);
+      const unlockedKeys = Object.keys(playerStats.unlockedAbilities);
+      const tapAbilities = unlockedKeys.filter(k => ABILITIES[k]?.type === 'tap' && k !== 'rebirth');
+      const holdAbilities = unlockedKeys.filter(k => ABILITIES[k]?.type === 'hold' && k !== 'rebirth');
+      
+      let tap = tapAbilities.length > 0 ? tapAbilities[Math.floor(Math.random() * tapAbilities.length)] : 'burst';
+      let hold = holdAbilities.length > 0 ? holdAbilities[Math.floor(Math.random() * holdAbilities.length)] : 'aura';
+      
+      this.aiAbilities = [tap, hold];
       
       const playerTapLevel = playerStats.activeTapAbility ? (playerStats.unlockedAbilities[playerStats.activeTapAbility]?.level || 1) : 1;
       const playerHoldLevel = playerStats.activeHoldAbility ? (playerStats.unlockedAbilities[playerStats.activeHoldAbility]?.level || 1) : 1;
@@ -972,6 +1017,10 @@ export class GameComponent implements OnInit, OnDestroy {
           if (Math.random() < 0.05) this.mlAi.recordExperience(state, mlAction, 1);
           
           let targetPosition = { x: mlAction.targetX, y: mlAction.targetY };
+          if (mlAction.useHold > 0.5) {
+              targetPosition.x = this.playerBody.position.x;
+              targetPosition.y = this.playerBody.position.y;
+          }
           targetPosition.x = Math.max(100, Math.min(window.innerWidth - 100, targetPosition.x));
           targetPosition.y = Math.max(100, Math.min(window.innerHeight - 100, targetPosition.y));
           
@@ -1107,6 +1156,10 @@ export class GameComponent implements OnInit, OnDestroy {
             // Machine Learning Prediction!
             let mlAction = this.mlAi.predictTarget(state);
             let targetPosition = { x: mlAction.targetX, y: mlAction.targetY };
+            if (mlAction.useHold > 0.5) {
+                targetPosition.x = enemy.position.x;
+                targetPosition.y = enemy.position.y;
+            }
             
             // Process ML Abilities for Top AI
             if (this.gameState.currentGameMode() === 'ai_vs_ai' || this.gameState.currentGameMode() === 'battle') {
