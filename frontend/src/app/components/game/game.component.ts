@@ -1861,6 +1861,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                   
                   const validTargets = ownerId === 'player' ? this.enemies : [this.playerBody];
                   if (validTargets.length > 0) {
+                      let nearest: Matter.Body;
                       if (eggData && eggData.aggroTarget && eggData.aggroTarget.parent) {
                           nearest = eggData.aggroTarget;
                       } else {
