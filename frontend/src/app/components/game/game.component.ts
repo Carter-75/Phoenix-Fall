@@ -581,6 +581,13 @@ export class GameComponent implements OnInit, OnDestroy {
     this.gameState.sessionPlayTime.set(0);
     this.gameState.sessionKills.set({});
     this.gameState.heartsCollected.set(0);
+    this.gameState.isRebirthing.set(false);
+    this.gameState.phoenixOverridePosition.set(null);
+    this.gameState.isPaused.set(false);
+    this.killScreenTimer.set(10);
+    this.rageModeActive.set(false);
+    this.annihilationModeActive.set(false);
+    this.infiniteBurnActive.set(false);
     
     this.initPhysics();
     this.startGameLoop();

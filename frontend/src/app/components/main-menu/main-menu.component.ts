@@ -10,6 +10,43 @@ import { SettingsComponent } from '../settings/settings.component';
   standalone: true,
   imports: [CommonModule, SettingsComponent],
   template: `
+    <!-- Global Header (Currencies & Navigation) - Fixed to screen -->
+    <div class="fixed top-0 left-0 w-full p-4 md:p-6 flex flex-col md:flex-row justify-between items-start gap-4 pointer-events-none z-50">
+      <div class="flex items-center gap-2 md:gap-4 w-full md:w-auto justify-center md:justify-start pointer-events-auto">
+        <!-- Coins -->
+        <div class="flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
+          <img src="assets/coin_icon.png" alt="Coins" class="w-6 h-6 object-contain" />
+          <span class="text-xl font-bold text-orange-400">{{ gameState.coins() }}</span>
+        </div>
+        <!-- Gems -->
+        <div class="flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
+          <img src="assets/gem_icon.png" alt="Gems" class="w-6 h-6 object-contain" />
+          <span class="text-xl font-bold text-purple-400">{{ gameState.gems() }}</span>
+        </div>
+      </div>
+      
+      <!-- Navigation -->
+      <div class="flex flex-wrap items-center justify-center md:justify-end gap-2 md:gap-4 w-full md:w-auto pointer-events-auto">
+        <button (click)="openCodex()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md text-amber-400">
+          Codex
+        </button>
+        <button (click)="openLeaderboard()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
+          Leaderboard
+        </button>
+        <button (click)="openProfile()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
+          {{ auth.currentUser() ? (auth.currentUser()!.isTemp ? 'Finish Signup' : auth.currentUser()!.username) : 'Sign In' }}
+        </button>
+        <button (click)="openShop()" class="transition hover:scale-110 active:scale-95">
+          <img src="assets/shop_icon.png" alt="Shop" class="w-12 h-12 md:w-16 md:h-16 drop-shadow-xl" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Settings Button - Fixed to bottom right -->
+    <button (click)="showSettings = true" class="fixed bottom-6 right-6 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/50 hover:text-white font-bold transition pointer-events-auto z-50">
+       SETTINGS ⚙️
+    </button>
+
     <div class="fixed inset-0 w-full h-[200vh] transition-transform duration-500 ease-in-out"
          [style.transform]="activeMenuMode === 'campaign' ? 'translateY(0)' : 'translateY(-50%)'"
          (touchstart)="onTouchStart($event)"
@@ -19,41 +56,6 @@ import { SettingsComponent } from '../settings/settings.component';
       <!-- Campaign Screen (top 100vh) -->
       <div class="w-full h-[100vh] relative flex flex-col items-center justify-center text-white pointer-events-none">
         
-        <!-- Top Left Header (Currencies) -->
-        <div class="absolute top-0 left-0 w-full p-4 md:p-6 flex flex-col md:flex-row justify-between items-start gap-4 pointer-events-auto">
-          <div class="flex items-center gap-2 md:gap-4 w-full md:w-auto justify-center md:justify-start">
-            <!-- Coins -->
-            <div class="flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
-              <img src="assets/coin_icon.png" alt="Coins" class="w-6 h-6 object-contain" />
-              <span class="text-xl font-bold text-orange-400">{{ gameState.coins() }}</span>
-            </div>
-            <!-- Gems -->
-            <div class="flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
-              <img src="assets/gem_icon.png" alt="Gems" class="w-6 h-6 object-contain" />
-              <span class="text-xl font-bold text-purple-400">{{ gameState.gems() }}</span>
-            </div>
-          </div>
-          
-          <!-- Top Right Header (Navigation) -->
-          <div class="flex flex-wrap items-center justify-center md:justify-end gap-2 md:gap-4 w-full md:w-auto">
-            <button (click)="openCodex()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md text-amber-400">
-              Codex
-            </button>
-            
-            <button (click)="openLeaderboard()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
-              Leaderboard
-            </button>
-            
-            <button (click)="openProfile()" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-semibold transition backdrop-blur-md">
-              {{ auth.currentUser() ? (auth.currentUser()!.isTemp ? 'Finish Signup' : auth.currentUser()!.username) : 'Sign In' }}
-            </button>
-            
-            <button (click)="openShop()" class="transition hover:scale-110 active:scale-95">
-              <img src="assets/shop_icon.png" alt="Shop" class="w-12 h-12 md:w-16 md:h-16 drop-shadow-xl" />
-            </button>
-          </div>
-        </div>
-
         <!-- Center Content -->
         <div class="flex flex-col items-center gap-4 pointer-events-auto transform mt-24 md:-translate-y-8 md:mt-0">
           <h1 class="text-6xl md:text-9xl font-black tracking-tighter bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(255,100,0,0.5)] transition-all duration-500 bg-gradient-to-b text-center"
@@ -89,11 +91,6 @@ import { SettingsComponent } from '../settings/settings.component';
             </p>
           </button>
         </div>
-        
-        <!-- Settings Button -->
-        <button (click)="showSettings = true" class="absolute bottom-6 right-6 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/50 hover:text-white font-bold transition pointer-events-auto z-10">
-           SETTINGS ⚙️
-        </button>
         
         <button (click)="activeMenuMode = 'battle'" class="absolute bottom-6 animate-bounce pointer-events-auto text-white/50 hover:text-white transition group flex flex-col items-center z-10">
            <span class="text-xs uppercase tracking-widest font-bold mb-1 group-hover:text-red-400 transition-colors">Battle Mode</span>
