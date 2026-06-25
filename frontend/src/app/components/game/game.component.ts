@@ -381,6 +381,43 @@ export class GameComponent implements OnInit, OnDestroy {
   private holdStartX = 0;
   private holdStartY = 0;
 
+  private buildMLState(actor: Matter.Body, target: Matter.Body | undefined, hpRatio: number, targetHpRatio: number, threatType: string): any {
+      const projectiles = Matter.Composite.allBodies(this.engine.world).filter(b => b.label === 'projectile' && b.plugin['data']?.type === threatType);
+      
+      const rays = 8;
+      const radarDists = Array(rays).fill(0);
+      const maxRange = 400;
+      
+      for (let i = 0; i < rays; i++) {
+          const angle = (Math.PI * 2 / rays) * i;
+          const endPoint = {
+              x: actor.position.x + Math.cos(angle) * maxRange,
+              y: actor.position.y + Math.sin(angle) * maxRange
+          };
+          
+          const hits = Matter.Query.ray(projectiles, actor.position, endPoint);
+          if (hits.length > 0) {
+              let minDist = maxRange;
+              for (let hit of hits) {
+                  const dist = Matter.Vector.magnitude(Matter.Vector.sub(actor.position, (hit as any).body.position));
+                  if (dist < minDist) minDist = dist;
+              }
+              radarDists[i] = 1.0 - (minDist / maxRange);
+          }
+      }
+
+      return {
+          aiX: actor.position.x, aiY: actor.position.y,
+          aiVelX: actor.velocity.x, aiVelY: actor.velocity.y,
+          playerX: target?.position.x || window.innerWidth / 2, playerY: target?.position.y || 100,
+          playerVelX: target?.velocity.x || 0, playerVelY: target?.velocity.y || 0,
+          hpRatio: hpRatio,
+          playerHpRatio: targetHpRatio,
+          radar0: radarDists[0], radar1: radarDists[1], radar2: radarDists[2], radar3: radarDists[3],
+          radar4: radarDists[4], radar5: radarDists[5], radar6: radarDists[6], radar7: radarDists[7]
+      };
+  }
+
   // Matter.js
   private engine!: Matter.Engine;
   private runner!: Matter.Runner;
@@ -869,14 +906,8 @@ export class GameComponent implements OnInit, OnDestroy {
                     // Penalty! AI got hit by player projectile
                     const topAiHpRatio = (otherData.health || 1) / (otherData.maxHealth || 1);
                     const playerHpRatio = this.currentHealth() / this.maxHealth();
-                    this.mlAi.recordExperience({
-                        aiX: other.position.x, aiY: other.position.y,
-                        playerX: this.playerBody.position.x, playerY: this.playerBody.position.y,
-                        threatX: projectile.position.x, threatY: projectile.position.y,
-                        hpRatio: topAiHpRatio,
-                        playerHpRatio: playerHpRatio
-                    }, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y, useDrill: 0, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 }, -10);
-                    this.mlAi.trainOnMemory();
+                    const state = this.buildMLState(other, this.playerBody, topAiHpRatio, playerHpRatio, 'projectile_player');
+                    this.mlAi.recordExperience(state, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y, useDrill: 0, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 }, -10);
 
                     if (this.battleDropReady() && !this.battleDropGrace()) {
                         this.resolveBattleDrop(true, other.position.x, other.position.y);
@@ -934,14 +965,7 @@ export class GameComponent implements OnInit, OnDestroy {
           const topAiHpRatio = enemyData ? (enemyData.health || 1) / (enemyData.maxHealth || 1) : 1;
           const playerHpRatio = this.currentHealth() / this.maxHealth();
 
-          const state = {
-              aiX: this.playerBody.position.x, aiY: this.playerBody.position.y,
-              playerX: enemyTarget?.position.x || window.innerWidth / 2, playerY: enemyTarget?.position.y || 100,
-              threatX: minDist < 300 ? threatX : 0,
-              threatY: minDist < 300 ? threatY : 0,
-              hpRatio: playerHpRatio,
-              playerHpRatio: topAiHpRatio
-          };
+          const state = this.buildMLState(this.playerBody, enemyTarget, playerHpRatio, topAiHpRatio, 'projectile_enemy');
           
           let mlAction = this.mlAi.predictTarget(state);
           // Periodically reward survival
@@ -1078,14 +1102,7 @@ export class GameComponent implements OnInit, OnDestroy {
             const topAiHpRatio = (data.health || 1) / (data.maxHealth || 1);
             const playerHpRatio = this.currentHealth() / this.maxHealth();
 
-            const state = {
-                aiX: enemy.position.x, aiY: enemy.position.y,
-                playerX: this.playerBody.position.x, playerY: this.playerBody.position.y,
-                threatX: minDist < 300 ? threatX : 0,
-                threatY: minDist < 300 ? threatY : 0,
-                hpRatio: topAiHpRatio,
-                playerHpRatio: playerHpRatio
-            };
+            const state = this.buildMLState(enemy, this.playerBody, topAiHpRatio, playerHpRatio, 'projectile_player');
             
             // Machine Learning Prediction!
             let mlAction = this.mlAi.predictTarget(state);
@@ -1433,6 +1450,10 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       
       if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') {
           this.battleTimer.set(this.gameState.sessionPlayTime());
+          
+          if (this.gameState.currentGameMode() === 'ai_vs_ai' && this.battleTimer() > 0 && this.battleTimer() % 10 === 0) {
+              this.mlAi.trainOnMemory();
+          }
           
           // AI Economy TICK
           this.aiCoins += this.aiCoinGainRate;

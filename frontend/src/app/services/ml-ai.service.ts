@@ -1,18 +1,16 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
-import * as brain from 'brain.js';
-import * as Matter from 'matter-js';
+import * as tf from '@tensorflow/tfjs';
 
 export interface MLState {
-    aiX: number;
-    aiY: number;
-    playerX: number;
-    playerY: number;
-    threatX: number;
-    threatY: number;
-    hpRatio: number;
-    playerHpRatio: number;
+    aiX: number; aiY: number;
+    aiVelX: number; aiVelY: number;
+    playerX: number; playerY: number;
+    playerVelX: number; playerVelY: number;
+    hpRatio: number; playerHpRatio: number;
+    radar0: number; radar1: number; radar2: number; radar3: number;
+    radar4: number; radar5: number; radar6: number; radar7: number;
 }
 
 export interface MLAction {
@@ -25,7 +23,7 @@ export interface MLAction {
     useTurret: number;
 }
 
-interface Experience {
+export interface Experience {
     state: MLState;
     action: MLAction;
     reward: number;
@@ -33,220 +31,192 @@ interface Experience {
 
 @Injectable({ providedIn: 'root' })
 export class MlAiService {
-    private net = new brain.NeuralNetwork({ hiddenLayers: [12, 12] });
-    private isTrained = false;
-    private memory: Experience[] = [];
-    private maxMemory = 100;
-    private positionHistory: {x: number, y: number}[] = [];
-    private actionHistory: MLAction[] = [];
-    private historySize = 60; // 1 second at 60fps
+    private model!: tf.Sequential;
+    private optimizer = tf.train.adam(0.01);
+    public isTrained = false;
     private http = inject(HttpClient);
+    
+    private replayBuffer: Experience[] = [];
+    private maxBufferSize = 500;
 
     constructor() {
+        this.initModel();
         this.loadGlobalWeights();
+    }
+
+    private initModel() {
+        this.model = tf.sequential();
+        this.model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [18] }));
+        this.model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
+        this.model.add(tf.layers.dense({ units: 7, activation: 'sigmoid' }));
+        this.model.compile({ optimizer: this.optimizer, loss: 'meanSquaredError' });
     }
 
     private loadGlobalWeights() {
         this.http.get<{weights: any, version: number}>(`${environment.apiUrl}/api/ai/weights`).subscribe({
             next: (res) => {
-                this.net.fromJSON(res.weights);
-                this.isTrained = true;
-                console.log('Loaded global AI weights v' + res.version);
+                if (res.weights && Array.isArray(res.weights) && res.weights.length > 0) {
+                    this.setWeightsFromArray(res.weights);
+                    this.isTrained = true;
+                    console.log('Loaded global TFJS weights v' + res.version);
+                } else {
+                    this.isTrained = true; 
+                    console.log('No valid weights found, starting fresh with random TFJS weights');
+                }
             },
             error: (err) => {
-                console.log('No global weights found, falling back to preTrain');
-                if (!this.isTrained) this.preTrain();
+                console.log('No global weights found, starting fresh');
+                this.isTrained = true;
             }
         });
     }
 
     public pushGlobalWeights() {
         if (!this.isTrained) return;
-        this.http.post(`${environment.apiUrl}/api/ai/weights`, { weights: this.net.toJSON() }).subscribe({
-            next: () => console.log('Successfully pushed new weights globally!'),
+        const weightsArr = this.getWeightsAsArray();
+        this.http.post(`${environment.apiUrl}/api/ai/weights`, { weights: weightsArr }).subscribe({
+            next: () => console.log('Successfully pushed TFJS weights globally!'),
             error: (err) => console.error('Failed to push global weights', err)
         });
     }
 
+    private getWeightsAsArray(): number[] {
+        const weights = this.model.getWeights();
+        let arr: number[] = [];
+        for (let w of weights) {
+            const data = w.dataSync();
+            arr.push(...Array.from(data));
+        }
+        return arr;
+    }
+
+    private setWeightsFromArray(arr: number[]) {
+        try {
+            const currentWeights = this.model.getWeights();
+            let newWeights: tf.Tensor[] = [];
+            let offset = 0;
+            for (let w of currentWeights) {
+                const size = w.size;
+                const slice = arr.slice(offset, offset + size);
+                newWeights.push(tf.tensor(slice, w.shape, w.dtype));
+                offset += size;
+            }
+            this.model.setWeights(newWeights);
+        } catch (err) {
+            console.error('Failed to load TFJS array geometry, sticking to random weights', err);
+        }
+    }
+
     public downloadWeights() {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.net.toJSON()));
+        const arr = this.getWeightsAsArray();
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(arr));
         const dlAnchorElem = document.createElement('a');
         dlAnchorElem.setAttribute("href", dataStr);
-        dlAnchorElem.setAttribute("download", "phoenix_ml_weights.json");
+        dlAnchorElem.setAttribute("download", "phoenix_tfjs_weights.json");
         document.body.appendChild(dlAnchorElem);
         dlAnchorElem.click();
         dlAnchorElem.remove();
     }
     
-    private normalizeState(s: MLState) {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        return {
-            aiX: s.aiX / w,
-            aiY: s.aiY / h,
-            playerX: s.playerX / w,
-            playerY: s.playerY / h,
-            threatX: s.threatX / w,
-            threatY: s.threatY / h,
-            hpRatio: s.hpRatio,
-            playerHpRatio: s.playerHpRatio
-        };
+    private stateToArray(s: MLState): number[] {
+        return [
+            s.aiX, s.aiY, s.aiVelX, s.aiVelY,
+            s.playerX, s.playerY, s.playerVelX, s.playerVelY,
+            s.hpRatio, s.playerHpRatio,
+            s.radar0, s.radar1, s.radar2, s.radar3,
+            s.radar4, s.radar5, s.radar6, s.radar7
+        ];
     }
     
-    private normalizeAction(a: MLAction) {
-        return {
-            targetX: a.targetX / window.innerWidth,
-            targetY: a.targetY / window.innerHeight,
-            useDrill: a.useDrill,
-            useBurst: a.useBurst,
-            useFire: a.useFire,
-            useAura: a.useAura,
-            useTurret: a.useTurret
-        };
-    }
-    
-    private denormalizeAction(output: any): MLAction {
-        return {
-            targetX: output.targetX * window.innerWidth,
-            targetY: output.targetY * window.innerHeight,
-            useDrill: output.useDrill || 0,
-            useBurst: output.useBurst || 0,
-            useFire: output.useFire || 0,
-            useAura: output.useAura || 0,
-            useTurret: output.useTurret || 0
-        };
-    }
-
-    private preTrain() {
-        const data = [];
-        const w = window.innerWidth || 1920;
-        const h = window.innerHeight || 1080;
-        
-        // Basic pre-training: If no threat, move towards player.
-        for(let i=0; i<20; i++) {
-            data.push({
-                input: { aiX: 0.1, aiY: 0.1, playerX: 0.9, playerY: 0.9, threatX: 0, threatY: 0, hpRatio: 1, playerHpRatio: 1 },
-                output: { targetX: 0.9, targetY: 0.9, useDrill: 0, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 }
-            });
-            data.push({
-                input: { aiX: 0.9, aiY: 0.9, playerX: 0.1, playerY: 0.1, threatX: 0, threatY: 0, hpRatio: 1, playerHpRatio: 1 },
-                output: { targetX: 0.1, targetY: 0.1, useDrill: 1, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 }
-            });
-            // Dodge threat and defensive
-            data.push({
-                input: { aiX: 0.5, aiY: 0.5, playerX: 0.5, playerY: 0.8, threatX: 0.5, threatY: 0.55, hpRatio: 0.2, playerHpRatio: 1 },
-                output: { targetX: 0.1, targetY: 0.5, useDrill: 0, useBurst: 0, useFire: 0, useAura: 1, useTurret: 1 } // Flee sideways and use defensive skills
-            });
-            // Aggressive when player is low
-            data.push({
-                input: { aiX: 0.5, aiY: 0.5, playerX: 0.5, playerY: 0.8, threatX: 0, threatY: 0, hpRatio: 1, playerHpRatio: 0.2 },
-                output: { targetX: 0.5, targetY: 0.8, useDrill: 1, useBurst: 1, useFire: 1, useAura: 0, useTurret: 0 }
-            });
-        }
-        
-        this.net.train(data, { iterations: 100, errorThresh: 0.05 });
-        this.isTrained = true;
-    }
-
     public predictTarget(state: MLState): MLAction {
-        if (!this.isTrained) return { targetX: state.playerX, targetY: state.playerY, useDrill: 0, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 };
-        const input = this.normalizeState(state);
-        const output = this.net.run(input) as any;
-        const action = this.denormalizeAction(output);
-        
-        // Track history for penalties
-        this.positionHistory.push({ x: state.aiX, y: state.aiY });
-        if (this.positionHistory.length > this.historySize) this.positionHistory.shift();
-        
-        this.actionHistory.push(action);
-        if (this.actionHistory.length > this.historySize) this.actionHistory.shift();
-        
-        return action;
-    }
-    
-    public checkAdvancedPenalties(state: MLState, action: MLAction) {
-        if (this.positionHistory.length < this.historySize) return;
-
-        // 1. Detect Camping (variance in position over last 60 frames)
-        let sumX = 0, sumY = 0;
-        this.positionHistory.forEach(p => { sumX += p.x; sumY += p.y; });
-        const avgX = sumX / this.historySize;
-        const avgY = sumY / this.historySize;
-        
-        let varX = 0, varY = 0;
-        this.positionHistory.forEach(p => {
-            varX += Math.pow(p.x - avgX, 2);
-            varY += Math.pow(p.y - avgY, 2);
-        });
-        
-        const variance = (varX + varY) / this.historySize;
-        if (variance < 100) { // Extremely still
-            this.recordExperience(state, action, -5);
-            this.trainOnMemory();
-            this.positionHistory = []; // clear to prevent continuous spam
-            return;
-        }
-        
-        // 2. Detect tight circles (rapid extreme changes in action target direction)
-        let dirChanges = 0;
-        for (let i = 1; i < this.actionHistory.length; i++) {
-            const prev = this.actionHistory[i - 1];
-            const curr = this.actionHistory[i];
-            const dist = Math.hypot(curr.targetX - prev.targetX, curr.targetY - prev.targetY);
-            if (dist > window.innerWidth / 2) {
-                dirChanges++;
-            }
-        }
-        
-        // If it wildly changed targets across the screen more than 10 times in 1 second
-        if (dirChanges > 10) {
-            this.recordExperience(state, action, -5);
-            this.trainOnMemory();
-            this.actionHistory = []; // clear
-        }
-    }
-    
-    public addReward(reward: number) {
-        if (this.memory.length > 0) {
-            this.memory[this.memory.length - 1].reward += reward;
-            if (this.memory[this.memory.length - 1].reward >= 5 || this.memory[this.memory.length - 1].reward <= -5) {
-                this.trainOnMemory();
-            }
-        }
-    }
-    
-    public recordExperience(state: MLState, action: MLAction, reward: number) {
-        this.memory.push({ state, action, reward });
-        if (this.memory.length > this.maxMemory) {
-            this.memory.shift();
-        }
-    }
-    
-    public trainOnMemory() {
-        if (this.memory.length < 10) return;
-        
-        // Convert memory to training data
-        // For negative rewards, we flip the action vector
-        const trainingData = this.memory.map(exp => {
-            let output = this.normalizeAction(exp.action);
-            if (exp.reward < 0) {
-                // Learn to do the OPPOSITE
-                output.targetX = 1.0 - output.targetX;
-                output.targetY = 1.0 - output.targetY;
-                output.useDrill = output.useDrill > 0.5 ? 0 : 1;
-                output.useBurst = output.useBurst > 0.5 ? 0 : 1;
-                output.useFire = output.useFire > 0.5 ? 0 : 1;
-                output.useAura = output.useAura > 0.5 ? 0 : 1;
-                output.useTurret = output.useTurret > 0.5 ? 0 : 1;
-            }
+        if (!this.isTrained) {
             return {
-                input: this.normalizeState(exp.state),
-                output: output
+                targetX: state.playerX * window.innerWidth,
+                targetY: state.playerY * window.innerHeight,
+                useDrill: Math.random(),
+                useBurst: Math.random(),
+                useFire: Math.random(),
+                useAura: Math.random(),
+                useTurret: Math.random()
+            };
+        }
+        
+        return tf.tidy(() => {
+            const input = tf.tensor2d([this.stateToArray(state)]);
+            const output = this.model.predict(input) as tf.Tensor;
+            const data = output.dataSync();
+            
+            const explore = Math.random() < 0.05;
+
+            return {
+                targetX: (explore ? Math.random() : data[0]) * window.innerWidth,
+                targetY: (explore ? Math.random() : data[1]) * window.innerHeight,
+                useDrill: explore ? Math.random() : data[2],
+                useBurst: explore ? Math.random() : data[3],
+                useFire: explore ? Math.random() : data[4],
+                useAura: explore ? Math.random() : data[5],
+                useTurret: explore ? Math.random() : data[6]
             };
         });
+    }
+
+    public addReward(r: number) {
+        // Find last experience and boost it
+        if (this.replayBuffer.length > 0) {
+            this.replayBuffer[this.replayBuffer.length - 1].reward += r;
+        }
+    }
+
+    public recordExperience(state: MLState, action: MLAction, reward: number) {
+        this.replayBuffer.push({ state, action, reward });
+        if (this.replayBuffer.length > this.maxBufferSize) {
+            this.replayBuffer.shift(); 
+        }
+    }
+
+    public async trainOnMemory() {
+        if (this.replayBuffer.length === 0) return;
         
-        // Fast incremental training
-        this.net.train(trainingData, { iterations: 20 });
-        this.memory = []; // Clear memory after training
+        const inputs: number[][] = [];
+        const outputs: number[][] = [];
+        
+        for (let exp of this.replayBuffer) {
+            inputs.push(this.stateToArray(exp.state));
+            
+            let tx = exp.action.targetX / window.innerWidth;
+            let ty = exp.action.targetY / window.innerHeight;
+            let ud = exp.action.useDrill;
+            let ub = exp.action.useBurst;
+            let uf = exp.action.useFire;
+            let ua = exp.action.useAura;
+            let ut = exp.action.useTurret;
+            
+            if (exp.reward < 0) {
+                tx = 1.0 - tx;
+                ty = 1.0 - ty;
+                ud = ud > 0.5 ? 0 : 1;
+                ub = ub > 0.5 ? 0 : 1;
+                uf = uf > 0.5 ? 0 : 1;
+                ua = ua > 0.5 ? 0 : 1;
+                ut = ut > 0.5 ? 0 : 1;
+            } else if (exp.reward > 0) {
+                // Keep exactly what we did to reinforce it
+            }
+            outputs.push([tx, ty, ud, ub, uf, ua, ut]);
+        }
+        
+        const x = tf.tensor2d(inputs);
+        const y = tf.tensor2d(outputs);
+        
+        await this.model.fit(x, y, {
+            epochs: 1,
+            batchSize: 32,
+            shuffle: true
+        });
+        
+        x.dispose();
+        y.dispose();
+        
+        this.replayBuffer = [];
     }
 }
