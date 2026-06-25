@@ -33,7 +33,7 @@ interface EnemyData {
            <span class="text-white font-bold tracking-widest uppercase drop-shadow-md text-xl">{{ gameState.currentGameMode() === 'ai_vs_ai' ? 'AI VS AI' : 'BATTLE MODE' }}</span>
            <span class="text-white/90 font-mono text-2xl font-bold">{{ formatTime(battleTimer()) }}</span>
            
-           <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4">AI 1 (TOP) PHOENIX</span>
+           <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4">AI PHOENIX</span>
            <div class="w-full h-4 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,0,0,0.2)]">
               <div class="h-full bg-gradient-to-r from-cyan-600 to-blue-600 transition-all duration-300"
                    [style.width]="bossHealthPercent() + '%'"></div>
@@ -64,11 +64,11 @@ interface EnemyData {
       <!-- AI vs AI Scoreboard UI -->
       @if (gameState.currentGameMode() === 'ai_vs_ai') {
           <div class="absolute bottom-20 right-4 md:right-8 flex flex-col gap-1 pointer-events-auto z-10 p-4 bg-black/50 border border-white/10 rounded-2xl backdrop-blur-sm">
-             <div class="text-white/80 font-bold text-xs tracking-widest uppercase mb-1 text-right">AI 1 (Top) Wins</div>
+             <div class="text-white/80 font-bold text-xs tracking-widest uppercase mb-1 text-right">Wins</div>
              <div class="text-3xl font-black text-cyan-400 drop-shadow-md text-right">{{ gameState.ai1Wins() }}</div>
           </div>
           <div class="absolute bottom-20 left-4 md:left-8 flex flex-col gap-1 pointer-events-auto z-10 p-4 bg-black/50 border border-white/10 rounded-2xl backdrop-blur-sm">
-             <div class="text-white/80 font-bold text-xs tracking-widest uppercase mb-1">AI 2 (Bottom) Wins</div>
+             <div class="text-white/80 font-bold text-xs tracking-widest uppercase mb-1">Wins</div>
              <div class="text-3xl font-black text-fuchsia-400 drop-shadow-md">{{ gameState.ai2Wins() }}</div>
           </div>
       }
@@ -90,7 +90,7 @@ interface EnemyData {
       <!-- Health Bar -->
       <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-48 md:w-64 flex flex-col items-center gap-2 pointer-events-auto">
         @if (gameState.currentGameMode() === 'ai_vs_ai') {
-            <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4 text-xs">AI 2 (BOTTOM) PHOENIX</span>
+            <span class="text-white font-bold tracking-widest uppercase drop-shadow-md mt-4 text-xs">AI PHOENIX</span>
         }
         <div class="w-full h-4 bg-black/50 border border-white/20 rounded-full overflow-hidden shadow-[0_0_15px_rgba(255,0,0,0.2)]">
            <div class="h-full bg-gradient-to-r from-red-600 to-fuchsia-600 transition-all duration-300"

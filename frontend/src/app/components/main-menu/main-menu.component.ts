@@ -140,7 +140,7 @@ import { SettingsComponent } from '../settings/settings.component';
             <div class="absolute inset-0 bg-red-600/20 rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity"></div>
             <img src="assets/play_button.png" alt="Play" class="relative w-32 h-32 md:w-40 md:h-40 drop-shadow-[0_0_30px_rgba(255,0,0,0.8)]" style="filter: hue-rotate(320deg) saturate(2)" />
             <p class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-red-400 font-bold tracking-widest uppercase text-sm w-max">
-              {{ isBattleWorldUnlocked() ? 'Click to Duel (Hold for AI Test)' : 'Coming Soon' }}
+              {{ isBattleWorldUnlocked() ? 'Click to Duel' : 'Coming Soon' }}
             </p>
           </button>
         </div>
