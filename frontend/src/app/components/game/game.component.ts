@@ -965,6 +965,18 @@ export class GameComponent implements OnInit, OnDestroy {
                 }
             }
             this.damageEnemy(other, damage);
+          } else if (other.label === 'projectile') {
+              const pData = projectile.plugin['data'] as EnemyData;
+              const oData = other.plugin['data'] as EnemyData;
+              
+              if (pData && oData && pData.owner && oData.owner && pData.owner !== oData.owner) {
+                  const destructible = ['fire', 'projectile_player', 'projectile_enemy'];
+                  if (destructible.includes(pData.type) && destructible.includes(oData.type)) {
+                      Matter.Composite.remove(this.engine.world, projectile);
+                      Matter.Composite.remove(this.engine.world, other);
+                      this.triggerImpactEffect(projectile.position.x, projectile.position.y, false);
+                  }
+              }
           }
         }
       }
@@ -1954,7 +1966,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               const dir = { x: Math.cos(angle), y: Math.sin(angle) };
               const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 10, {
                   isSensor: true, label: 'projectile',
-                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 20 } as EnemyData }
+                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 20, owner: 'enemy' } as EnemyData }
               });
               Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 10));
               Matter.Composite.add(this.engine.world, proj);
@@ -1970,7 +1982,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                   const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
                   const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 10, {
                       isSensor: true, label: 'projectile',
-                      plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 10 } as EnemyData }
+                      plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 10, owner: 'enemy' } as EnemyData }
                   });
                   Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 12));
                   Matter.Composite.add(this.engine.world, proj);
@@ -1980,7 +1992,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       } else if (ability === 'aura') {
           const aura = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 150, {
               isSensor: true, label: 'projectile',
-              plugin: { data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: 150 } as EnemyData }
+              plugin: { data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: 150, owner: 'enemy' } as EnemyData }
           });
           Matter.Composite.add(this.engine.world, aura);
           setTimeout(() => { if (aura.parent) Matter.Composite.remove(this.engine.world, aura) }, 500);
@@ -1988,7 +2000,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           // Just spawn a small turret that shoots 1 burst
           const egg = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y + 30, 15, {
               isStatic: true, isSensor: true, label: 'projectile',
-              plugin: { data: { id: Math.random().toString(), type: 'egg', health: 100, maxHealth: 100, size: 15 } as any }
+              plugin: { data: { id: Math.random().toString(), type: 'egg', health: 100, maxHealth: 100, size: 15, owner: 'enemy' } as any }
           });
           Matter.Composite.add(this.engine.world, egg);
           setTimeout(() => {
@@ -1998,7 +2010,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                  const dir = { x: Math.cos(angle), y: Math.sin(angle) };
                  const proj = Matter.Bodies.circle(egg.position.x, egg.position.y, 10, {
                      isSensor: true, label: 'projectile',
-                     plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 15 } as EnemyData }
+                     plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: 15, owner: 'enemy' } as EnemyData }
                  });
                  Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 8));
                  Matter.Composite.add(this.engine.world, proj);
