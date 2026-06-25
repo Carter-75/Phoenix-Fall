@@ -149,7 +149,7 @@ export class MlAiService {
     }
 
     public predictTarget(state: MLState): MLAction {
-        if (!this.isTrained) return { targetX: state.playerX, targetY: state.playerY };
+        if (!this.isTrained) return { targetX: state.playerX, targetY: state.playerY, useDrill: 0, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 };
         const input = this.normalizeState(state);
         const output = this.net.run(input) as any;
         const action = this.denormalizeAction(output);

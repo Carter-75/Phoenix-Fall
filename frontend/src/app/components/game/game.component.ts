@@ -867,11 +867,15 @@ export class GameComponent implements OnInit, OnDestroy {
                 const otherData = other.plugin['data'] as EnemyData;
                 if (otherData && otherData.type === 'enemy_phoenix' && this.gameState.currentGameMode() === 'battle') {
                     // Penalty! AI got hit by player projectile
+                    const topAiHpRatio = (otherData.health || 1) / (otherData.maxHealth || 1);
+                    const playerHpRatio = this.currentHealth() / this.maxHealth();
                     this.mlAi.recordExperience({
                         aiX: other.position.x, aiY: other.position.y,
                         playerX: this.playerBody.position.x, playerY: this.playerBody.position.y,
-                        threatX: projectile.position.x, threatY: projectile.position.y
-                    }, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y }, -10);
+                        threatX: projectile.position.x, threatY: projectile.position.y,
+                        hpRatio: topAiHpRatio,
+                        playerHpRatio: playerHpRatio
+                    }, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y, useDrill: 0, useBurst: 0, useFire: 0, useAura: 0, useTurret: 0 }, -10);
                     this.mlAi.trainOnMemory();
 
                     if (this.battleDropReady() && !this.battleDropGrace()) {
@@ -926,11 +930,17 @@ export class GameComponent implements OnInit, OnDestroy {
           }
 
           const enemyTarget = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
+          const enemyData = enemyTarget?.plugin['data'] as EnemyData;
+          const topAiHpRatio = enemyData ? (enemyData.health || 1) / (enemyData.maxHealth || 1) : 1;
+          const playerHpRatio = this.currentHealth() / this.maxHealth();
+
           const state = {
               aiX: this.playerBody.position.x, aiY: this.playerBody.position.y,
               playerX: enemyTarget?.position.x || window.innerWidth / 2, playerY: enemyTarget?.position.y || 100,
               threatX: minDist < 300 ? threatX : 0,
-              threatY: minDist < 300 ? threatY : 0
+              threatY: minDist < 300 ? threatY : 0,
+              hpRatio: playerHpRatio,
+              playerHpRatio: topAiHpRatio
           };
           
           let mlAction = this.mlAi.predictTarget(state);
