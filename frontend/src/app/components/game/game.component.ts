@@ -433,16 +433,14 @@ export class GameComponent implements OnInit, OnDestroy {
            const data = nearestBody.plugin['data'];
            const typeStr = data ? data.type : nearestBody.label;
            
-           if (typeStr === 'bat') closestMobType = 1;
-           else if (typeStr === 'slime') closestMobType = 2;
-           else if (typeStr === 'golem') closestMobType = 3;
-           else if (typeStr === 'boss') closestMobType = 4;
-           else if (typeStr === 'enemy_phoenix') closestMobType = 5;
-           else if (typeStr === 'projectile_enemy') closestMobType = 6;
-           else if (typeStr === 'projectile_player') closestMobType = 7;
-           else if (typeStr === 'fire') closestMobType = 8;
-           else if (typeStr === 'egg') closestMobType = 9;
-           else closestMobType = 10;
+           // Deterministic string hash to [0, 1] so new mobs work automatically
+           let hash = 0;
+           if (typeStr) {
+               for (let i = 0; i < typeStr.length; i++) {
+                   hash = (hash * 31 + typeStr.charCodeAt(i)) % 1000;
+               }
+           }
+           closestMobType = hash / 1000.0;
       }
 
       return {
@@ -454,7 +452,7 @@ export class GameComponent implements OnInit, OnDestroy {
           playerHpRatio: targetHpRatio,
           radar0: radarDists[0], radar1: radarDists[1], radar2: radarDists[2], radar3: radarDists[3],
           radar4: radarDists[4], radar5: radarDists[5], radar6: radarDists[6], radar7: radarDists[7],
-          closestMobType: closestMobType / 10.0,
+          closestMobType: closestMobType,
           closestMobDist: closestMobDist,
           closestMobVelX: closestMobVelX,
           closestMobVelY: closestMobVelY
