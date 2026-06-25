@@ -1454,8 +1454,12 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') {
           this.battleTimer.set(this.gameState.sessionPlayTime());
           
-          if (this.gameState.currentGameMode() === 'ai_vs_ai' && this.battleTimer() > 0 && this.battleTimer() % 10 === 0) {
+          if (this.battleTimer() > 0 && this.battleTimer() % 10 === 0) {
               this.mlAi.trainOnMemory();
+          }
+          
+          if (this.battleTimer() > 0 && this.battleTimer() % 60 === 0) {
+              this.mlAi.pushGlobalWeights();
           }
           
           // AI Economy TICK
