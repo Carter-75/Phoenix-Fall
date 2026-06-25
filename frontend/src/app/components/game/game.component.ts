@@ -1074,14 +1074,37 @@ export class GameComponent implements OnInit, OnDestroy {
               this.gameState.ai2MousePos.set({ x: targetPosition.x, y: targetPosition.y });
           }
 
-          // Auto-fire
+          // Use ML abilities
+          if (enemyTarget) {
+              // We temporarily spoof the mouse coordinates so the player abilities aim at the enemy
+              const realMouseX = this.mouseX;
+              const realMouseY = this.mouseY;
+              this.mouseX = enemyTarget.position.x;
+              this.mouseY = enemyTarget.position.y;
+
+              if (mlAction.useTap > 0.5 && this.tapCooldown() === 0 && this.gameState.currentStats().activeTapAbility) {
+                  const ability = this.gameState.currentStats().activeTapAbility;
+                  if (ability === 'burst') this.triggerBurst();
+                  else if (ability === 'drill_attack') this.triggerDrillAttack();
+                  else if (ability === 'fire_breath') this.triggerFireBreath();
+              }
+
+              if (mlAction.useHold > 0.5 && this.holdCooldown() === 0 && this.gameState.currentStats().activeHoldAbility) {
+                  const ability = this.gameState.currentStats().activeHoldAbility;
+                  if (ability === 'drill_attack') this.triggerDrillAttack();
+                  else if (ability === 'fire_breath') this.triggerFireBreath();
+                  else if (ability === 'phoenix_turret') this.triggerPhoenixTurret();
+                  else if (ability === 'aura') this.triggerAura();
+              }
+
+              this.mouseX = realMouseX;
+              this.mouseY = realMouseY;
+          }
+
+          // Auto-fire (Normal projectiles)
           if (now - this.lastClickTime > (1500 / (this.gameState.currentStats().attackSpeed || 1))) {
               this.lastClickTime = now;
-              const ability = this.gameState.currentStats().activeTapAbility;
-              if (ability === 'burst') this.triggerBurst();
-              else if (ability === 'drill_attack') this.triggerDrillAttack();
-              else if (ability === 'fire_breath') this.triggerFireBreath();
-              else this.fireProjectile();
+              this.fireProjectile();
           }
       }
 
