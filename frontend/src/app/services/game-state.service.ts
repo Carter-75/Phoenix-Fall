@@ -167,7 +167,9 @@ export class GameStateService {
   public immortalUntil = 0;
   
   public mousePos = signal<{x: number, y: number}>({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  public phoenixScreenPos = signal<{x: number, y: number}>({x: window.innerWidth / 2, y: window.innerHeight / 2});
   public phoenixOverridePosition = signal<{x: number, y: number} | null>(null);
+  public aiPhoenixScreenPos = signal<{x: number, y: number}>({x: window.innerWidth / 2, y: 100});
   public aiMousePos = signal<{x: number, y: number}>({ x: window.innerWidth / 2, y: 100 });
   public ai2MousePos = signal<{x: number, y: number}>({ x: window.innerWidth / 2, y: window.innerHeight - 100 });
 
@@ -498,11 +500,7 @@ export class GameStateService {
   public worlds = WORLDS;
 
   // Computed helper for current world's stats, falling back to defaults for any newly added stats missing in local storage
-  public phoenixScreenPos = computed(() => {
-    if (this.currentGameMode() === 'ai_vs_ai') return this.ai2MousePos();
-    if (this.phoenixOverridePosition()) return this.phoenixOverridePosition()!;
-    return this.mousePos();
-  });
+
 
   public currentStats = computed(() => {
       const stats = this.worldUpgrades()[this.selectedWorldIndex()];

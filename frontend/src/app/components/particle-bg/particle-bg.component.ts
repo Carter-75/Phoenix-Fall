@@ -416,10 +416,25 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
         const screenFactor = Math.max(1.0, 1000 / (window.innerWidth || 1000));
         const speed = 0.068 * this.gameState.currentStats().speed * screenFactor; 
-        this.updateBirdPhysics(this.bird, this.mouseTarget, speed, screenFactor, false);
+        
+        let targetForMainBird = this.mouseTarget;
+        if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+            const ai2Mouse = this.gameState.ai2MousePos();
+            const ai2Vec = new THREE.Vector3(
+                (ai2Mouse.x / window.innerWidth) * 2 - 1,
+                -(ai2Mouse.y / window.innerHeight) * 2 + 1,
+                0.5
+            );
+            ai2Vec.unproject(this.camera);
+            ai2Vec.sub(this.camera.position).normalize();
+            const dist = (-15 - this.camera.position.z) / ai2Vec.z;
+            targetForMainBird = this.camera.position.clone().add(ai2Vec.multiplyScalar(dist));
+        }
+        
+        this.updateBirdPhysics(this.bird, targetForMainBird, speed, screenFactor, false);
         
         // Hide AI Bird if not in battle mode or not playing
-        const isBattle = this.gameState.currentGameMode() === 'battle' && this.gameState.activeScreen() === 'game';
+        const isBattle = (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') && this.gameState.activeScreen() === 'game';
         this.aiBird.group.visible = isBattle;
         if (isBattle) {
             const aiMouse = this.gameState.aiMousePos();

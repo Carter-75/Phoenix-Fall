@@ -168,7 +168,7 @@ export class MainMenuComponent {
   isBattleWorldUnlocked = computed(() => this.selectedBattleWorldIndex() === 0);
   
   showSettings = false;
-  activeMenuMode: 'campaign' | 'battle' = this.gameState.currentGameMode();
+  activeMenuMode: 'campaign' | 'battle' | 'ai_vs_ai' = this.gameState.currentGameMode();
   
   private touchStartY = 0;
   private battleHoldTimer: any;
@@ -267,7 +267,7 @@ export class MainMenuComponent {
     if ((mode === 'battle' || mode === 'ai_vs_ai') && !this.isBattleWorldUnlocked()) return;
     if (this.holdFired && mode === 'battle') return; // Prevent click firing after hold
 
-    this.audio.playSFX('select');
+    this.audio.playSFX('click');
     this.gameState.currentGameMode.set(mode);
     if (mode === 'campaign') {
         this.gameState.selectedWorldIndex.set(this.currentWorld().id);
