@@ -73,16 +73,13 @@ export class AudioService {
             this.audioCtx.resume();
         }
 
-        // 2. "Unlock" all audio elements by playing them silently in the user-gesture
-        const allAudio = [this.menuBgm, this.worldBgm, this.intenseBgm, this.sfxShoot, this.sfxExplosion, this.sfxHeal, this.sfxBuy, this.sfxClick, this.sfxDrop];
+        // 2. "Unlock" BGM audio elements by playing them silently in the user-gesture
+        const allAudio = [this.menuBgm, this.worldBgm, this.intenseBgm];
         allAudio.forEach(audio => {
             if (audio.paused) {
-                // Save current state
-                const isCurrentBgm = (audio === this.currentBgm);
-                
                 audio.play().then(() => {
                     // If it's not the currently active BGM, pause it immediately
-                    if (!isCurrentBgm) {
+                    if (audio !== this.currentBgm) {
                         audio.pause();
                         audio.currentTime = 0;
                     } else {

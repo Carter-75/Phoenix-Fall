@@ -1161,14 +1161,19 @@ export class GameComponent implements OnInit, OnDestroy {
           targetPosition.y = Math.max(100, Math.min(window.innerHeight - 100, targetPosition.y));
           
           const mouseForce = Matter.Vector.sub(targetPosition, currentMouse);
-          if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
-              const mouseNorm = Matter.Vector.normalise(mouseForce);
-              this.gameState.ai2MousePos.set({
-                  x: currentMouse.x + mouseNorm.x * mouseSpeed * delta * 60,
-                  y: currentMouse.y + mouseNorm.y * mouseSpeed * delta * 60
-              });
-          } else {
+          const now = Date.now();
+          if (this.ai2LastHoldTime && this.holdAbilityEndTime && now < this.holdAbilityEndTime) {
               this.gameState.ai2MousePos.set({ x: targetPosition.x, y: targetPosition.y });
+          } else {
+              if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
+                  const mouseNorm = Matter.Vector.normalise(mouseForce);
+                  this.gameState.ai2MousePos.set({
+                      x: currentMouse.x + mouseNorm.x * mouseSpeed * delta * 60,
+                      y: currentMouse.y + mouseNorm.y * mouseSpeed * delta * 60
+                  });
+              } else {
+                  this.gameState.ai2MousePos.set({ x: targetPosition.x, y: targetPosition.y });
+              }
           }
 
           // Use ML abilities for Bottom AI
@@ -1193,7 +1198,7 @@ export class GameComponent implements OnInit, OnDestroy {
           }
 
           // Auto-fire (Normal projectiles)
-          if (now - this.lastClickTime > (1500 / (this.gameState.currentStats().attackSpeed || 1))) {
+          if ((!this.holdAbilityEndTime || now >= this.holdAbilityEndTime) && now - this.lastClickTime > (1500 / (this.gameState.currentStats().attackSpeed || 1))) {
               this.lastClickTime = now;
               this.fireProjectile();
           }
@@ -1346,18 +1351,23 @@ export class GameComponent implements OnInit, OnDestroy {
             targetPosition.x = Math.max(100, Math.min(window.innerWidth - 100, targetPosition.x));
             targetPosition.y = Math.max(100, Math.min(window.innerHeight - 100, targetPosition.y));
             
-            const mouseForce = Matter.Vector.sub(targetPosition, currentMouse);
-            if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
-                const mouseNorm = Matter.Vector.normalise(mouseForce);
-                this.gameState.aiMousePos.set({
-                    x: currentMouse.x + mouseNorm.x * mouseSpeed * delta * 60,
-                    y: currentMouse.y + mouseNorm.y * mouseSpeed * delta * 60
-                });
+            const now = Date.now();
+            if (eAny.holdAbilityEndTime && now < eAny.holdAbilityEndTime) {
+                // Do not move aiMousePos while holding ability
             } else {
-                this.gameState.aiMousePos.set({ x: targetPosition.x, y: targetPosition.y });
+                const mouseForce = Matter.Vector.sub(targetPosition, currentMouse);
+                if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
+                    const mouseNorm = Matter.Vector.normalise(mouseForce);
+                    this.gameState.aiMousePos.set({
+                        x: currentMouse.x + mouseNorm.x * mouseSpeed * delta * 60,
+                        y: currentMouse.y + mouseNorm.y * mouseSpeed * delta * 60
+                    });
+                } else {
+                    this.gameState.aiMousePos.set({ x: targetPosition.x, y: targetPosition.y });
+                }
             }
 
-            if (now - this.aiLastTapTime > (1500 / (this.aiStats?.attackSpeed || 1))) {
+            if ((!eAny.holdAbilityEndTime || now >= eAny.holdAbilityEndTime) && now - this.aiLastTapTime > (1500 / (this.aiStats?.attackSpeed || 1))) {
                 this.aiLastTapTime = now;
                 this.fireEnemyProjectile(enemy.position);
             }
@@ -1846,13 +1856,20 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       const duration = 6000 * mods['duration'];
       const baseDamage = stats.damage * mods['damage'];
       
-      this.holdAbilityEndTime = Date.now() + duration + 2000; 
+      if (ownerId === 'player') {
+          this.holdAbilityEndTime = Date.now() + duration + 2000; 
+      } else {
+          const eAny = sourceBody.plugin['data'] as any;
+          if (eAny) eAny.holdAbilityEndTime = Date.now() + duration + 2000;
+      }
       
       const egg = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 20, {
           isStatic: true, isSensor: true, label: 'projectile',
           plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1000, maxHealth: 1000, size: 20, aggroTarget: null } as any }
       });
       Matter.Composite.add(this.engine.world, egg);
+      
+      this.audioService.playSFX('drop');
       
       setTimeout(() => {
           if (!egg.parent) return;
@@ -1890,12 +1907,16 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                   setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 500 + Math.random() * 300);
               }
               
-              this.enemies.forEach(e => {
+              const validTargets = ownerId === 'player' ? this.enemies : [this.playerBody];
+              validTargets.forEach(e => {
                   const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, egg.position));
-                  if (dist < radius) this.damageEnemy(e, baseDamage * 5);
+                  if (dist < radius) {
+                      if (e === this.playerBody) this.takeDamage(baseDamage * 5);
+                      else this.damageEnemy(e, baseDamage * 5);
+                  }
               });
               
-                  Matter.Composite.remove(this.engine.world, baby);
+              if (baby.parent) Matter.Composite.remove(this.engine.world, baby);
               if (egg.parent) Matter.Composite.remove(this.engine.world, egg);
           };
 
@@ -1985,15 +2006,16 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                   return;
               }
               
-              if (this.enemies.length > 0) {
+              const validTargets = ownerId === 'player' ? this.enemies : [this.playerBody];
+              if (validTargets.length > 0) {
                   const eggData = egg.plugin['data'] as any;
                   let nearest = null;
                   if (eggData && eggData.aggroTarget && eggData.aggroTarget.parent) {
                       nearest = eggData.aggroTarget;
                   } else {
-                      nearest = this.enemies[0];
+                      nearest = validTargets[0];
                       let minDist = Infinity;
-                      this.enemies.forEach(e => {
+                      validTargets.forEach(e => {
                           const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, baby.position));
                           if (dist < minDist) { minDist = dist; nearest = e; }
                       });
@@ -2010,7 +2032,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                               const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
                               const proj = Matter.Bodies.circle(baby.position.x, baby.position.y, 10, {
                                   isSensor: true, label: 'projectile',
-                                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage } as EnemyData }
+                                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage, owner: ownerId } as EnemyData }
                               });
                               Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
                               Matter.Composite.add(this.engine.world, proj);
@@ -2040,7 +2062,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               }, 2000);
           }, duration);
       }, 2000);
-      return cd;
+      return ownerId === 'player' ? cd : cd + (duration + 2000) / 1000;
   }
 
   private triggerBurst(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
