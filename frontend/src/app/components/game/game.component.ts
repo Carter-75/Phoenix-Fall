@@ -255,253 +255,239 @@ interface EnemyData {
   `
 })
 export class GameComponent implements OnInit, OnDestroy {
+
   @ViewChild('physicsContainer', { static: true }) physicsContainer!: ElementRef<HTMLDivElement>;
 
+
   public gameState = inject(GameStateService);
+
   private audioService = inject(AudioService);
+
   public mlAi = inject(MlAiService);
+
   public Math = Math;
+
   public currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
+
   
   get screenScale() {
       return Math.max(0.4, Math.min(1.0, window.innerWidth / 1000));
   }
+
   
   public maxHealth = signal<number>(100);
+
   public currentHealth = signal<number>(100);
+
   public damageFlash = signal<boolean>(false);
+
   public reviveCount = 0;
+
   public celestialShieldActive = signal<boolean>(true);
+
   
   public totalTimeSignal = signal<number>(300);
+
   public timeRemaining = signal<number>(300);
+
   public progressPercent = computed(() => {
       const tot = this.totalTimeSignal();
       if (tot <= 0) return 0;
       return ((tot - this.timeRemaining()) / tot) * 100;
   });
+
   
   public gameEnded = signal<boolean>(false);
+
   public gameWon = signal<boolean>(false);
+
   public isDead = signal<boolean>(false);
+
   public bossSpawned = signal<boolean>(false);
+
   public bossHealth = signal<number>(1000);
+
   public inBossDefeatSequence = signal<boolean>(false);
+
   private bossDefeatTimestamp = 0;
+
   private bossGemsDropped = 0;
+
   private bossGemsCollected = 0;
+
   public animatingAscension = signal<boolean>(false);
+
   public infiniteBurnActive = signal<boolean>(false);
+
   public rageModeActive = signal<boolean>(false);
+
 
   // --- Battle Mode AI State ---
   public aiCoins: number = 0;
-  public aiCoinGainRate: number = 2; // AI passive coin income per sec
+
+  public aiCoinGainRate: number = 2;
+ // AI passive coin income per sec
   public aiStats!: WorldStats;
+
   public aiUpgradesWeights: Record<string, number> = {};
+
   public aiAbilities: string[] = [];
+
   public aiLastTapTime: number = 0;
+
   public aiLastHoldTime: number = 0;
+
   public aiUpgradeTokensBox: number = 0;
+
   public aiAbilityTokensBox: number = 0;
 
+
   public ai2Stats!: WorldStats;
+
   public ai2Abilities: string[] = [];
+
   public ai2LastTapTime: number = 0;
+
   public ai2TapCooldown: number = 0;
+
   public ai2LastHoldTime: number = 0;
+
   public ai2HoldCooldown: number = 0;
+
   public ai2UpgradesWeights: Record<string, number> = {};
+
   public ai2Coins: number = 0;
+
   public ai2UpgradeTokensBox: number = 0;
+
   public ai2AbilityTokensBox: number = 0;
+
   
   public battleTimer = signal<number>(0);
+
   public battleDropReady = signal<boolean>(false);
+
   public battleDropGrace = signal<boolean>(false);
+
   public nextDropIndex = 0;
+
   public screenFlash = signal<boolean>(false);
+
   public battleStartCoins = 0;
+
   public battleStartXp = 0;
+
   public battleCoinsCollected = signal<number>(0);
+
   
   public currentBattleCoinsGained = computed(() => this.battleCoinsCollected());
+
   public currentBattleScore = computed(() => {
       const xpGained = Math.max(0, this.gameState.xp() - this.battleStartXp);
       return Math.floor(this.battleTimer() * 10) + (this.currentBattleCoinsGained() * 10) + Math.floor(xpGained * 5);
   });
 
-  private getNextDropTime(index: number): number {
-      if (index < 5) return (index + 1) * 60; // 1m, 2m, 3m, 4m, 5m
-      if (index < 8) return 300 + (index - 4) * 90; // 6:30, 8:00, 9:30
-      return 570 + (index - 7) * 120; // 11:30, 13:30, ...
-  }
   
   public bossMaxHealth = signal<number>(1000);
+
   public bossHealthPercent = computed(() => (this.bossHealth() / this.bossMaxHealth()) * 100);
+
   
   public showSettings = false;
+
   
   // Crate Logic
   public crateDroppedThisRun = false;
+
   public crateCollectedThisRun = false;
+
 
   // Revive UI
   public reviveCountdown = signal<number>(10);
+
   private reviveInterval: any;
+
 
   // Abilities
   public tapCooldown = signal<number>(0);
+
   public holdCooldown = signal<number>(0);
+
   public hasRebirthed = false;
+
   private lastClickTime = 0;
+
   private pauseClickCount = 0;
+
   public cheatPrepared = signal<boolean>(false);
+
   
   private lastUpdateTime = Date.now();
+
   private tapAbilityEndTime = 0;
+
   private holdAbilityEndTime = 0;
 
-  getTapIcon() { return ABILITIES[this.gameState.currentStats().activeTapAbility || 'burst']?.icon || '💥'; }
-  getHoldIcon() { return ABILITIES[this.gameState.currentStats().activeHoldAbility || 'aura']?.icon || '🌀'; }
-
-  getTapMaxCooldown() {
-      const id = this.gameState.currentStats().activeTapAbility || 'burst';
-      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities[id];
-      const mod = abilityData?.modifiers?.['cooldown'] || 1.0;
-      if (id === 'drill_attack') return 3 * mod; 
-      if (id === 'fire_breath') return 8 * mod;  
-      return 5 * mod; // burst
-  }
-
-  getHoldMaxCooldown() {
-      const id = this.gameState.currentStats().activeHoldAbility || 'aura';
-      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities[id];
-      const mod = abilityData?.modifiers?.['cooldown'] || 1.0;
-      if (id === 'phoenix_turret') return 10 * mod;
-      if (id === 'rebirth') return 60 * mod; // 60s cooldown for Rebirth
-      return 15 * mod; // aura
-  }
   
   // Input Tracking
   private mouseX = window.innerWidth / 2;
+
   private mouseY = window.innerHeight / 2;
+
   private isMouseHeld = false;
+
   private holdTimer = 0;
+
   private holdStartX = 0;
+
   private holdStartY = 0;
 
-  private buildMLState(actor: Matter.Body, target: Matter.Body | undefined, hpRatio: number, targetHpRatio: number, threatType: string): any {
-      const projectiles = Matter.Composite.allBodies(this.engine.world).filter(b => b.label === 'projectile' && b.plugin['data']?.type === threatType);
-      
-      const rays = 8;
-      const radarDists = Array(rays).fill(0);
-      const maxRange = 400;
-      
-      for (let i = 0; i < rays; i++) {
-          const angle = (Math.PI * 2 / rays) * i;
-          const endPoint = {
-              x: actor.position.x + Math.cos(angle) * maxRange,
-              y: actor.position.y + Math.sin(angle) * maxRange
-          };
-          
-          const hits = Matter.Query.ray(projectiles, actor.position, endPoint);
-          if (hits.length > 0) {
-              let minDist = maxRange;
-              for (let hit of hits) {
-                  const dist = Matter.Vector.magnitude(Matter.Vector.sub(actor.position, (hit as any).body.position));
-                  if (dist < minDist) minDist = dist;
-              }
-              radarDists[i] = 1.0 - (minDist / maxRange);
-          }
-      }
-
-      let closestMobType = 0;
-      let closestMobDist = 1.0;
-      let closestMobVelX = 0;
-      let closestMobVelY = 0;
-      let nearestBody: Matter.Body | null = null;
-      let minDistRaw = Infinity;
-
-      const allBodies = Matter.Composite.allBodies(this.engine.world);
-      for (let b of allBodies) {
-           if (b === actor || b === target) continue;
-           if (b.label === 'enemy' || b.label === 'boss' || b.label === 'projectile') {
-                const dist = Matter.Vector.magnitude(Matter.Vector.sub(actor.position, b.position));
-                if (dist < minDistRaw) {
-                    minDistRaw = dist;
-                    nearestBody = b;
-                }
-           }
-      }
-
-      if (nearestBody) {
-           closestMobDist = Math.min(1.0, minDistRaw / maxRange);
-           closestMobVelX = nearestBody.velocity.x;
-           closestMobVelY = nearestBody.velocity.y;
-           
-           const data = nearestBody.plugin['data'];
-           const typeStr = data ? data.type : nearestBody.label;
-           
-           // Deterministic string hash to [0, 1] so new mobs work automatically
-           let hash = 0;
-           if (typeStr) {
-               for (let i = 0; i < typeStr.length; i++) {
-                   hash = (hash * 31 + typeStr.charCodeAt(i)) % 1000;
-               }
-           }
-           closestMobType = hash / 1000.0;
-      }
-
-      const isBottomAi = threatType === 'projectile_enemy'; // If it fires enemy projectiles, it's the Bottom AI acting as player
-      const aiY = isBottomAi ? window.innerHeight - actor.position.y : actor.position.y;
-      const aiVelY = isBottomAi ? -actor.velocity.y : actor.velocity.y;
-      const pY = target?.position.y || (isBottomAi ? window.innerHeight - 100 : 100);
-      const playerY = isBottomAi ? window.innerHeight - pY : pY;
-      const playerVelY = isBottomAi ? -(target?.velocity.y || 0) : (target?.velocity.y || 0);
-      const mobVelY = isBottomAi ? -closestMobVelY : closestMobVelY;
-
-      return {
-          aiX: actor.position.x, aiY: aiY,
-          aiVelX: actor.velocity.x, aiVelY: aiVelY,
-          playerX: target?.position.x || window.innerWidth / 2, playerY: playerY,
-          playerVelX: target?.velocity.x || 0, playerVelY: playerVelY,
-          hpRatio: hpRatio,
-          playerHpRatio: targetHpRatio,
-          radar0: radarDists[0], radar1: radarDists[1], radar2: radarDists[2], radar3: radarDists[3],
-          radar4: radarDists[4], radar5: radarDists[5], radar6: radarDists[6], radar7: radarDists[7],
-          closestMobType: closestMobType,
-          closestMobDist: closestMobDist,
-          closestMobVelX: closestMobVelX,
-          closestMobVelY: mobVelY
-      };
-  }
 
   // Matter.js
   private engine!: Matter.Engine;
+
   private runner!: Matter.Runner;
+
   private playerBody!: Matter.Body;
+
   
   private timerInterval: any;
+
   private spawnInterval: any;
+
   private attackInterval: any;
+
   private enemies: Matter.Body[] = [];
+
   private items: Matter.Body[] = [];
+
 
   // Listeners bound
   private boundKeyDown = this.onKeyDown.bind(this);
+
   private boundVisibility = this.onVisibilityChange.bind(this);
+
   private boundMouseMove = this.onMouseMove.bind(this);
+
   private boundMouseDown = this.onMouseDown.bind(this);
+
   private boundMouseUp = this.onMouseUp.bind(this);
+
   private boundTouchStart = this.onTouchStart.bind(this);
+
   private boundTouchMove = this.onTouchMove.bind(this);
+
   private boundTouchEnd = this.onTouchEnd.bind(this);
 
+
   public annihilationModeActive = signal<boolean>(false);
+
   private annihilationInterval: any = null;
+
   private infiniteBurnInterval: any = null;
+
   public killScreenTimer = signal<number>(10);
+
 
   constructor(private ngZone: NgZone) {
       // Remove old health-based intense BGM effect because intense BGM is now for the boss
@@ -526,66 +512,6 @@ export class GameComponent implements OnInit, OnDestroy {
       });
   }
 
-  private triggerRageMode() {
-      if (this.rageModeActive()) return; // Fix race condition
-      this.rageModeActive.set(true);
-      const kInt = setInterval(() => {
-          if (this.gameEnded() || this.isDead() || this.inBossDefeatSequence()) {
-              clearInterval(kInt);
-              return;
-          }
-          if (!this.gameState.isPaused()) {
-              this.killScreenTimer.update(t => t - 1);
-              if (this.killScreenTimer() <= 0) {
-                  clearInterval(kInt);
-                  this.executeKillScreen();
-              }
-          }
-      }, 1000);
-  }
-
-  private executeKillScreen() {
-      const boss = this.enemies.find(e => e.plugin['data']?.type === 'boss');
-      if (!boss) return;
-      
-      this.annihilationModeActive.set(true);
-      
-      // Clear all enemies except boss
-      this.enemies.forEach(e => {
-          if (e.plugin['data']?.type !== 'boss') {
-              Matter.Composite.remove(this.engine.world, e);
-          }
-      });
-      this.enemies = [boss];
-      
-      // Clear existing projectiles
-      const currentBodies = Matter.Composite.allBodies(this.engine.world);
-      currentBodies.forEach(b => {
-          if (b.label === 'projectile') {
-              Matter.Composite.remove(this.engine.world, b);
-          }
-      });
-
-      // Start Annihilation Barrage (every 200ms)
-      if (this.annihilationInterval) clearInterval(this.annihilationInterval);
-      this.annihilationInterval = setInterval(() => {
-          if (this.isDead() || this.gameEnded() || this.inBossDefeatSequence()) {
-              clearInterval(this.annihilationInterval);
-              return;
-          }
-          
-          const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, boss.position));
-          const angle = Math.atan2(dir.y, dir.x);
-          const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
-          const proj = Matter.Bodies.circle(boss.position.x, boss.position.y, 20, {
-              label: 'projectile', isSensor: true,
-              plugin: { data: { id: Math.random().toString(), type: 'annihilation_fire', health: 1, maxHealth: 1 } as EnemyData }
-          });
-          Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
-          Matter.Composite.add(this.engine.world, proj);
-          
-      }, 200);
-  }
 
   ngOnInit() {
     this.isDead.set(false);
@@ -627,250 +553,79 @@ export class GameComponent implements OnInit, OnDestroy {
     document.addEventListener('visibilitychange', this.boundVisibility);
   }
 
-  ngOnDestroy() {
+
+  private startGameLoop() {
     if (this.timerInterval) clearInterval(this.timerInterval);
     if (this.spawnInterval) clearTimeout(this.spawnInterval);
     if (this.attackInterval) clearInterval(this.attackInterval);
-    if (this.reviveInterval) clearInterval(this.reviveInterval);
+    if ((this as any).aiAbilityInterval) clearInterval((this as any).aiAbilityInterval);
     
-    window.removeEventListener('mousemove', this.boundMouseMove);
-    window.removeEventListener('mousedown', this.boundMouseDown);
-    window.removeEventListener('mouseup', this.boundMouseUp);
-    window.removeEventListener('touchstart', this.boundTouchStart);
-    window.removeEventListener('touchmove', this.boundTouchMove);
-    window.removeEventListener('touchend', this.boundTouchEnd);
-    window.removeEventListener('keydown', this.boundKeyDown);
-    document.removeEventListener('visibilitychange', this.boundVisibility);
-    
-    this.gameState.phoenixOverridePosition.set(null);
-    this.gameState.activeEntities.set([]);
-    
-    if (this.engine) {
-        Matter.Events.off(this.engine, 'beforeUpdate');
-        Matter.Events.off(this.engine, 'collisionStart');
-        Matter.Engine.clear(this.engine);
-    }
-    if (this.runner) {
-        Matter.Runner.stop(this.runner);
-    }
-    
-    this.audioService.stopIntenseBgm();
-  }
-
-  private setupAiPhoenix(isRespawn: boolean) {
-      const playerStats = this.gameState.currentStats();
-      this.aiStats = JSON.parse(JSON.stringify(playerStats));
-      this.aiStats.maxHealth *= 10; // Scale base health x10 for Battle Mode boss pool
+    this.timerInterval = setInterval(() => {
+      if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
       
-      const worldId = this.gameState.selectedWorldIndex();
-      const realmAbilities = REALM_ABILITIES[worldId] || ['burst', 'aura'];
+      this.gameState.sessionPlayTime.update(t => t + 1);
       
-      const tapAbilities = realmAbilities.filter(k => ABILITIES[k]?.type === 'tap' && k !== 'rebirth');
-      const holdAbilities = realmAbilities.filter(k => ABILITIES[k]?.type === 'hold' && k !== 'rebirth');
-      
-      let tap = tapAbilities.length > 0 ? tapAbilities[Math.floor(Math.random() * tapAbilities.length)] : 'burst';
-      let hold = holdAbilities.length > 0 ? holdAbilities[Math.floor(Math.random() * holdAbilities.length)] : 'aura';
-      
-      this.aiAbilities = [tap, hold];
-      
-      const playerTapLevel = playerStats.activeTapAbility ? (playerStats.unlockedAbilities[playerStats.activeTapAbility]?.level || 1) : 1;
-      const playerHoldLevel = playerStats.activeHoldAbility ? (playerStats.unlockedAbilities[playerStats.activeHoldAbility]?.level || 1) : 1;
-      const avgPlayerLevel = Math.max(1, Math.floor((playerTapLevel + playerHoldLevel) / 2));
-      
-      this.aiAbilities.forEach(id => {
-          this.aiStats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
-          this.aiStats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
-      });
-
-      if (!isRespawn) {
-          // Roll 1-5 tokens for each of the 8 stats
-          const statCount = 8;
-          let initialUpgradeTokens = 0;
-          for(let i=0; i<statCount; i++) {
-              initialUpgradeTokens += Math.floor(Math.random() * 5) + 1;
+      if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') {
+          this.battleTimer.set(this.gameState.sessionPlayTime());
+          
+          if (this.battleTimer() > 0 && this.battleTimer() % 10 === 0) {
+              this.mlAi.trainOnMemory();
           }
           
-          // Roll 1-5 tokens for each of the 2 abilities
-          let initialAbilityTokens = 0;
-          for(let i=0; i<2; i++) {
-              initialAbilityTokens += Math.floor(Math.random() * 5) + 1;
+          if (this.battleTimer() > 0 && this.battleTimer() % 60 === 0) {
+              this.mlAi.pushGlobalWeights();
           }
           
-          // Spend tokens
-          this.spendTokens(initialUpgradeTokens, initialAbilityTokens, 'ai1');
-          this.aiUpgradesWeights = {}; // reset weights after init
+          // AI Economy TICK
+          this.aiCoins += this.aiCoinGainRate;
+          this.tryPurchaseAiUpgrade('ai1');
+          
+          if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+              this.ai2Coins += this.aiCoinGainRate;
+              this.tryPurchaseAiUpgrade('ai2');
+          }
+          
+          // Drop Event TICK
+          const nextDropTime = this.getNextDropTime(this.nextDropIndex);
+          if (this.battleTimer() >= nextDropTime && !this.battleDropReady()) {
+              this.battleDropReady.set(true);
+              this.battleDropGrace.set(true);
+              this.screenFlash.set(true);
+              setTimeout(() => this.screenFlash.set(false), 200);
+              setTimeout(() => this.battleDropGrace.set(false), 500);
+              this.nextDropIndex++;
+          }
+          
+          if (this.gameState.currentGameMode() === 'ai_vs_ai' && this.gameState.sessionPlayTime() % 60 === 0) {
+              this.mlAi.pushGlobalWeights();
+          }
       } else {
-          // On respawn, spend accumulated tokens from boxes
-          this.spendTokens(this.aiUpgradeTokensBox, this.aiAbilityTokensBox, 'ai1');
-          // (Weights are preserved across respawns)
+          this.timeRemaining.update(t => Math.max(0, Math.floor(t - 1)));
+          if (this.timeRemaining() === 0 && this.bossSpawned() && !this.inBossDefeatSequence() && !this.isDead() && !this.rageModeActive()) {
+              this.triggerRageMode();
+          }
+          if (this.timeRemaining() === 0 && !this.bossSpawned() && this.progressPercent() >= 100) {
+              this.spawnBoss();
+          }
+      }  
+      
+      if (this.gameState.sessionPlayTime() >= 60) this.gameState.awardTrophy("Survivor");
+      
+      if (this.gameState.hasCosmicTrail()) {
+          this.gameState.xp.update(x => x + 5 * this.gameState.xpMultiplier());
       }
-      this.gameState.aiPhoenixSpeed.set(this.aiStats.speed);
+    }, 1000);
+
+    this.scheduleNextSpawn();
+
+    const attackSpeed = this.gameState.currentStats().attackSpeed;
+    this.attackInterval = setInterval(() => {
+      if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
+      this.fireProjectile();
+    }, 1000 / attackSpeed);
+    
   }
 
-  private setupAi2Phoenix(isRespawn: boolean) {
-      const playerStats = this.gameState.currentStats();
-      this.ai2Stats = JSON.parse(JSON.stringify(playerStats));
-      this.ai2Stats.maxHealth *= 10; // AI2 gets x10 health as well
-      
-      let tap = playerStats.activeTapAbility || 'burst';
-      let hold = playerStats.activeHoldAbility || 'aura';
-      
-      this.ai2Abilities = [tap, hold];
-      
-      const playerTapLevel = playerStats.activeTapAbility ? (playerStats.unlockedAbilities[playerStats.activeTapAbility]?.level || 1) : 1;
-      const playerHoldLevel = playerStats.activeHoldAbility ? (playerStats.unlockedAbilities[playerStats.activeHoldAbility]?.level || 1) : 1;
-      const avgPlayerLevel = Math.max(1, Math.floor((playerTapLevel + playerHoldLevel) / 2));
-      
-      this.ai2Abilities.forEach(id => {
-          this.ai2Stats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
-          this.ai2Stats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
-      });
-
-      if (!isRespawn) {
-          const statCount = 8;
-          let initialUpgradeTokens = 0;
-          for(let i=0; i<statCount; i++) {
-              initialUpgradeTokens += Math.floor(Math.random() * 5) + 1;
-          }
-          
-          let initialAbilityTokens = 0;
-          for(let i=0; i<2; i++) {
-              initialAbilityTokens += Math.floor(Math.random() * 5) + 1;
-          }
-          
-          this.spendTokens(initialUpgradeTokens, initialAbilityTokens, 'ai2');
-          this.ai2UpgradesWeights = {}; 
-      }
-  }
-
-  private resetCooldowns() {
-      this.aiLastTapTime = 0;
-      this.aiLastHoldTime = 0;
-      this.ai2LastTapTime = 0;
-      this.ai2LastHoldTime = 0;
-      this.lastClickTime = 0;
-      this.holdAbilityEndTime = 0;
-      this.tapCooldown.set(0);
-      this.holdCooldown.set(0);
-      this.ai2TapCooldown = 0;
-      this.ai2HoldCooldown = 0;
-  }
-
-  private initBattleMode() {
-      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-          this.gameState.ai1Wins.set(0);
-          this.gameState.ai2Wins.set(0);
-      }
-      this.aiUpgradeTokensBox = 0;
-      this.aiAbilityTokensBox = 0;
-      this.aiUpgradesWeights = {};
-      
-      this.ai2UpgradeTokensBox = 0;
-      this.ai2AbilityTokensBox = 0;
-      this.ai2UpgradesWeights = {};
-      
-      this.setupAiPhoenix(false);
-      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-          this.setupAi2Phoenix(false);
-      }
-      
-      this.aiCoins = 0;
-      this.ai2Coins = 0;
-      this.aiCoinGainRate = 2;
-      this.nextDropIndex = 0;
-      this.battleDropReady.set(false);
-      this.battleDropGrace.set(false);
-      
-      const maxHp = this.aiStats.maxHealth;
-      this.bossMaxHealth.set(maxHp);
-      this.bossHealth.set(maxHp);
-      
-      this.battleStartCoins = this.gameState.coins();
-      this.battleStartXp = this.gameState.xp();
-      this.battleCoinsCollected.set(0);
-      
-      this.resetCooldowns();
-      
-      // We will set this flag to prevent combat loop until entrance finishes
-      this.gameState.isPaused.set(true); 
-
-      // Spawn AI Phoenix off-screen top
-      const scale = this.screenScale;
-      const aiCore = Matter.Bodies.rectangle(window.innerWidth / 2, -200, 10 * scale, 20 * scale, { label: 'enemy' });
-      const aiLeftWing = Matter.Bodies.rectangle(window.innerWidth / 2 - (15 * scale), -200 - (5 * scale), 20 * scale, 8 * scale, { label: 'enemy' });
-      const aiRightWing = Matter.Bodies.rectangle(window.innerWidth / 2 + (15 * scale), -200 - (5 * scale), 20 * scale, 8 * scale, { label: 'enemy' });
-
-      const enemyPhoenix = Matter.Body.create({
-          parts: [aiCore, aiLeftWing, aiRightWing],
-          label: 'enemy',
-          plugin: {
-              data: {
-                  id: 'ai_phoenix',
-                  type: 'enemy_phoenix',
-                  health: maxHp,
-                  maxHealth: maxHp,
-                  value: 0
-              } as EnemyData
-          }
-      });
-      
-      Matter.Composite.add(this.engine.world, enemyPhoenix);
-      this.enemies.push(enemyPhoenix);
-      
-      // Cinematic Entrance for AI
-      const aiStartY = -200;
-      const aiEndY = window.innerHeight / 2 - 150;
-      
-      const duration = 1500;
-      const startTime = Date.now();
-      
-      const animateEntrance = () => {
-          if (this.isDead() || this.gameEnded()) return;
-          const now = Date.now();
-          const progress = Math.min((now - startTime) / duration, 1);
-          
-          // Easing: easeOutQuad
-          const easeProgress = progress * (2 - progress);
-          
-          const currentAiY = aiStartY + (aiEndY - aiStartY) * easeProgress;
-          
-          // Override AI physics position and lock mouse to top
-          this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentAiY });
-          this.gameState.aiMousePos.set({ x: window.innerWidth / 2, y: 50 });
-          Matter.Body.setPosition(enemyPhoenix, { x: window.innerWidth / 2, y: currentAiY });
-          Matter.Body.setVelocity(enemyPhoenix, { x: 0, y: 0 }); 
-          
-          // Animate Player from bottom to their start pos
-          if (this.playerBody) {
-              const playerStartY = window.innerHeight + 200;
-              const playerEndY = window.innerHeight / 2 + 150;
-              const currentPlayerY = playerStartY + (playerEndY - playerStartY) * easeProgress;
-              this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentPlayerY });
-              Matter.Body.setPosition(this.playerBody, { x: window.innerWidth / 2, y: currentPlayerY });
-              Matter.Body.setVelocity(this.playerBody, { x: 0, y: 0 });
-          }
-          
-          if (progress < 1) {
-              requestAnimationFrame(animateEntrance);
-          } else {
-              this.gameState.aiPhoenixOverridePosition.set(null);
-              this.gameState.phoenixOverridePosition.set(null);
-              this.triggerImpactEffect(window.innerWidth / 2, currentAiY, true); // AI flash effect on landing
-              if (this.playerBody) {
-                  this.triggerImpactEffect(window.innerWidth / 2, window.innerHeight / 2 + 150, false);
-              }
-              // 1 second standoff before combat begins
-              setTimeout(() => {
-                  if (!this.gameEnded() && !this.isDead()) {
-                      this.gameState.isPaused.set(false);
-                      this.lastClickTime = Date.now();
-                  }
-              }, 1000);
-          }
-      };
-      
-      requestAnimationFrame(animateEntrance);
-  }
 
   private initPhysics() {
     const Engine = Matter.Engine,
@@ -1528,6 +1283,389 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     Runner.run(this.runner, this.engine);
   }
 
+
+  private initBattleMode() {
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+          this.gameState.ai1Wins.set(0);
+          this.gameState.ai2Wins.set(0);
+      }
+      this.aiUpgradeTokensBox = 0;
+      this.aiAbilityTokensBox = 0;
+      this.aiUpgradesWeights = {};
+      
+      this.ai2UpgradeTokensBox = 0;
+      this.ai2AbilityTokensBox = 0;
+      this.ai2UpgradesWeights = {};
+      
+      this.setupAiPhoenix(false);
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+          this.setupAi2Phoenix(false);
+      }
+      
+      this.aiCoins = 0;
+      this.ai2Coins = 0;
+      this.aiCoinGainRate = 2;
+      this.nextDropIndex = 0;
+      this.battleDropReady.set(false);
+      this.battleDropGrace.set(false);
+      
+      const maxHp = this.aiStats.maxHealth;
+      this.bossMaxHealth.set(maxHp);
+      this.bossHealth.set(maxHp);
+      
+      this.battleStartCoins = this.gameState.coins();
+      this.battleStartXp = this.gameState.xp();
+      this.battleCoinsCollected.set(0);
+      
+      this.resetCooldowns();
+      
+      // We will set this flag to prevent combat loop until entrance finishes
+      this.gameState.isPaused.set(true); 
+
+      // Spawn AI Phoenix off-screen top
+      const scale = this.screenScale;
+      const aiCore = Matter.Bodies.rectangle(window.innerWidth / 2, -200, 10 * scale, 20 * scale, { label: 'enemy' });
+      const aiLeftWing = Matter.Bodies.rectangle(window.innerWidth / 2 - (15 * scale), -200 - (5 * scale), 20 * scale, 8 * scale, { label: 'enemy' });
+      const aiRightWing = Matter.Bodies.rectangle(window.innerWidth / 2 + (15 * scale), -200 - (5 * scale), 20 * scale, 8 * scale, { label: 'enemy' });
+
+      const enemyPhoenix = Matter.Body.create({
+          parts: [aiCore, aiLeftWing, aiRightWing],
+          label: 'enemy',
+          plugin: {
+              data: {
+                  id: 'ai_phoenix',
+                  type: 'enemy_phoenix',
+                  health: maxHp,
+                  maxHealth: maxHp,
+                  value: 0
+              } as EnemyData
+          }
+      });
+      
+      Matter.Composite.add(this.engine.world, enemyPhoenix);
+      this.enemies.push(enemyPhoenix);
+      
+      // Cinematic Entrance for AI
+      const aiStartY = -200;
+      const aiEndY = window.innerHeight / 2 - 150;
+      
+      const duration = 1500;
+      const startTime = Date.now();
+      
+      const animateEntrance = () => {
+          if (this.isDead() || this.gameEnded()) return;
+          const now = Date.now();
+          const progress = Math.min((now - startTime) / duration, 1);
+          
+          // Easing: easeOutQuad
+          const easeProgress = progress * (2 - progress);
+          
+          const currentAiY = aiStartY + (aiEndY - aiStartY) * easeProgress;
+          
+          // Override AI physics position and lock mouse to top
+          this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentAiY });
+          this.gameState.aiMousePos.set({ x: window.innerWidth / 2, y: 50 });
+          Matter.Body.setPosition(enemyPhoenix, { x: window.innerWidth / 2, y: currentAiY });
+          Matter.Body.setVelocity(enemyPhoenix, { x: 0, y: 0 }); 
+          
+          // Animate Player from bottom to their start pos
+          if (this.playerBody) {
+              const playerStartY = window.innerHeight + 200;
+              const playerEndY = window.innerHeight / 2 + 150;
+              const currentPlayerY = playerStartY + (playerEndY - playerStartY) * easeProgress;
+              this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentPlayerY });
+              Matter.Body.setPosition(this.playerBody, { x: window.innerWidth / 2, y: currentPlayerY });
+              Matter.Body.setVelocity(this.playerBody, { x: 0, y: 0 });
+          }
+          
+          if (progress < 1) {
+              requestAnimationFrame(animateEntrance);
+          } else {
+              this.gameState.aiPhoenixOverridePosition.set(null);
+              this.gameState.phoenixOverridePosition.set(null);
+              this.triggerImpactEffect(window.innerWidth / 2, currentAiY, true); // AI flash effect on landing
+              if (this.playerBody) {
+                  this.triggerImpactEffect(window.innerWidth / 2, window.innerHeight / 2 + 150, false);
+              }
+              // 1 second standoff before combat begins
+              setTimeout(() => {
+                  if (!this.gameEnded() && !this.isDead()) {
+                      this.gameState.isPaused.set(false);
+                      this.lastClickTime = Date.now();
+                  }
+              }, 1000);
+          }
+      };
+      
+      requestAnimationFrame(animateEntrance);
+  }
+
+
+  private setupAiPhoenix(isRespawn: boolean) {
+      const playerStats = this.gameState.currentStats();
+      this.aiStats = JSON.parse(JSON.stringify(playerStats));
+      this.aiStats.maxHealth *= 10; // Scale base health x10 for Battle Mode boss pool
+      
+      const worldId = this.gameState.selectedWorldIndex();
+      const realmAbilities = REALM_ABILITIES[worldId] || ['burst', 'aura'];
+      
+      const tapAbilities = realmAbilities.filter(k => ABILITIES[k]?.type === 'tap' && k !== 'rebirth');
+      const holdAbilities = realmAbilities.filter(k => ABILITIES[k]?.type === 'hold' && k !== 'rebirth');
+      
+      let tap = tapAbilities.length > 0 ? tapAbilities[Math.floor(Math.random() * tapAbilities.length)] : 'burst';
+      let hold = holdAbilities.length > 0 ? holdAbilities[Math.floor(Math.random() * holdAbilities.length)] : 'aura';
+      
+      this.aiAbilities = [tap, hold];
+      
+      const playerTapLevel = playerStats.activeTapAbility ? (playerStats.unlockedAbilities[playerStats.activeTapAbility]?.level || 1) : 1;
+      const playerHoldLevel = playerStats.activeHoldAbility ? (playerStats.unlockedAbilities[playerStats.activeHoldAbility]?.level || 1) : 1;
+      const avgPlayerLevel = Math.max(1, Math.floor((playerTapLevel + playerHoldLevel) / 2));
+      
+      this.aiAbilities.forEach(id => {
+          this.aiStats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
+          this.aiStats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
+      });
+
+      if (!isRespawn) {
+          // Roll 1-5 tokens for each of the 8 stats
+          const statCount = 8;
+          let initialUpgradeTokens = 0;
+          for(let i=0; i<statCount; i++) {
+              initialUpgradeTokens += Math.floor(Math.random() * 5) + 1;
+          }
+          
+          // Roll 1-5 tokens for each of the 2 abilities
+          let initialAbilityTokens = 0;
+          for(let i=0; i<2; i++) {
+              initialAbilityTokens += Math.floor(Math.random() * 5) + 1;
+          }
+          
+          // Spend tokens
+          this.spendTokens(initialUpgradeTokens, initialAbilityTokens, 'ai1');
+          this.aiUpgradesWeights = {}; // reset weights after init
+      } else {
+          // On respawn, spend accumulated tokens from boxes
+          this.spendTokens(this.aiUpgradeTokensBox, this.aiAbilityTokensBox, 'ai1');
+          // (Weights are preserved across respawns)
+      }
+      this.gameState.aiPhoenixSpeed.set(this.aiStats.speed);
+  }
+
+
+  private setupAi2Phoenix(isRespawn: boolean) {
+      const playerStats = this.gameState.currentStats();
+      this.ai2Stats = JSON.parse(JSON.stringify(playerStats));
+      this.ai2Stats.maxHealth *= 10; // AI2 gets x10 health as well
+      
+      let tap = playerStats.activeTapAbility || 'burst';
+      let hold = playerStats.activeHoldAbility || 'aura';
+      
+      this.ai2Abilities = [tap, hold];
+      
+      const playerTapLevel = playerStats.activeTapAbility ? (playerStats.unlockedAbilities[playerStats.activeTapAbility]?.level || 1) : 1;
+      const playerHoldLevel = playerStats.activeHoldAbility ? (playerStats.unlockedAbilities[playerStats.activeHoldAbility]?.level || 1) : 1;
+      const avgPlayerLevel = Math.max(1, Math.floor((playerTapLevel + playerHoldLevel) / 2));
+      
+      this.ai2Abilities.forEach(id => {
+          this.ai2Stats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
+          this.ai2Stats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
+      });
+
+      if (!isRespawn) {
+          const statCount = 8;
+          let initialUpgradeTokens = 0;
+          for(let i=0; i<statCount; i++) {
+              initialUpgradeTokens += Math.floor(Math.random() * 5) + 1;
+          }
+          
+          let initialAbilityTokens = 0;
+          for(let i=0; i<2; i++) {
+              initialAbilityTokens += Math.floor(Math.random() * 5) + 1;
+          }
+          
+          this.spendTokens(initialUpgradeTokens, initialAbilityTokens, 'ai2');
+          this.ai2UpgradesWeights = {}; 
+      }
+  }
+
+
+  private resetCooldowns() {
+      this.aiLastTapTime = 0;
+      this.aiLastHoldTime = 0;
+      this.ai2LastTapTime = 0;
+      this.ai2LastHoldTime = 0;
+      this.lastClickTime = 0;
+      this.holdAbilityEndTime = 0;
+      this.tapCooldown.set(0);
+      this.holdCooldown.set(0);
+      this.ai2TapCooldown = 0;
+      this.ai2HoldCooldown = 0;
+  }
+
+
+  private getNextDropTime(index: number): number {
+      if (index < 5) return (index + 1) * 60; // 1m, 2m, 3m, 4m, 5m
+      if (index < 8) return 300 + (index - 4) * 90; // 6:30, 8:00, 9:30
+      return 570 + (index - 7) * 120; // 11:30, 13:30, ...
+  }
+
+
+  getTapIcon() { return ABILITIES[this.gameState.currentStats().activeTapAbility || 'burst']?.icon || '💥'; }
+
+  getHoldIcon() { return ABILITIES[this.gameState.currentStats().activeHoldAbility || 'aura']?.icon || '🌀'; }
+
+
+  getTapMaxCooldown() {
+      const id = this.gameState.currentStats().activeTapAbility || 'burst';
+      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities[id];
+      const mod = abilityData?.modifiers?.['cooldown'] || 1.0;
+      if (id === 'drill_attack') return 3 * mod; 
+      if (id === 'fire_breath') return 8 * mod;  
+      return 5 * mod; // burst
+  }
+
+
+  getHoldMaxCooldown() {
+      const id = this.gameState.currentStats().activeHoldAbility || 'aura';
+      const abilityData = this.gameState.worldUpgrades()[this.gameState.selectedWorldIndex()]?.unlockedAbilities[id];
+      const mod = abilityData?.modifiers?.['cooldown'] || 1.0;
+      if (id === 'phoenix_turret') return 10 * mod;
+      if (id === 'rebirth') return 60 * mod; // 60s cooldown for Rebirth
+      return 15 * mod; // aura
+  }
+
+
+  private buildMLState(actor: Matter.Body, target: Matter.Body | undefined, hpRatio: number, targetHpRatio: number, threatType: string): any {
+      const projectiles = Matter.Composite.allBodies(this.engine.world).filter(b => b.label === 'projectile' && b.plugin['data']?.type === threatType);
+      
+      const rays = 8;
+      const radarDists = Array(rays).fill(0);
+      const maxRange = 400;
+      
+      for (let i = 0; i < rays; i++) {
+          const angle = (Math.PI * 2 / rays) * i;
+          const endPoint = {
+              x: actor.position.x + Math.cos(angle) * maxRange,
+              y: actor.position.y + Math.sin(angle) * maxRange
+          };
+          
+          const hits = Matter.Query.ray(projectiles, actor.position, endPoint);
+          if (hits.length > 0) {
+              let minDist = maxRange;
+              for (let hit of hits) {
+                  const dist = Matter.Vector.magnitude(Matter.Vector.sub(actor.position, (hit as any).body.position));
+                  if (dist < minDist) minDist = dist;
+              }
+              radarDists[i] = 1.0 - (minDist / maxRange);
+          }
+      }
+
+      let closestMobType = 0;
+      let closestMobDist = 1.0;
+      let closestMobVelX = 0;
+      let closestMobVelY = 0;
+      let nearestBody: Matter.Body | null = null;
+      let minDistRaw = Infinity;
+
+      const allBodies = Matter.Composite.allBodies(this.engine.world);
+      for (let b of allBodies) {
+           if (b === actor || b === target) continue;
+           if (b.label === 'enemy' || b.label === 'boss' || b.label === 'projectile') {
+                const dist = Matter.Vector.magnitude(Matter.Vector.sub(actor.position, b.position));
+                if (dist < minDistRaw) {
+                    minDistRaw = dist;
+                    nearestBody = b;
+                }
+           }
+      }
+
+      if (nearestBody) {
+           closestMobDist = Math.min(1.0, minDistRaw / maxRange);
+           closestMobVelX = nearestBody.velocity.x;
+           closestMobVelY = nearestBody.velocity.y;
+           
+           const data = nearestBody.plugin['data'];
+           const typeStr = data ? data.type : nearestBody.label;
+           
+           // Deterministic string hash to [0, 1] so new mobs work automatically
+           let hash = 0;
+           if (typeStr) {
+               for (let i = 0; i < typeStr.length; i++) {
+                   hash = (hash * 31 + typeStr.charCodeAt(i)) % 1000;
+               }
+           }
+           closestMobType = hash / 1000.0;
+      }
+
+      const isBottomAi = threatType === 'projectile_enemy'; // If it fires enemy projectiles, it's the Bottom AI acting as player
+      const aiY = isBottomAi ? window.innerHeight - actor.position.y : actor.position.y;
+      const aiVelY = isBottomAi ? -actor.velocity.y : actor.velocity.y;
+      const pY = target?.position.y || (isBottomAi ? window.innerHeight - 100 : 100);
+      const playerY = isBottomAi ? window.innerHeight - pY : pY;
+      const playerVelY = isBottomAi ? -(target?.velocity.y || 0) : (target?.velocity.y || 0);
+      const mobVelY = isBottomAi ? -closestMobVelY : closestMobVelY;
+
+      return {
+          aiX: actor.position.x, aiY: aiY,
+          aiVelX: actor.velocity.x, aiVelY: aiVelY,
+          playerX: target?.position.x || window.innerWidth / 2, playerY: playerY,
+          playerVelX: target?.velocity.x || 0, playerVelY: playerVelY,
+          hpRatio: hpRatio,
+          playerHpRatio: targetHpRatio,
+          radar0: radarDists[0], radar1: radarDists[1], radar2: radarDists[2], radar3: radarDists[3],
+          radar4: radarDists[4], radar5: radarDists[5], radar6: radarDists[6], radar7: radarDists[7],
+          closestMobType: closestMobType,
+          closestMobDist: closestMobDist,
+          closestMobVelX: closestMobVelX,
+          closestMobVelY: mobVelY
+      };
+  }
+
+
+  private executeKillScreen() {
+      const boss = this.enemies.find(e => e.plugin['data']?.type === 'boss');
+      if (!boss) return;
+      
+      this.annihilationModeActive.set(true);
+      
+      // Clear all enemies except boss
+      this.enemies.forEach(e => {
+          if (e.plugin['data']?.type !== 'boss') {
+              Matter.Composite.remove(this.engine.world, e);
+          }
+      });
+      this.enemies = [boss];
+      
+      // Clear existing projectiles
+      const currentBodies = Matter.Composite.allBodies(this.engine.world);
+      currentBodies.forEach(b => {
+          if (b.label === 'projectile') {
+              Matter.Composite.remove(this.engine.world, b);
+          }
+      });
+
+      // Start Annihilation Barrage (every 200ms)
+      if (this.annihilationInterval) clearInterval(this.annihilationInterval);
+      this.annihilationInterval = setInterval(() => {
+          if (this.isDead() || this.gameEnded() || this.inBossDefeatSequence()) {
+              clearInterval(this.annihilationInterval);
+              return;
+          }
+          
+          const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, boss.position));
+          const angle = Math.atan2(dir.y, dir.x);
+          const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+          const proj = Matter.Bodies.circle(boss.position.x, boss.position.y, 20, {
+              label: 'projectile', isSensor: true,
+              plugin: { data: { id: Math.random().toString(), type: 'annihilation_fire', health: 1, maxHealth: 1 } as EnemyData }
+          });
+          Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
+          Matter.Composite.add(this.engine.world, proj);
+          
+      }, 200);
+  }
+
+
   private spendTokens(upgradeTokens: number, abilityTokens: number, target: 'ai1' | 'ai2') {
       const statOptions = ['maxHealth', 'speed', 'magnetism', 'damage', 'attackSpeed', 'attackRange', 'auraRadius', 'homingLevel'];
       const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
@@ -1573,6 +1711,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           this.applyAiUpgrade(`ability_${selectedOpt}`, target);
       }
   }
+
 
   private applyAiUpgrade(selectedOpt: string, target: 'ai1' | 'ai2') {
       const stats = target === 'ai1' ? this.aiStats : this.ai2Stats;
@@ -1622,6 +1761,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       
       weights[selectedOpt] = Math.max(10, (weights[selectedOpt] || 100) - 20);
   }
+
 
   private tryPurchaseAiUpgrade(target: 'ai1' | 'ai2') {
       const upgradeOptions = [
@@ -1712,77 +1852,909 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       }
   }
 
-  private startGameLoop() {
-    if (this.timerInterval) clearInterval(this.timerInterval);
-    if (this.spawnInterval) clearTimeout(this.spawnInterval);
-    if (this.attackInterval) clearInterval(this.attackInterval);
-    if ((this as any).aiAbilityInterval) clearInterval((this as any).aiAbilityInterval);
-    
-    this.timerInterval = setInterval(() => {
-      if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
-      
-      this.gameState.sessionPlayTime.update(t => t + 1);
-      
-      if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') {
-          this.battleTimer.set(this.gameState.sessionPlayTime());
-          
-          if (this.battleTimer() > 0 && this.battleTimer() % 10 === 0) {
-              this.mlAi.trainOnMemory();
-          }
-          
-          if (this.battleTimer() > 0 && this.battleTimer() % 60 === 0) {
-              this.mlAi.pushGlobalWeights();
-          }
-          
-          // AI Economy TICK
-          this.aiCoins += this.aiCoinGainRate;
-          this.tryPurchaseAiUpgrade('ai1');
-          
-          if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-              this.ai2Coins += this.aiCoinGainRate;
-              this.tryPurchaseAiUpgrade('ai2');
-          }
-          
-          // Drop Event TICK
-          const nextDropTime = this.getNextDropTime(this.nextDropIndex);
-          if (this.battleTimer() >= nextDropTime && !this.battleDropReady()) {
-              this.battleDropReady.set(true);
-              this.battleDropGrace.set(true);
-              this.screenFlash.set(true);
-              setTimeout(() => this.screenFlash.set(false), 200);
-              setTimeout(() => this.battleDropGrace.set(false), 500);
-              this.nextDropIndex++;
-          }
-          
-          if (this.gameState.currentGameMode() === 'ai_vs_ai' && this.gameState.sessionPlayTime() % 60 === 0) {
-              this.mlAi.pushGlobalWeights();
-          }
-      } else {
-          this.timeRemaining.update(t => Math.max(0, Math.floor(t - 1)));
-          if (this.timeRemaining() === 0 && this.bossSpawned() && !this.inBossDefeatSequence() && !this.isDead() && !this.rageModeActive()) {
-              this.triggerRageMode();
-          }
-          if (this.timeRemaining() === 0 && !this.bossSpawned() && this.progressPercent() >= 100) {
-              this.spawnBoss();
-          }
-      }  
-      
-      if (this.gameState.sessionPlayTime() >= 60) this.gameState.awardTrophy("Survivor");
-      
-      if (this.gameState.hasCosmicTrail()) {
-          this.gameState.xp.update(x => x + 5 * this.gameState.xpMultiplier());
+
+  private createEnemyBody(x: number, y: number, size: number, type: string, data: any): Matter.Body {
+      const options = {
+          label: type === 'boss' ? 'boss' : 'enemy',
+          frictionAir: type === 'boss' ? 0.1 : 0.05,
+          plugin: { data }
+      };
+
+      if (type === 'slime') {
+          return Matter.Bodies.rectangle(x, y, size * 2, size * 1.5, { ...options, chamfer: { radius: [size*0.7, size*0.7, 0, 0] } as any });
+      } else if (type === 'golem') {
+          return Matter.Bodies.circle(x, y, size * 1.5, options);
+      } else if (type === 'boss') {
+          return Matter.Bodies.circle(x, y, size * 1.5, options);
       }
-    }, 1000);
 
-    this.scheduleNextSpawn();
-
-    const attackSpeed = this.gameState.currentStats().attackSpeed;
-    this.attackInterval = setInterval(() => {
-      if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
-      this.fireProjectile();
-    }, 1000 / attackSpeed);
-    
+      return Matter.Bodies.circle(x, y, size, options);
   }
+
+
+  private spawnBoss() {
+    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has a boss for now
+    this.bossSpawned.set(true);
+    this.clearEnemies();
+
+    const worldIndex = this.gameState.selectedWorldIndex();
+    const hp = Math.floor(1000 * Math.pow(1.5, worldIndex));
+    const data = { id: Math.random().toString(), type: 'boss', health: hp, maxHealth: hp } as EnemyData;
+    const scale = this.screenScale;
+    const boss = this.createEnemyBody(window.innerWidth / 2, -100, 100 * scale, 'boss', data);
+
+    this.enemies.push(boss);
+    Matter.Composite.add(this.engine.world, boss);
+  }
+
+
+  private scheduleNextSpawn() {
+    if (this.spawnInterval) clearTimeout(this.spawnInterval);
+    if (!this.gameEnded() && !this.isDead() && !this.bossSpawned() && !this.gameState.isPaused()) {
+        // Only spawn if intensity is high enough, giving breathing room on quiet parts
+        const intensity = this.audioService.getAudioIntensity();
+        if (intensity > 0.1 || Math.random() < 0.2) { 
+            this.spawnEnemy();
+        }
+    }
+    
+    // Delay driven by audio intensity: lower intensity = longer delay
+    let progress = this.progressPercent();
+    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+        progress = Math.min(100, this.gameState.sessionPlayTime() * 2);
+    }
+    const intensity = this.audioService.getAudioIntensity(); // 0.0 to ~0.5 usually
+    const baseDelay = Math.max(150, 1000 - (progress * 8.5));
+    const intensityModifier = Math.max(0.1, 1.0 - (intensity * 2.5));
+    const delay = baseDelay * intensityModifier;
+    
+    if (!this.gameEnded()) {
+        this.spawnInterval = setTimeout(() => this.scheduleNextSpawn(), delay);
+    }
+  }
+
+
+  private spawnEnemy() {
+    if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') return; // No regular mobs in Battle or AI vs AI Mode
+    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has enemies for now
+
+    let x, y;
+    const padding = 100; // spawn exactly 100px outside the screen bounds
+    if (Math.random() < 0.5) {
+        // Top or bottom edge
+        x = Math.random() * window.innerWidth;
+        y = Math.random() < 0.5 ? -padding : window.innerHeight + padding;
+    } else {
+        // Left or right edge
+        x = Math.random() < 0.5 ? -padding : window.innerWidth + padding;
+        y = Math.random() * window.innerHeight;
+    }
+
+    let progress = this.progressPercent();
+    let difficultyMultiplier = 1.0;
+    
+    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+        const time = this.gameState.sessionPlayTime();
+        progress = (time % 60) * (100 / 60); 
+        difficultyMultiplier = Math.pow(1.5, Math.floor(time / 60)); 
+    }
+
+    let type: 'bat' | 'slime' | 'golem' = 'slime';
+    const scale = this.screenScale;
+    let size = 20 * scale;
+    let health = 20;
+
+    const rand = Math.random();
+    if (progress > 50 && rand < 0.1) {
+      type = 'golem'; size = 60 * scale; health = 200;
+    } else if (progress > 20 && rand < 0.4) {
+      type = 'bat'; size = 15 * scale; health = 10;
+    }
+
+    const worldIndex = this.gameState.selectedWorldIndex();
+    health = Math.floor(health * Math.pow(1.5, worldIndex) * difficultyMultiplier);
+
+    const data = { id: Math.random().toString(), type, health, maxHealth: health, lastAttackTime: Date.now() } as EnemyData;
+    const enemy = this.createEnemyBody(x, y, size, type, data);
+
+    this.enemies.push(enemy);
+    Matter.Composite.add(this.engine.world, enemy);
+  }
+
+
+  private calculateBossGemDrop(realmIndex: number): number {
+      // Boss drop should be roughly the equivalent of $5 worth of gems (approx 50 gems)
+      // but with a random range, and scaling slightly per realm.
+      let min = 40;
+      let max = 60;
+      
+      if (realmIndex > 0) {
+          min += realmIndex * 20;
+          max += realmIndex * 30;
+      }
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+
+  private spawnMinion(x: number, y: number) {
+      const worldIndex = this.gameState.selectedWorldIndex();
+      const hp = Math.floor(5 * Math.pow(1.5, worldIndex));
+      const data = { id: Math.random().toString(), type: 'bat', health: hp, maxHealth: hp } as EnemyData;
+      const minion = this.createEnemyBody(x, y, 10, 'bat', data);
+      Matter.Body.setVelocity(minion, { x: (Math.random()-0.5)*10, y: (Math.random()-0.5)*10 });
+      this.enemies.push(minion);
+      Matter.Composite.add(this.engine.world, minion);
+  }
+
+
+  private fireBossWaveAttack(pos: Matter.Vector) {
+      this.audioService.playSFX('shoot');
+      for (let i = 0; i < 12; i++) {
+          const angle = (i / 12) * Math.PI * 2;
+          const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+          const proj = Matter.Bodies.circle(pos.x, pos.y, 15, {
+              label: 'projectile', isSensor: true,
+              plugin: { data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1, owner: 'enemy', burstDamage: 10 } as EnemyData }
+          });
+          Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 8));
+          Matter.Composite.add(this.engine.world, proj);
+          
+          setTimeout(() => {
+              if (proj.parent) {
+                  Matter.Body.setVelocity(proj, { x: 0, y: 0 }); // Pause
+                  setTimeout(() => {
+                      if (proj.parent) {
+                          const boss = this.enemies.find(e => e.plugin['data']?.type === 'boss');
+                          if (boss) {
+                              const returnDir = Matter.Vector.normalise(Matter.Vector.sub(boss.position, proj.position));
+                              Matter.Body.setVelocity(proj, Matter.Vector.mult(returnDir, 12));
+                              setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj); }, 2000);
+                          } else {
+                              Matter.Composite.remove(this.engine.world, proj);
+                          }
+                      }
+                  }, 500);
+              }
+          }, 1500);
+      }
+  }
+
+
+  public resolveBattleDrop(playerWon: boolean, px: number, py: number) {
+      this.battleDropReady.set(false);
+      this.battleDropGrace.set(false);
+      
+      if (playerWon) {
+          this.triggerBattleDrop(px, py, false);
+      } else {
+          // AI Won -> Steal
+          const aiEnemy = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
+          if (aiEnemy) {
+              const data = aiEnemy.plugin['data'] as EnemyData;
+              // AI heals 15-25% max health
+              const healPercent = 0.15 + (Math.random() * 0.10);
+              data.health = Math.min(data.maxHealth, data.health + (data.maxHealth * healPercent));
+              this.bossHealth.set(data.health);
+              
+              // 50% chance to steal coins
+              if (Math.random() < 0.5) {
+                 const playerCoins = this.gameState.coins();
+                 const stealAmount = Math.floor(playerCoins * 0.10); // steal 10%
+                 if (stealAmount > 0) {
+                     this.gameState.coins.set(playerCoins - stealAmount);
+                     this.aiCoins += stealAmount;
+                 }
+              }
+              
+              this.triggerImpactEffect(px, py, false); // Small red burst maybe
+          }
+          this.aiCoinGainRate += 1; // Increase income anyway
+      }
+  }
+
+
+  private damageEnemy(enemy: Matter.Body, damage: number) {
+    const data = enemy.plugin['data'] as EnemyData;
+    if (data.immortalUntil && Date.now() < data.immortalUntil) return;
+    data.health -= damage;
+    
+    if (data.type === 'boss') {
+       this.bossHealth.set(Math.max(0, data.health));
+    } else if (data.type === 'enemy_phoenix') {
+       this.bossHealth.set(Math.max(0, data.health));
+    }
+    
+    if (data.health <= 0) {
+      this.audioService.playSFX('explosion');
+      
+      if (data.type === 'enemy_phoenix') {
+          // AI Phoenix Death Logic
+          if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+              this.audioService.playSFX('explosion');
+              this.triggerImpactEffect(enemy.position.x, enemy.position.y, true);
+              this.gameState.ai2Wins.update(w => w + 1);
+              this.mlAi.addReward(-100); // the one who died is top ai (enemy)
+              data.health = data.maxHealth;
+              this.bossHealth.set(data.maxHealth);
+              data.immortalUntil = Date.now() + 2000;
+              
+              // Visual Ash effect for in-place rebirth
+              const ashInterval = setInterval(() => {
+                  const ash = document.createElement('div');
+                  ash.style.position = 'fixed';
+                  ash.style.left = `${enemy.position.x + (Math.random()-0.5)*30}px`;
+                  ash.style.top = `${enemy.position.y + (Math.random()-0.5)*30}px`;
+                  ash.style.width = '4px';
+                  ash.style.height = '4px';
+                  ash.style.backgroundColor = '#9ca3af';
+                  ash.style.borderRadius = '50%';
+                  ash.style.pointerEvents = 'none';
+                  ash.style.zIndex = '50';
+                  document.body.appendChild(ash);
+                  setTimeout(() => ash.remove(), 1000);
+              }, 100);
+              setTimeout(() => clearInterval(ashInterval), 2000);
+              
+              return;
+          }
+
+          if (this.aiAbilities.includes('rebirth')) {
+              // Revive via rebirth
+              data.health = this.aiStats.maxHealth;
+              data.maxHealth = this.aiStats.maxHealth;
+              this.bossHealth.set(data.maxHealth);
+              data.immortalUntil = Date.now() + 2000;
+              this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // big shockwave
+              
+              // Remove rebirth so it can't be used again this life
+              this.aiAbilities = this.aiAbilities.filter(a => a !== 'rebirth');
+              return;
+          } else {
+              // Auto drop and respawn
+              this.triggerBattleDrop(enemy.position.x, enemy.position.y, true);
+              this.setupAiPhoenix(true); // Rerolls stats and abilities
+              data.health = this.aiStats.maxHealth;
+              data.maxHealth = this.aiStats.maxHealth;
+              this.bossHealth.set(data.maxHealth);
+              this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // rebirth effect
+              // Visual teleport
+              this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: -200 });
+              Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: -200 }); // reset off-screen
+              Matter.Body.setVelocity(enemy, { x: 0, y: 0 });
+              
+              const duration = 1500;
+              const startTime = Date.now();
+              const aiStartY = -200;
+              const aiEndY = window.innerHeight / 2 - 150;
+              const animateEntrance = () => {
+                  if (this.isDead() || this.gameEnded()) return;
+                  const now = Date.now();
+                  const progress = Math.min((now - startTime) / duration, 1);
+                  const easeProgress = progress * (2 - progress);
+                  const currentAiY = aiStartY + (aiEndY - aiStartY) * easeProgress;
+                  this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentAiY });
+                  this.gameState.aiMousePos.set({ x: window.innerWidth / 2, y: 50 });
+                  Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: currentAiY });
+                  Matter.Body.setVelocity(enemy, { x: 0, y: 0 }); 
+                  
+                  if (progress < 1) requestAnimationFrame(animateEntrance);
+                  else this.gameState.aiPhoenixOverridePosition.set(null);
+              };
+              requestAnimationFrame(animateEntrance);
+              return;
+          }
+      }
+      
+      Matter.Composite.remove(this.engine.world, enemy);
+      this.enemies = this.enemies.filter(e => e !== enemy);
+      
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+          this.mlAi.addReward(2);
+      }
+      
+      // Award XP
+      let xp = 0;
+      if (data.type === 'slime') xp = 2;
+      if (data.type === 'bat') xp = 5;
+      if (data.type === 'golem') xp = 20;
+      if (data.type === 'boss') xp = 500;
+      this.gameState.addXp(xp);
+      
+      // Bestiary Unlock
+      if (!this.gameState.unlockedEnemies().includes(data.type) && ['slime', 'bat', 'golem', 'boss'].includes(data.type)) {
+          this.gameState.unlockedEnemies.update(arr => [...arr, data.type]);
+      }
+      
+      // Track Kills & Trophies
+      this.gameState.awardTrophy("First Blood");
+      const currentKills = this.gameState.sessionKills();
+      const killCount = (currentKills[data.type] || 0) + 1;
+      this.gameState.sessionKills.set({ ...currentKills, [data.type]: killCount });
+      
+      if (data.type === 'slime' && killCount >= 50) this.gameState.awardTrophy("Slime Slayer");
+      if (data.type === 'bat' && killCount >= 25) this.gameState.awardTrophy("Bat Hunter");
+      if (data.type === 'golem' && killCount >= 5) this.gameState.awardTrophy("Golem Breaker");
+      
+      if (data.type === 'boss') {
+        this.gameState.awardTrophy("Realm Conqueror");
+        
+        // Setup Cinematic Defeat Sequence
+        this.inBossDefeatSequence.set(true);
+        this.bossDefeatTimestamp = Date.now();
+        this.bossGemsCollected = 0;
+        
+        // Base gems based on realm index (Only drop on first defeat!)
+        const currentWorldIndex = this.gameState.selectedWorldIndex();
+        const isFirstDefeat = !this.gameState.unlockedWorlds().includes(currentWorldIndex + 1);
+        const intendedGems = isFirstDefeat ? this.calculateBossGemDrop(currentWorldIndex) : 0;
+        
+        const scaleAtEnd = Math.max(0.2, 1 - (this.progressPercent() / 100));
+        
+        // Cap physical gem bodies at 100 to prevent physics lag on mobile
+        this.bossGemsDropped = isFirstDefeat ? Math.min(100, Math.floor(intendedGems / scaleAtEnd)) : 0;
+        
+        if (this.bossGemsDropped > 0) {
+            const valPerGem = intendedGems / (this.bossGemsDropped * scaleAtEnd);
+            for(let i=0; i<this.bossGemsDropped; i++) {
+                setTimeout(() => {
+                    this.dropItem(enemy.position.x + (Math.random()-0.5)*150, enemy.position.y + (Math.random()-0.5)*150, 'gem', valPerGem);
+                    this.audioService.playSFX('drop');
+                }, i * 30);
+            }
+        } else {
+            // If no gems dropped, automatically ascend after a delay to let the coins bounce
+            setTimeout(() => {
+                if (!this.animatingAscension()) this.triggerAscension();
+            }, 1500);
+        }
+        
+        // Coins explosion (Huge visual blast, value scales to intended)
+        const intendedCoins = 1000;
+        const physicalCoins = Math.min(150, Math.floor(intendedCoins / scaleAtEnd));
+        const valPerCoin = intendedCoins / (physicalCoins * scaleAtEnd);
+        for(let i=0; i<physicalCoins; i++) {
+           setTimeout(() => {
+               this.dropItem(enemy.position.x + (Math.random()-0.5)*200, enemy.position.y + (Math.random()-0.5)*200, 'coin', valPerCoin);
+               this.audioService.playSFX('drop');
+           }, i * 15); // Stagger drop and sound for a nice "brrrrr" effect
+        }
+        
+        this.triggerMassiveExplosion(enemy.position.x, enemy.position.y);
+        
+        // Remove the boss completely so it doesn't trigger damage or blocks anymore
+        Matter.Composite.remove(this.engine.world, enemy);
+        this.enemies = this.enemies.filter(e => e !== enemy);
+        
+        // Stop the normal timers so enemies stop spawning
+        clearInterval(this.timerInterval);
+        clearInterval(this.spawnInterval);
+        clearInterval(this.attackInterval);
+        
+        // We do NOT call winGame() instantly here anymore!
+      } else {
+        if (data.type === 'golem') {
+            for (let i = 0; i < 5; i++) {
+                this.dropItem(enemy.position.x + (Math.random()-0.5)*20, enemy.position.y + (Math.random()-0.5)*20, 'coin', 10);
+            }
+        } else {
+            if (Math.random() < 0.6) { // 60% chance to drop coins
+                const amount = Math.floor(Math.random() * 3) + 1; // 1 to 3 coins visually
+                for (let i = 0; i < amount; i++) {
+                    this.dropItem(enemy.position.x + (Math.random()-0.5)*15, enemy.position.y + (Math.random()-0.5)*15, 'coin', 5);
+                }
+            }
+        }
+        if (Math.random() < 0.1) { // 10% chance for a heart
+            this.dropItem(enemy.position.x + 20, enemy.position.y + 20, 'heart', 20); // Heals 20
+        }
+        if (!this.crateDroppedThisRun && this.gameState.pendingCratesCount() > 0 && Math.random() < 0.01) {
+            this.crateDroppedThisRun = true;
+            this.dropItem(enemy.position.x, enemy.position.y, 'crate', 1);
+        }
+      }
+    } else {
+      // Hit sound removed permanently
+    }
+  }
+
+
+  private dropItem(x: number, y: number, type: 'coin' | 'gem' | 'heart' | 'crate', value: number) {
+      if (this.gameState.currentGameMode() === 'ai_vs_ai' && (type === 'coin' || type === 'gem' || type === 'crate')) {
+          return;
+      }
+      const item = Matter.Bodies.circle(x, y, type === 'gem' ? 15 : (type === 'crate' ? 25 : 10), {
+          isSensor: true,
+          label: 'item',
+          frictionAir: 0.1,
+          plugin: {
+              data: { id: Math.random().toString(), type: type, value: value } as any
+          }
+      });
+      Matter.Body.setVelocity(item, { x: (Math.random() - 0.5) * 5, y: (Math.random() - 0.5) * 5 });
+      Matter.Composite.add(this.engine.world, item);
+      this.items.push(item);
+  }
+
+
+  private takeDamage(amount: number) {
+    if (this.isDead() || this.gameEnded() || this.gameState.isRebirthing()) return;
+    if (Date.now() < this.gameState.immortalUntil) return;
+    
+    if (this.gameState.hasCelestialShield() && this.celestialShieldActive()) {
+        this.celestialShieldActive.set(false);
+        // Hit sound removed permanently
+        setTimeout(() => this.celestialShieldActive.set(true), 30000);
+        return;
+    }
+    
+    if (this.gameState.isDrilling()) {
+        amount *= 0.1;
+    }
+
+    // Hit sound removed permanently
+    this.gameState.immortalUntil = Date.now() + 500; // 0.5s i-frames
+    this.currentHealth.update(h => Math.max(0, h - amount));
+    this.damageFlash.set(true);
+    setTimeout(() => this.damageFlash.set(false), 200);
+
+    if (this.currentHealth() <= 0) {
+      const activeHold = this.gameState.currentStats().activeHoldAbility;
+      if (activeHold === 'rebirth' && this.holdCooldown() === 0 && !this.annihilationModeActive()) {
+         this.holdCooldown.set(this.getHoldMaxCooldown());
+         this.gameState.isRebirthing.set(true);
+         // Hit sound removed permanently
+         
+         // 3 second Ash visual effect loop
+         const ashInterval = setInterval(() => {
+             if (!this.gameState.isRebirthing()) {
+                 clearInterval(ashInterval);
+                 return;
+             }
+             const ash = document.createElement('div');
+             ash.style.position = 'fixed';
+             ash.style.left = `${this.playerBody.position.x + (Math.random()-0.5)*30}px`;
+             ash.style.top = `${this.playerBody.position.y + (Math.random()-0.5)*30}px`;
+             ash.style.width = '4px';
+             ash.style.height = '4px';
+             ash.style.backgroundColor = '#9ca3af';
+             ash.style.borderRadius = '50%';
+             ash.style.pointerEvents = 'none';
+             ash.style.zIndex = '50';
+             document.body.appendChild(ash);
+             anime({
+                 targets: ash,
+                 translateY: -50,
+                 opacity: [1, 0],
+                 duration: 1000,
+                 easing: 'linear',
+                 complete: () => ash.remove()
+             });
+         }, 100);
+         
+         // 3 second Ash state
+         setTimeout(() => {
+             clearInterval(ashInterval);
+             this.gameState.isRebirthing.set(false);
+             this.gameState.immortalUntil = Date.now() + 5000;
+             this.gameState.speedBoostUntil = Date.now() + 2500;
+             this.currentHealth.set(Math.floor(this.maxHealth() / 2)); 
+             
+             // Massive explosion
+             const radius = 500;
+             const explosion = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, radius, {
+                 isSensor: true, label: 'projectile',
+                 plugin: { data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: radius } as EnemyData }
+             });
+             Matter.Composite.add(this.engine.world, explosion);
+             setTimeout(() => { if (explosion.parent) Matter.Composite.remove(this.engine.world, explosion) }, 500);
+             
+             this.enemies.forEach(e => {
+                 const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
+                 if (dist < radius) this.damageEnemy(e, this.gameState.currentStats().damage * 10);
+             });
+             
+             this.audioService.playSFX('explosion');
+             
+             // Volcanic fire rebirth particles
+             for (let i = 0; i < 30; i++) {
+                 const angle = (i / 30) * Math.PI * 2;
+                 const speed = 8 + Math.random() * 8;
+                 const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+                 const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 15, {
+                     isSensor: true, label: 'projectile',
+                     plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: this.gameState.currentStats().damage * 3 } as EnemyData }
+                 });
+                 Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, speed));
+                 Matter.Composite.add(this.engine.world, proj);
+                 setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 800 + Math.random() * 600);
+             }
+         }, 3000);
+         return;
+      }
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+          if (this.ai2Abilities.includes('rebirth')) {
+              this.currentHealth.set(this.maxHealth());
+              this.gameState.immortalUntil = Date.now() + 2000;
+              this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
+              // Remove rebirth so it can't be used again this life
+              this.ai2Abilities = this.ai2Abilities.filter(a => a !== 'rebirth');
+              return;
+          }
+          this.audioService.playSFX('explosion');
+          this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
+          this.gameState.ai1Wins.update(w => w + 1);
+          this.mlAi.addReward(100); // the one who died is player (ai 2), top ai wins!
+          this.currentHealth.set(this.maxHealth());
+          this.gameState.immortalUntil = Date.now() + 2000;
+          // Re-roll ai2Abilities on respawn
+          this.setupAi2Phoenix(true);
+          
+          // Visual Ash effect for in-place rebirth (teleport removed to fix glitch)
+          const ashInterval = setInterval(() => {
+              const ash = document.createElement('div');
+              ash.style.position = 'fixed';
+              ash.style.left = `${this.playerBody.position.x + (Math.random()-0.5)*30}px`;
+              ash.style.top = `${this.playerBody.position.y + (Math.random()-0.5)*30}px`;
+              ash.style.width = '4px';
+              ash.style.height = '4px';
+              ash.style.backgroundColor = '#9ca3af';
+              ash.style.borderRadius = '50%';
+              ash.style.pointerEvents = 'none';
+              ash.style.zIndex = '50';
+              document.body.appendChild(ash);
+              setTimeout(() => ash.remove(), 1000);
+          }, 100);
+          setTimeout(() => clearInterval(ashInterval), 2000);
+          
+          return;
+      }
+      this.triggerDeathSequence();
+    }
+  }
+
+
+  private startReviveCountdown() {
+      if (this.reviveInterval) clearInterval(this.reviveInterval);
+      this.reviveInterval = setInterval(() => {
+          this.reviveCountdown.update(c => c - 1);
+          if (this.reviveCountdown() <= 0) {
+              clearInterval(this.reviveInterval);
+              this.quitGame();
+          }
+      }, 1000);
+  }
+
+
+  public getReviveCost(): number {
+    return 10 * Math.pow(2, this.reviveCount);
+  }
+
+
+  public reviveWithGems() {
+    const cost = this.getReviveCost();
+    if (this.gameState.gems() >= cost) { 
+        this.gameState.gems.update(g => g - cost); 
+        this.reviveCount++;
+        this.executeRevival(); 
+    }
+  }
+
+
+  public reviveWithAd() {
+    // Pause the countdown while ad plays
+    clearInterval(this.reviveInterval);
+    
+    const win = window as any;
+    if (typeof win.adBreak === 'function') {
+        win.adBreak({
+            type: 'reward',
+            name: 'revive_ad',
+            beforeReward: (showAdFn: any) => { showAdFn(); },
+            adViewed: () => {
+                this.executeRevival();
+            },
+            adDismissed: () => {
+                // User skipped ad, resume countdown
+                this.startReviveCountdown();
+            },
+            beforeAd: () => {
+                this.audioService.pauseAudioForAd();
+            },
+            afterAd: () => {
+                this.audioService.resumeAudioAfterAd();
+            }
+        });
+    } else {
+        console.warn("Google AdSense adBreak API not found. Mocking ad watch...");
+        // Mock 2 second ad watch
+        this.audioService.pauseAudioForAd();
+        
+        setTimeout(() => {
+            this.audioService.resumeAudioAfterAd();
+            
+            this.executeRevival();
+        }, 2000);
+    }
+  }
+
+
+  private executeRevival() {
+    clearInterval(this.reviveInterval);
+    this.isDead.set(false);
+    this.gameState.isDeadMenuOpen.set(false);
+    this.gameState.immortalUntil = Date.now() + 5000;
+    this.gameState.speedBoostUntil = Date.now() + 2500;
+    this.currentHealth.set(this.maxHealth());
+    this.gameState.phoenixOverridePosition.set(null);
+    this.clearEnemies();
+    this.rageModeActive.set(false); // Reset rage mode on revive
+    this.killScreenTimer.set(10); // Reset timer just in case
+    if (this.runner && this.engine) Matter.Runner.run(this.runner, this.engine); // Unfreeze physics
+    if (this.bossSpawned()) {
+        // Boss fight continues: reset timer so rage mode doesn't trigger instantly
+        this.timeRemaining.set(this.totalTimeSignal());
+        // Restart the intense BGM if it ended
+        if (this.audioService.onIntenseBgmEnded() || this.audioService.getBgmDuration() === 0) {
+            this.audioService.playIntenseBgm(this.gameState.selectedWorldIndex());
+        } else {
+            this.audioService.resumeCurrentBgm();
+        }
+    }
+  }
+
+
+  private clearEnemies() {
+    this.enemies.forEach(e => {
+        if (e.plugin['data']?.type !== 'boss') {
+            Matter.Composite.remove(this.engine.world, e);
+        }
+    });
+    this.enemies = this.enemies.filter(e => e.plugin['data']?.type === 'boss');
+    this.items.forEach(i => Matter.Composite.remove(this.engine.world, i));
+    this.items = [];
+  }
+
+
+  private winGame() {
+    this.gameEnded.set(true);
+    this.gameWon.set(true);
+    
+    this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight / 2 }); 
+
+    const currentIdx = this.gameState.selectedWorldIndex();
+    const nextIdx = currentIdx + 1;
+    if (nextIdx < this.gameState.worlds.length && !this.gameState.unlockedWorlds().includes(nextIdx)) {
+      this.gameState.unlockedWorlds.update(worlds => [...worlds, nextIdx]);
+    }
+    
+    this.gameState.syncProgressToServer();
+  }
+
+  
+  private executeRealmTransition() {
+      // 1. Advance to next realm seamlessly
+      const currentIdx = this.gameState.selectedWorldIndex();
+      const nextIdx = currentIdx + 1;
+      
+      if (nextIdx < this.gameState.worlds.length && !this.gameState.worlds[nextIdx].isComingSoon) {
+          if (!this.gameState.unlockedWorlds().includes(nextIdx)) {
+              this.gameState.unlockedWorlds.update(worlds => [...worlds, nextIdx]);
+          }
+          this.gameState.selectedWorldIndex.set(nextIdx);
+          
+          // Flash animation for cool realm switch
+          const flash = document.createElement('div');
+          flash.className = 'fixed inset-0 bg-white z-[100] pointer-events-none transition-opacity duration-1000';
+          document.body.appendChild(flash);
+          
+          // Force reflow
+          void flash.offsetWidth;
+          
+          setTimeout(() => flash.style.opacity = '0', 50);
+          setTimeout(() => flash.remove(), 1050);
+      } else {
+          // If the next realm is coming soon, just go to the main screen by quitting
+          this.quitGame();
+          return;
+      }
+      
+      this.gameState.syncProgressToServer();
+      
+      // 2. Reset Sequence States
+      this.inBossDefeatSequence.set(false);
+      this.animatingAscension.set(false);
+      this.bossSpawned.set(false);
+      this.clearEnemies();
+      
+      // 3. Animate Phoenix entering from bottom
+      const startY = window.innerHeight + 200; // Off screen bottom
+      const endY = window.innerHeight / 2; // Default starting position
+      const duration = 1500;
+      const startTime = Date.now();
+      
+      const animateEntrance = () => {
+          const now = Date.now();
+          const progress = Math.min((now - startTime) / duration, 1);
+          
+          // Easing: easeOutQuad (decelerates upwards)
+          const currentY = startY + (endY - startY) * (progress * (2 - progress));
+          this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentY });
+          
+          if (progress < 1) {
+              requestAnimationFrame(animateEntrance);
+          } else {
+              this.gameState.phoenixOverridePosition.set(null); // Return to mouse control
+              
+              // 4. Restart Level fully
+              this.timeRemaining.set(this.totalTimeSignal());
+              this.startGameLoop();
+          }
+      };
+      
+      requestAnimationFrame(animateEntrance);
+  }
+
+
+  public togglePause() {
+    if (this.gameEnded() || this.isDead()) return;
+    
+    // If cheat was prepared and we are resuming, trigger it
+    if (this.gameState.isPaused() && this.cheatPrepared()) {
+        // Fast forward song to 1 second before it ends
+        this.audioService.worldBgm.currentTime = Math.max(0, this.audioService.worldBgm.duration - 1);
+        this.cheatPrepared.set(false);
+    }
+
+    this.gameState.isPaused.set(!this.gameState.isPaused());
+    
+    if (this.gameState.isPaused()) {
+        Matter.Runner.stop(this.runner);
+        this.audioService.pauseCurrentBgm();
+    } else {
+        Matter.Runner.run(this.runner, this.engine);
+        this.audioService.resumeCurrentBgm();
+    }
+  }
+
+
+  private onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') this.togglePause(); }
+
+  private onVisibilityChange() { if (document.hidden && !this.gameState.isPaused() && !this.gameEnded() && !this.isDead()) this.togglePause(); }
+
+  public onPauseTextClick() {
+      this.pauseClickCount++;
+      if (this.pauseClickCount >= 5) {
+          this.cheatPrepared.set(true);
+          this.pauseClickCount = 0;
+      }
+  }
+
+
+  public quitFromPause() {
+      this.gameState.isPaused.set(false);
+      if (this.gameState.currentGameMode() === 'battle') {
+          this.triggerDeathSequence();
+      } else {
+          this.quitGame();
+      }
+  }
+
+
+  private onMouseMove(event: MouseEvent) { this.updateMouseInput(event.clientX, event.clientY); }
+
+  private onTouchMove(event: TouchEvent) { 
+      event.preventDefault(); 
+      if (event.touches.length > 0) this.updateMouseInput(event.touches[0].clientX, event.touches[0].clientY); 
+  }
+
+  
+  private updateMouseInput(x: number, y: number) {
+      if (this.gameState.isPaused() || this.gameState.isDeadMenuOpen() || this.isDead()) return;
+      this.mouseX = x;
+      this.mouseY = y;
+  }
+
+
+  private onMouseDown(event: MouseEvent) { this.handleInputStart(event.clientX, event.clientY); }
+
+  private onTouchStart(event: TouchEvent) { 
+      // Do not prevent default here, as it blocks UI clicks (like the pause button)
+      if (event.touches.length > 0) this.handleInputStart(event.touches[0].clientX, event.touches[0].clientY); 
+  }
+
+  
+  private handleInputStart(x: number, y: number) {
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') return;
+      this.isMouseHeld = true;
+      this.holdStartX = x;
+      this.holdStartY = y;
+      this.holdTimer = 0;
+
+      const now = Date.now();
+      if (now - this.lastClickTime < 300 && this.tapCooldown() <= 0 && !this.gameState.isPaused()) {
+          const ability = this.gameState.currentStats().activeTapAbility;
+          if (ability) {
+              const cd = this.triggerAbility(ability, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
+              if (cd > 0) this.tapCooldown.set(cd);
+          }
+      }
+      this.lastClickTime = now;
+  }
+
+
+  private onMouseUp() { this.isMouseHeld = false; }
+
+  private onTouchEnd() { this.isMouseHeld = false; }
+
+
+  public formatTime(seconds: number): string {
+    const totalSeconds = Math.floor(seconds);
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
+
+  private fireProjectile() {
+    if (this.enemies.length === 0) return;
+
+    let nearest = this.enemies[0];
+    let minDist = Infinity;
+    this.enemies.forEach(e => {
+      const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
+      if (dist < minDist) { minDist = dist; nearest = e; }
+    });
+
+    if (minDist > 500) return; 
+
+    const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, this.playerBody.position));
+    
+    // Projectiles spawn EXACTLY at the player body (which is now exactly the Phoenix 3D visual position)
+    const projectile = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 8, {
+      label: 'projectile',
+      isSensor: true,
+      plugin: {
+          data: { id: Math.random().toString(), type: 'projectile_player', health: 1, maxHealth: 1, owner: 'player', burstDamage: this.gameState.currentStats().damage } as EnemyData
+      }
+    });
+
+    Matter.Body.setVelocity(projectile, Matter.Vector.mult(dir, 15));
+    Matter.Composite.add(this.engine.world, projectile);
+    
+    this.audioService.playSFX('shoot');
+    setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 2000);
+  }
+
+
+  private fireEnemyProjectile(source: Matter.Vector) {
+    const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, source));
+    const damage = this.aiStats?.damage || 10;
+    
+    const projectile = Matter.Bodies.circle(source.x, source.y, 8, {
+      label: 'projectile',
+      isSensor: true,
+      plugin: {
+          data: { id: Math.random().toString(), type: 'projectile_enemy', ownerId: 'ai1', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData
+      }
+    });
+
+    Matter.Body.setVelocity(projectile, Matter.Vector.mult(dir, 15));
+    Matter.Composite.add(this.engine.world, projectile);
+    setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 2000);
+  }
+
+
+  private triggerAbility(ability: string, sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
+      if (ownerId === 'player' && this.gameState.isRebirthing()) return 0;
+      
+      if (ability === 'drill_attack') return this.triggerDrillAttack(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'burst') return this.triggerBurst(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'fire_breath') return this.triggerFireBreath(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'phoenix_turret') return this.triggerPhoenixTurret(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'aura') return this.triggerAura(sourceBody, targetX, targetY, stats, ownerId);
+      return 0;
+  }
+
 
 
 
@@ -1806,6 +2778,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       }, duration);
       return cd;
   }
+
 
   private triggerFireBreath(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['fire_breath'];
@@ -1885,6 +2858,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       }
       return cd;
   }
+
 
   private triggerPhoenixTurret(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['phoenix_turret'];
@@ -2106,6 +3080,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       return ownerId === 'player' ? cd : cd + (duration + 2000) / 1000;
   }
 
+
   private triggerBurst(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['burst'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, damage: 1.0, count: 1.0 };
@@ -2131,6 +3106,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       this.audioService.playSFX('shoot');
       return cd;
   }
+
 
   private triggerAura(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['aura'];
@@ -2165,702 +3141,6 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       return cd;
   }
 
-  private triggerAbility(ability: string, sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
-      if (ownerId === 'player' && this.gameState.isRebirthing()) return 0;
-      
-      if (ability === 'drill_attack') return this.triggerDrillAttack(sourceBody, targetX, targetY, stats, ownerId);
-      else if (ability === 'burst') return this.triggerBurst(sourceBody, targetX, targetY, stats, ownerId);
-      else if (ability === 'fire_breath') return this.triggerFireBreath(sourceBody, targetX, targetY, stats, ownerId);
-      else if (ability === 'phoenix_turret') return this.triggerPhoenixTurret(sourceBody, targetX, targetY, stats, ownerId);
-      else if (ability === 'aura') return this.triggerAura(sourceBody, targetX, targetY, stats, ownerId);
-      return 0;
-  }
-
-  private createEnemyBody(x: number, y: number, size: number, type: string, data: any): Matter.Body {
-      const options = {
-          label: type === 'boss' ? 'boss' : 'enemy',
-          frictionAir: type === 'boss' ? 0.1 : 0.05,
-          plugin: { data }
-      };
-
-      if (type === 'slime') {
-          return Matter.Bodies.rectangle(x, y, size * 2, size * 1.5, { ...options, chamfer: { radius: [size*0.7, size*0.7, 0, 0] } as any });
-      } else if (type === 'golem') {
-          return Matter.Bodies.circle(x, y, size * 1.5, options);
-      } else if (type === 'boss') {
-          return Matter.Bodies.circle(x, y, size * 1.5, options);
-      }
-
-      return Matter.Bodies.circle(x, y, size, options);
-  }
-
-  private spawnBoss() {
-    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has a boss for now
-    this.bossSpawned.set(true);
-    this.clearEnemies();
-
-    const worldIndex = this.gameState.selectedWorldIndex();
-    const hp = Math.floor(1000 * Math.pow(1.5, worldIndex));
-    const data = { id: Math.random().toString(), type: 'boss', health: hp, maxHealth: hp } as EnemyData;
-    const scale = this.screenScale;
-    const boss = this.createEnemyBody(window.innerWidth / 2, -100, 100 * scale, 'boss', data);
-
-    this.enemies.push(boss);
-    Matter.Composite.add(this.engine.world, boss);
-  }
-
-  private scheduleNextSpawn() {
-    if (this.spawnInterval) clearTimeout(this.spawnInterval);
-    if (!this.gameEnded() && !this.isDead() && !this.bossSpawned() && !this.gameState.isPaused()) {
-        // Only spawn if intensity is high enough, giving breathing room on quiet parts
-        const intensity = this.audioService.getAudioIntensity();
-        if (intensity > 0.1 || Math.random() < 0.2) { 
-            this.spawnEnemy();
-        }
-    }
-    
-    // Delay driven by audio intensity: lower intensity = longer delay
-    let progress = this.progressPercent();
-    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-        progress = Math.min(100, this.gameState.sessionPlayTime() * 2);
-    }
-    const intensity = this.audioService.getAudioIntensity(); // 0.0 to ~0.5 usually
-    const baseDelay = Math.max(150, 1000 - (progress * 8.5));
-    const intensityModifier = Math.max(0.1, 1.0 - (intensity * 2.5));
-    const delay = baseDelay * intensityModifier;
-    
-    if (!this.gameEnded()) {
-        this.spawnInterval = setTimeout(() => this.scheduleNextSpawn(), delay);
-    }
-  }
-
-  private spawnEnemy() {
-    if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') return; // No regular mobs in Battle or AI vs AI Mode
-    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has enemies for now
-
-    let x, y;
-    const padding = 100; // spawn exactly 100px outside the screen bounds
-    if (Math.random() < 0.5) {
-        // Top or bottom edge
-        x = Math.random() * window.innerWidth;
-        y = Math.random() < 0.5 ? -padding : window.innerHeight + padding;
-    } else {
-        // Left or right edge
-        x = Math.random() < 0.5 ? -padding : window.innerWidth + padding;
-        y = Math.random() * window.innerHeight;
-    }
-
-    let progress = this.progressPercent();
-    let difficultyMultiplier = 1.0;
-    
-    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-        const time = this.gameState.sessionPlayTime();
-        progress = (time % 60) * (100 / 60); 
-        difficultyMultiplier = Math.pow(1.5, Math.floor(time / 60)); 
-    }
-
-    let type: 'bat' | 'slime' | 'golem' = 'slime';
-    const scale = this.screenScale;
-    let size = 20 * scale;
-    let health = 20;
-
-    const rand = Math.random();
-    if (progress > 50 && rand < 0.1) {
-      type = 'golem'; size = 60 * scale; health = 200;
-    } else if (progress > 20 && rand < 0.4) {
-      type = 'bat'; size = 15 * scale; health = 10;
-    }
-
-    const worldIndex = this.gameState.selectedWorldIndex();
-    health = Math.floor(health * Math.pow(1.5, worldIndex) * difficultyMultiplier);
-
-    const data = { id: Math.random().toString(), type, health, maxHealth: health, lastAttackTime: Date.now() } as EnemyData;
-    const enemy = this.createEnemyBody(x, y, size, type, data);
-
-    this.enemies.push(enemy);
-    Matter.Composite.add(this.engine.world, enemy);
-  }
-
-  private fireProjectile() {
-    if (this.enemies.length === 0) return;
-
-    let nearest = this.enemies[0];
-    let minDist = Infinity;
-    this.enemies.forEach(e => {
-      const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
-      if (dist < minDist) { minDist = dist; nearest = e; }
-    });
-
-    if (minDist > 500) return; 
-
-    const dir = Matter.Vector.normalise(Matter.Vector.sub(nearest.position, this.playerBody.position));
-    
-    // Projectiles spawn EXACTLY at the player body (which is now exactly the Phoenix 3D visual position)
-    const projectile = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 8, {
-      label: 'projectile',
-      isSensor: true,
-      plugin: {
-          data: { id: Math.random().toString(), type: 'projectile_player', health: 1, maxHealth: 1, owner: 'player', burstDamage: this.gameState.currentStats().damage } as EnemyData
-      }
-    });
-
-    Matter.Body.setVelocity(projectile, Matter.Vector.mult(dir, 15));
-    Matter.Composite.add(this.engine.world, projectile);
-    
-    this.audioService.playSFX('shoot');
-    setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 2000);
-  }
-
-  private calculateBossGemDrop(realmIndex: number): number {
-      // Boss drop should be roughly the equivalent of $5 worth of gems (approx 50 gems)
-      // but with a random range, and scaling slightly per realm.
-      let min = 40;
-      let max = 60;
-      
-      if (realmIndex > 0) {
-          min += realmIndex * 20;
-          max += realmIndex * 30;
-      }
-      return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
-
-  private fireEnemyProjectile(source: Matter.Vector) {
-    const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, source));
-    const damage = this.aiStats?.damage || 10;
-    
-    const projectile = Matter.Bodies.circle(source.x, source.y, 8, {
-      label: 'projectile',
-      isSensor: true,
-      plugin: {
-          data: { id: Math.random().toString(), type: 'projectile_enemy', ownerId: 'ai1', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData
-      }
-    });
-
-    Matter.Body.setVelocity(projectile, Matter.Vector.mult(dir, 15));
-    Matter.Composite.add(this.engine.world, projectile);
-    setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 2000);
-  }
-
-  private spawnMinion(x: number, y: number) {
-      const worldIndex = this.gameState.selectedWorldIndex();
-      const hp = Math.floor(5 * Math.pow(1.5, worldIndex));
-      const data = { id: Math.random().toString(), type: 'bat', health: hp, maxHealth: hp } as EnemyData;
-      const minion = this.createEnemyBody(x, y, 10, 'bat', data);
-      Matter.Body.setVelocity(minion, { x: (Math.random()-0.5)*10, y: (Math.random()-0.5)*10 });
-      this.enemies.push(minion);
-      Matter.Composite.add(this.engine.world, minion);
-  }
-
-  private fireBossWaveAttack(pos: Matter.Vector) {
-      this.audioService.playSFX('shoot');
-      for (let i = 0; i < 12; i++) {
-          const angle = (i / 12) * Math.PI * 2;
-          const dir = { x: Math.cos(angle), y: Math.sin(angle) };
-          const proj = Matter.Bodies.circle(pos.x, pos.y, 15, {
-              label: 'projectile', isSensor: true,
-              plugin: { data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1, owner: 'enemy', burstDamage: 10 } as EnemyData }
-          });
-          Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 8));
-          Matter.Composite.add(this.engine.world, proj);
-          
-          setTimeout(() => {
-              if (proj.parent) {
-                  Matter.Body.setVelocity(proj, { x: 0, y: 0 }); // Pause
-                  setTimeout(() => {
-                      if (proj.parent) {
-                          const boss = this.enemies.find(e => e.plugin['data']?.type === 'boss');
-                          if (boss) {
-                              const returnDir = Matter.Vector.normalise(Matter.Vector.sub(boss.position, proj.position));
-                              Matter.Body.setVelocity(proj, Matter.Vector.mult(returnDir, 12));
-                              setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj); }, 2000);
-                          } else {
-                              Matter.Composite.remove(this.engine.world, proj);
-                          }
-                      }
-                  }, 500);
-              }
-          }, 1500);
-      }
-  }
-
-  public triggerBattleDrop(x: number, y: number, isDeathDrop: boolean = false) {
-      if (!isDeathDrop) {
-          this.battleDropReady.set(false);
-          this.battleDropGrace.set(false);
-      }
-      
-      const numGems = Math.floor(Math.random() * 5) + 3;
-      const numCoins = Math.floor(Math.random() * 10) + 5;
-      
-      for(let i=0; i<numGems; i++) {
-          this.dropItem(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, 'gem', 2);
-      }
-      for(let i=0; i<numCoins; i++) {
-          this.dropItem(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, 'coin', 1);
-      }
-      // Guaranteed health
-      this.dropItem(x, y, 'heart', 20);
-      
-      // XP Orb
-      this.dropItem(x + 20, y - 20, 'xp_orb' as any, 1);
-      
-      if (!isDeathDrop) {
-          this.aiCoinGainRate += 1; // AI income increases after every drop
-      }
-  }
-
-  public resolveBattleDrop(playerWon: boolean, px: number, py: number) {
-      this.battleDropReady.set(false);
-      this.battleDropGrace.set(false);
-      
-      if (playerWon) {
-          this.triggerBattleDrop(px, py, false);
-      } else {
-          // AI Won -> Steal
-          const aiEnemy = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
-          if (aiEnemy) {
-              const data = aiEnemy.plugin['data'] as EnemyData;
-              // AI heals 15-25% max health
-              const healPercent = 0.15 + (Math.random() * 0.10);
-              data.health = Math.min(data.maxHealth, data.health + (data.maxHealth * healPercent));
-              this.bossHealth.set(data.health);
-              
-              // 50% chance to steal coins
-              if (Math.random() < 0.5) {
-                 const playerCoins = this.gameState.coins();
-                 const stealAmount = Math.floor(playerCoins * 0.10); // steal 10%
-                 if (stealAmount > 0) {
-                     this.gameState.coins.set(playerCoins - stealAmount);
-                     this.aiCoins += stealAmount;
-                 }
-              }
-              
-              this.triggerImpactEffect(px, py, false); // Small red burst maybe
-          }
-          this.aiCoinGainRate += 1; // Increase income anyway
-      }
-  }
-
-  private damageEnemy(enemy: Matter.Body, damage: number) {
-    const data = enemy.plugin['data'] as EnemyData;
-    if (data.immortalUntil && Date.now() < data.immortalUntil) return;
-    data.health -= damage;
-    
-    if (data.type === 'boss') {
-       this.bossHealth.set(Math.max(0, data.health));
-    } else if (data.type === 'enemy_phoenix') {
-       this.bossHealth.set(Math.max(0, data.health));
-    }
-    
-    if (data.health <= 0) {
-      this.audioService.playSFX('explosion');
-      
-      if (data.type === 'enemy_phoenix') {
-          // AI Phoenix Death Logic
-          if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-              this.audioService.playSFX('explosion');
-              this.triggerImpactEffect(enemy.position.x, enemy.position.y, true);
-              this.gameState.ai2Wins.update(w => w + 1);
-              this.mlAi.addReward(-100); // the one who died is top ai (enemy)
-              data.health = data.maxHealth;
-              this.bossHealth.set(data.maxHealth);
-              data.immortalUntil = Date.now() + 2000;
-              
-              // Visual Ash effect for in-place rebirth
-              const ashInterval = setInterval(() => {
-                  const ash = document.createElement('div');
-                  ash.style.position = 'fixed';
-                  ash.style.left = `${enemy.position.x + (Math.random()-0.5)*30}px`;
-                  ash.style.top = `${enemy.position.y + (Math.random()-0.5)*30}px`;
-                  ash.style.width = '4px';
-                  ash.style.height = '4px';
-                  ash.style.backgroundColor = '#9ca3af';
-                  ash.style.borderRadius = '50%';
-                  ash.style.pointerEvents = 'none';
-                  ash.style.zIndex = '50';
-                  document.body.appendChild(ash);
-                  setTimeout(() => ash.remove(), 1000);
-              }, 100);
-              setTimeout(() => clearInterval(ashInterval), 2000);
-              
-              return;
-          }
-
-          if (this.aiAbilities.includes('rebirth')) {
-              // Revive via rebirth
-              data.health = this.aiStats.maxHealth;
-              data.maxHealth = this.aiStats.maxHealth;
-              this.bossHealth.set(data.maxHealth);
-              data.immortalUntil = Date.now() + 2000;
-              this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // big shockwave
-              
-              // Remove rebirth so it can't be used again this life
-              this.aiAbilities = this.aiAbilities.filter(a => a !== 'rebirth');
-              return;
-          } else {
-              // Auto drop and respawn
-              this.triggerBattleDrop(enemy.position.x, enemy.position.y, true);
-              this.setupAiPhoenix(true); // Rerolls stats and abilities
-              data.health = this.aiStats.maxHealth;
-              data.maxHealth = this.aiStats.maxHealth;
-              this.bossHealth.set(data.maxHealth);
-              this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // rebirth effect
-              // Visual teleport
-              this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: -200 });
-              Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: -200 }); // reset off-screen
-              Matter.Body.setVelocity(enemy, { x: 0, y: 0 });
-              
-              const duration = 1500;
-              const startTime = Date.now();
-              const aiStartY = -200;
-              const aiEndY = window.innerHeight / 2 - 150;
-              const animateEntrance = () => {
-                  if (this.isDead() || this.gameEnded()) return;
-                  const now = Date.now();
-                  const progress = Math.min((now - startTime) / duration, 1);
-                  const easeProgress = progress * (2 - progress);
-                  const currentAiY = aiStartY + (aiEndY - aiStartY) * easeProgress;
-                  this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentAiY });
-                  this.gameState.aiMousePos.set({ x: window.innerWidth / 2, y: 50 });
-                  Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: currentAiY });
-                  Matter.Body.setVelocity(enemy, { x: 0, y: 0 }); 
-                  
-                  if (progress < 1) requestAnimationFrame(animateEntrance);
-                  else this.gameState.aiPhoenixOverridePosition.set(null);
-              };
-              requestAnimationFrame(animateEntrance);
-              return;
-          }
-      }
-      
-      Matter.Composite.remove(this.engine.world, enemy);
-      this.enemies = this.enemies.filter(e => e !== enemy);
-      
-      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-          this.mlAi.addReward(2);
-      }
-      
-      // Award XP
-      let xp = 0;
-      if (data.type === 'slime') xp = 2;
-      if (data.type === 'bat') xp = 5;
-      if (data.type === 'golem') xp = 20;
-      if (data.type === 'boss') xp = 500;
-      this.gameState.addXp(xp);
-      
-      // Bestiary Unlock
-      if (!this.gameState.unlockedEnemies().includes(data.type) && ['slime', 'bat', 'golem', 'boss'].includes(data.type)) {
-          this.gameState.unlockedEnemies.update(arr => [...arr, data.type]);
-      }
-      
-      // Track Kills & Trophies
-      this.gameState.awardTrophy("First Blood");
-      const currentKills = this.gameState.sessionKills();
-      const killCount = (currentKills[data.type] || 0) + 1;
-      this.gameState.sessionKills.set({ ...currentKills, [data.type]: killCount });
-      
-      if (data.type === 'slime' && killCount >= 50) this.gameState.awardTrophy("Slime Slayer");
-      if (data.type === 'bat' && killCount >= 25) this.gameState.awardTrophy("Bat Hunter");
-      if (data.type === 'golem' && killCount >= 5) this.gameState.awardTrophy("Golem Breaker");
-      
-      if (data.type === 'boss') {
-        this.gameState.awardTrophy("Realm Conqueror");
-        
-        // Setup Cinematic Defeat Sequence
-        this.inBossDefeatSequence.set(true);
-        this.bossDefeatTimestamp = Date.now();
-        this.bossGemsCollected = 0;
-        
-        // Base gems based on realm index (Only drop on first defeat!)
-        const currentWorldIndex = this.gameState.selectedWorldIndex();
-        const isFirstDefeat = !this.gameState.unlockedWorlds().includes(currentWorldIndex + 1);
-        const intendedGems = isFirstDefeat ? this.calculateBossGemDrop(currentWorldIndex) : 0;
-        
-        const scaleAtEnd = Math.max(0.2, 1 - (this.progressPercent() / 100));
-        
-        // Cap physical gem bodies at 100 to prevent physics lag on mobile
-        this.bossGemsDropped = isFirstDefeat ? Math.min(100, Math.floor(intendedGems / scaleAtEnd)) : 0;
-        
-        if (this.bossGemsDropped > 0) {
-            const valPerGem = intendedGems / (this.bossGemsDropped * scaleAtEnd);
-            for(let i=0; i<this.bossGemsDropped; i++) {
-                setTimeout(() => {
-                    this.dropItem(enemy.position.x + (Math.random()-0.5)*150, enemy.position.y + (Math.random()-0.5)*150, 'gem', valPerGem);
-                    this.audioService.playSFX('drop');
-                }, i * 30);
-            }
-        } else {
-            // If no gems dropped, automatically ascend after a delay to let the coins bounce
-            setTimeout(() => {
-                if (!this.animatingAscension()) this.triggerAscension();
-            }, 1500);
-        }
-        
-        // Coins explosion (Huge visual blast, value scales to intended)
-        const intendedCoins = 1000;
-        const physicalCoins = Math.min(150, Math.floor(intendedCoins / scaleAtEnd));
-        const valPerCoin = intendedCoins / (physicalCoins * scaleAtEnd);
-        for(let i=0; i<physicalCoins; i++) {
-           setTimeout(() => {
-               this.dropItem(enemy.position.x + (Math.random()-0.5)*200, enemy.position.y + (Math.random()-0.5)*200, 'coin', valPerCoin);
-               this.audioService.playSFX('drop');
-           }, i * 15); // Stagger drop and sound for a nice "brrrrr" effect
-        }
-        
-        this.triggerMassiveExplosion(enemy.position.x, enemy.position.y);
-        
-        // Remove the boss completely so it doesn't trigger damage or blocks anymore
-        Matter.Composite.remove(this.engine.world, enemy);
-        this.enemies = this.enemies.filter(e => e !== enemy);
-        
-        // Stop the normal timers so enemies stop spawning
-        clearInterval(this.timerInterval);
-        clearInterval(this.spawnInterval);
-        clearInterval(this.attackInterval);
-        
-        // We do NOT call winGame() instantly here anymore!
-      } else {
-        if (data.type === 'golem') {
-            for (let i = 0; i < 5; i++) {
-                this.dropItem(enemy.position.x + (Math.random()-0.5)*20, enemy.position.y + (Math.random()-0.5)*20, 'coin', 10);
-            }
-        } else {
-            if (Math.random() < 0.6) { // 60% chance to drop coins
-                const amount = Math.floor(Math.random() * 3) + 1; // 1 to 3 coins visually
-                for (let i = 0; i < amount; i++) {
-                    this.dropItem(enemy.position.x + (Math.random()-0.5)*15, enemy.position.y + (Math.random()-0.5)*15, 'coin', 5);
-                }
-            }
-        }
-        if (Math.random() < 0.1) { // 10% chance for a heart
-            this.dropItem(enemy.position.x + 20, enemy.position.y + 20, 'heart', 20); // Heals 20
-        }
-        if (!this.crateDroppedThisRun && this.gameState.pendingCratesCount() > 0 && Math.random() < 0.01) {
-            this.crateDroppedThisRun = true;
-            this.dropItem(enemy.position.x, enemy.position.y, 'crate', 1);
-        }
-      }
-    } else {
-      // Hit sound removed permanently
-    }
-  }
-
-  private dropItem(x: number, y: number, type: 'coin' | 'gem' | 'heart' | 'crate', value: number) {
-      if (this.gameState.currentGameMode() === 'ai_vs_ai' && (type === 'coin' || type === 'gem' || type === 'crate')) {
-          return;
-      }
-      const item = Matter.Bodies.circle(x, y, type === 'gem' ? 15 : (type === 'crate' ? 25 : 10), {
-          isSensor: true,
-          label: 'item',
-          frictionAir: 0.1,
-          plugin: {
-              data: { id: Math.random().toString(), type: type, value: value } as any
-          }
-      });
-      Matter.Body.setVelocity(item, { x: (Math.random() - 0.5) * 5, y: (Math.random() - 0.5) * 5 });
-      Matter.Composite.add(this.engine.world, item);
-      this.items.push(item);
-  }
-
-  private takeDamage(amount: number) {
-    if (this.isDead() || this.gameEnded() || this.gameState.isRebirthing()) return;
-    if (Date.now() < this.gameState.immortalUntil) return;
-    
-    if (this.gameState.hasCelestialShield() && this.celestialShieldActive()) {
-        this.celestialShieldActive.set(false);
-        // Hit sound removed permanently
-        setTimeout(() => this.celestialShieldActive.set(true), 30000);
-        return;
-    }
-    
-    if (this.gameState.isDrilling()) {
-        amount *= 0.1;
-    }
-
-    // Hit sound removed permanently
-    this.gameState.immortalUntil = Date.now() + 500; // 0.5s i-frames
-    this.currentHealth.update(h => Math.max(0, h - amount));
-    this.damageFlash.set(true);
-    setTimeout(() => this.damageFlash.set(false), 200);
-
-    if (this.currentHealth() <= 0) {
-      const activeHold = this.gameState.currentStats().activeHoldAbility;
-      if (activeHold === 'rebirth' && this.holdCooldown() === 0 && !this.annihilationModeActive()) {
-         this.holdCooldown.set(this.getHoldMaxCooldown());
-         this.gameState.isRebirthing.set(true);
-         // Hit sound removed permanently
-         
-         // 3 second Ash visual effect loop
-         const ashInterval = setInterval(() => {
-             if (!this.gameState.isRebirthing()) {
-                 clearInterval(ashInterval);
-                 return;
-             }
-             const ash = document.createElement('div');
-             ash.style.position = 'fixed';
-             ash.style.left = `${this.playerBody.position.x + (Math.random()-0.5)*30}px`;
-             ash.style.top = `${this.playerBody.position.y + (Math.random()-0.5)*30}px`;
-             ash.style.width = '4px';
-             ash.style.height = '4px';
-             ash.style.backgroundColor = '#9ca3af';
-             ash.style.borderRadius = '50%';
-             ash.style.pointerEvents = 'none';
-             ash.style.zIndex = '50';
-             document.body.appendChild(ash);
-             anime({
-                 targets: ash,
-                 translateY: -50,
-                 opacity: [1, 0],
-                 duration: 1000,
-                 easing: 'linear',
-                 complete: () => ash.remove()
-             });
-         }, 100);
-         
-         // 3 second Ash state
-         setTimeout(() => {
-             clearInterval(ashInterval);
-             this.gameState.isRebirthing.set(false);
-             this.gameState.immortalUntil = Date.now() + 5000;
-             this.gameState.speedBoostUntil = Date.now() + 2500;
-             this.currentHealth.set(Math.floor(this.maxHealth() / 2)); 
-             
-             // Massive explosion
-             const radius = 500;
-             const explosion = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, radius, {
-                 isSensor: true, label: 'projectile',
-                 plugin: { data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: radius } as EnemyData }
-             });
-             Matter.Composite.add(this.engine.world, explosion);
-             setTimeout(() => { if (explosion.parent) Matter.Composite.remove(this.engine.world, explosion) }, 500);
-             
-             this.enemies.forEach(e => {
-                 const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, this.playerBody.position));
-                 if (dist < radius) this.damageEnemy(e, this.gameState.currentStats().damage * 10);
-             });
-             
-             this.audioService.playSFX('explosion');
-             
-             // Volcanic fire rebirth particles
-             for (let i = 0; i < 30; i++) {
-                 const angle = (i / 30) * Math.PI * 2;
-                 const speed = 8 + Math.random() * 8;
-                 const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
-                 const proj = Matter.Bodies.circle(this.playerBody.position.x, this.playerBody.position.y, 15, {
-                     isSensor: true, label: 'projectile',
-                     plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: this.gameState.currentStats().damage * 3 } as EnemyData }
-                 });
-                 Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, speed));
-                 Matter.Composite.add(this.engine.world, proj);
-                 setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 800 + Math.random() * 600);
-             }
-         }, 3000);
-         return;
-      }
-      if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-          if (this.ai2Abilities.includes('rebirth')) {
-              this.currentHealth.set(this.maxHealth());
-              this.gameState.immortalUntil = Date.now() + 2000;
-              this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
-              // Remove rebirth so it can't be used again this life
-              this.ai2Abilities = this.ai2Abilities.filter(a => a !== 'rebirth');
-              return;
-          }
-          this.audioService.playSFX('explosion');
-          this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
-          this.gameState.ai1Wins.update(w => w + 1);
-          this.mlAi.addReward(100); // the one who died is player (ai 2), top ai wins!
-          this.currentHealth.set(this.maxHealth());
-          this.gameState.immortalUntil = Date.now() + 2000;
-          // Re-roll ai2Abilities on respawn
-          this.setupAi2Phoenix(true);
-          
-          // Visual Ash effect for in-place rebirth (teleport removed to fix glitch)
-          const ashInterval = setInterval(() => {
-              const ash = document.createElement('div');
-              ash.style.position = 'fixed';
-              ash.style.left = `${this.playerBody.position.x + (Math.random()-0.5)*30}px`;
-              ash.style.top = `${this.playerBody.position.y + (Math.random()-0.5)*30}px`;
-              ash.style.width = '4px';
-              ash.style.height = '4px';
-              ash.style.backgroundColor = '#9ca3af';
-              ash.style.borderRadius = '50%';
-              ash.style.pointerEvents = 'none';
-              ash.style.zIndex = '50';
-              document.body.appendChild(ash);
-              setTimeout(() => ash.remove(), 1000);
-          }, 100);
-          setTimeout(() => clearInterval(ashInterval), 2000);
-          
-          return;
-      }
-      this.triggerDeathSequence();
-    }
-  }
-
-  private triggerImpactEffect(x: number, y: number, isBoss: boolean) {
-    const numParticles = isBoss ? 30 : 10;
-    const colors = ['#fbbf24', '#f97316', '#ffffff'];
-    
-    for (let i = 0; i < numParticles; i++) {
-        const particle = document.createElement('div');
-        particle.style.position = 'fixed';
-        particle.style.left = `${x}px`;
-        particle.style.top = `${y}px`;
-        particle.style.width = isBoss ? '12px' : '6px';
-        particle.style.height = isBoss ? '12px' : '6px';
-        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-        particle.style.borderRadius = '50%';
-        particle.style.pointerEvents = 'none';
-        particle.style.zIndex = '100';
-        document.body.appendChild(particle);
-
-        const angle = Math.random() * Math.PI * 2;
-        const velocity = isBoss ? 50 + Math.random() * 150 : 20 + Math.random() * 80;
-
-        anime({
-            targets: particle,
-            translateX: Math.cos(angle) * velocity,
-            translateY: Math.sin(angle) * velocity + (isBoss ? 50 : 20), // slight gravity
-            opacity: [1, 0],
-            scale: [1, 0],
-            duration: isBoss ? 1500 : 800,
-            easing: 'easeOutExpo',
-            complete: () => particle.remove()
-        });
-    }
-  }
-
-  private triggerMassiveExplosion(x: number, y: number) {
-    const colors = ['#a855f7', '#fbbf24', '#f97316'];
-    for (let i = 0; i < 100; i++) {
-        const particle = document.createElement('div');
-        particle.style.position = 'fixed';
-        particle.style.left = `${x}px`;
-        particle.style.top = `${y}px`;
-        particle.style.width = '10px';
-        particle.style.height = '10px';
-        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-        particle.style.borderRadius = '2px'; // Square fragments
-        particle.style.pointerEvents = 'none';
-        particle.style.zIndex = '100';
-        document.body.appendChild(particle);
-
-        const angle = Math.random() * Math.PI * 2;
-        const velocity = 100 + Math.random() * 300;
-
-        anime({
-            targets: particle,
-            translateX: Math.cos(angle) * velocity,
-            translateY: Math.sin(angle) * velocity + 150, // gravity effect
-            rotate: Math.random() * 360,
-            opacity: [1, 0],
-            duration: 2000 + Math.random() * 1000,
-            easing: 'easeOutCirc',
-            complete: () => particle.remove()
-        });
-    }
-  }
 
   private triggerDeathSequence() {
     this.isDead.set(true);
@@ -2897,116 +3177,6 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     }, 1000);
   }
 
-  private startReviveCountdown() {
-      if (this.reviveInterval) clearInterval(this.reviveInterval);
-      this.reviveInterval = setInterval(() => {
-          this.reviveCountdown.update(c => c - 1);
-          if (this.reviveCountdown() <= 0) {
-              clearInterval(this.reviveInterval);
-              this.quitGame();
-          }
-      }, 1000);
-  }
-
-  public getReviveCost(): number {
-    return 10 * Math.pow(2, this.reviveCount);
-  }
-
-  public reviveWithGems() {
-    const cost = this.getReviveCost();
-    if (this.gameState.gems() >= cost) { 
-        this.gameState.gems.update(g => g - cost); 
-        this.reviveCount++;
-        this.executeRevival(); 
-    }
-  }
-
-  public reviveWithAd() {
-    // Pause the countdown while ad plays
-    clearInterval(this.reviveInterval);
-    
-    const win = window as any;
-    if (typeof win.adBreak === 'function') {
-        win.adBreak({
-            type: 'reward',
-            name: 'revive_ad',
-            beforeReward: (showAdFn: any) => { showAdFn(); },
-            adViewed: () => {
-                this.executeRevival();
-            },
-            adDismissed: () => {
-                // User skipped ad, resume countdown
-                this.startReviveCountdown();
-            },
-            beforeAd: () => {
-                this.audioService.pauseAudioForAd();
-            },
-            afterAd: () => {
-                this.audioService.resumeAudioAfterAd();
-            }
-        });
-    } else {
-        console.warn("Google AdSense adBreak API not found. Mocking ad watch...");
-        // Mock 2 second ad watch
-        this.audioService.pauseAudioForAd();
-        
-        setTimeout(() => {
-            this.audioService.resumeAudioAfterAd();
-            
-            this.executeRevival();
-        }, 2000);
-    }
-  }
-
-  private executeRevival() {
-    clearInterval(this.reviveInterval);
-    this.isDead.set(false);
-    this.gameState.isDeadMenuOpen.set(false);
-    this.gameState.immortalUntil = Date.now() + 5000;
-    this.gameState.speedBoostUntil = Date.now() + 2500;
-    this.currentHealth.set(this.maxHealth());
-    this.gameState.phoenixOverridePosition.set(null);
-    this.clearEnemies();
-    this.rageModeActive.set(false); // Reset rage mode on revive
-    this.killScreenTimer.set(10); // Reset timer just in case
-    if (this.runner && this.engine) Matter.Runner.run(this.runner, this.engine); // Unfreeze physics
-    if (this.bossSpawned()) {
-        // Boss fight continues: reset timer so rage mode doesn't trigger instantly
-        this.timeRemaining.set(this.totalTimeSignal());
-        // Restart the intense BGM if it ended
-        if (this.audioService.onIntenseBgmEnded() || this.audioService.getBgmDuration() === 0) {
-            this.audioService.playIntenseBgm(this.gameState.selectedWorldIndex());
-        } else {
-            this.audioService.resumeCurrentBgm();
-        }
-    }
-  }
-
-  private clearEnemies() {
-    this.enemies.forEach(e => {
-        if (e.plugin['data']?.type !== 'boss') {
-            Matter.Composite.remove(this.engine.world, e);
-        }
-    });
-    this.enemies = this.enemies.filter(e => e.plugin['data']?.type === 'boss');
-    this.items.forEach(i => Matter.Composite.remove(this.engine.world, i));
-    this.items = [];
-  }
-
-  private winGame() {
-    this.gameEnded.set(true);
-    this.gameWon.set(true);
-    
-    this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: window.innerHeight / 2 }); 
-
-    const currentIdx = this.gameState.selectedWorldIndex();
-    const nextIdx = currentIdx + 1;
-    if (nextIdx < this.gameState.worlds.length && !this.gameState.unlockedWorlds().includes(nextIdx)) {
-      this.gameState.unlockedWorlds.update(worlds => [...worlds, nextIdx]);
-    }
-    
-    this.gameState.syncProgressToServer();
-  }
   
   private triggerAscension() {
       this.animatingAscension.set(true);
@@ -3035,109 +3205,150 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       
       requestAnimationFrame(animateFrame);
   }
-  
-  private executeRealmTransition() {
-      // 1. Advance to next realm seamlessly
-      const currentIdx = this.gameState.selectedWorldIndex();
-      const nextIdx = currentIdx + 1;
-      
-      if (nextIdx < this.gameState.worlds.length && !this.gameState.worlds[nextIdx].isComingSoon) {
-          if (!this.gameState.unlockedWorlds().includes(nextIdx)) {
-              this.gameState.unlockedWorlds.update(worlds => [...worlds, nextIdx]);
+
+
+  private triggerRageMode() {
+      if (this.rageModeActive()) return; // Fix race condition
+      this.rageModeActive.set(true);
+      const kInt = setInterval(() => {
+          if (this.gameEnded() || this.isDead() || this.inBossDefeatSequence()) {
+              clearInterval(kInt);
+              return;
           }
-          this.gameState.selectedWorldIndex.set(nextIdx);
-          
-          // Flash animation for cool realm switch
-          const flash = document.createElement('div');
-          flash.className = 'fixed inset-0 bg-white z-[100] pointer-events-none transition-opacity duration-1000';
-          document.body.appendChild(flash);
-          
-          // Force reflow
-          void flash.offsetWidth;
-          
-          setTimeout(() => flash.style.opacity = '0', 50);
-          setTimeout(() => flash.remove(), 1050);
-      } else {
-          // If the next realm is coming soon, just go to the main screen by quitting
-          this.quitGame();
-          return;
-      }
-      
-      this.gameState.syncProgressToServer();
-      
-      // 2. Reset Sequence States
-      this.inBossDefeatSequence.set(false);
-      this.animatingAscension.set(false);
-      this.bossSpawned.set(false);
-      this.clearEnemies();
-      
-      // 3. Animate Phoenix entering from bottom
-      const startY = window.innerHeight + 200; // Off screen bottom
-      const endY = window.innerHeight / 2; // Default starting position
-      const duration = 1500;
-      const startTime = Date.now();
-      
-      const animateEntrance = () => {
-          const now = Date.now();
-          const progress = Math.min((now - startTime) / duration, 1);
-          
-          // Easing: easeOutQuad (decelerates upwards)
-          const currentY = startY + (endY - startY) * (progress * (2 - progress));
-          this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentY });
-          
-          if (progress < 1) {
-              requestAnimationFrame(animateEntrance);
-          } else {
-              this.gameState.phoenixOverridePosition.set(null); // Return to mouse control
-              
-              // 4. Restart Level fully
-              this.timeRemaining.set(this.totalTimeSignal());
-              this.startGameLoop();
+          if (!this.gameState.isPaused()) {
+              this.killScreenTimer.update(t => t - 1);
+              if (this.killScreenTimer() <= 0) {
+                  clearInterval(kInt);
+                  this.executeKillScreen();
+              }
           }
-      };
-      
-      requestAnimationFrame(animateEntrance);
+      }, 1000);
   }
 
-  public togglePause() {
-    if (this.gameEnded() || this.isDead()) return;
-    
-    // If cheat was prepared and we are resuming, trigger it
-    if (this.gameState.isPaused() && this.cheatPrepared()) {
-        // Fast forward song to 1 second before it ends
-        this.audioService.worldBgm.currentTime = Math.max(0, this.audioService.worldBgm.duration - 1);
-        this.cheatPrepared.set(false);
-    }
 
-    this.gameState.isPaused.set(!this.gameState.isPaused());
+  private triggerMassiveExplosion(x: number, y: number) {
+    const colors = ['#a855f7', '#fbbf24', '#f97316'];
+    for (let i = 0; i < 100; i++) {
+        const particle = document.createElement('div');
+        particle.style.position = 'fixed';
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        particle.style.width = '10px';
+        particle.style.height = '10px';
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        particle.style.borderRadius = '2px'; // Square fragments
+        particle.style.pointerEvents = 'none';
+        particle.style.zIndex = '100';
+        document.body.appendChild(particle);
+
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 100 + Math.random() * 300;
+
+        anime({
+            targets: particle,
+            translateX: Math.cos(angle) * velocity,
+            translateY: Math.sin(angle) * velocity + 150, // gravity effect
+            rotate: Math.random() * 360,
+            opacity: [1, 0],
+            duration: 2000 + Math.random() * 1000,
+            easing: 'easeOutCirc',
+            complete: () => particle.remove()
+        });
+    }
+  }
+
+
+  private triggerImpactEffect(x: number, y: number, isBoss: boolean) {
+    const numParticles = isBoss ? 30 : 10;
+    const colors = ['#fbbf24', '#f97316', '#ffffff'];
     
-    if (this.gameState.isPaused()) {
+    for (let i = 0; i < numParticles; i++) {
+        const particle = document.createElement('div');
+        particle.style.position = 'fixed';
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        particle.style.width = isBoss ? '12px' : '6px';
+        particle.style.height = isBoss ? '12px' : '6px';
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        particle.style.borderRadius = '50%';
+        particle.style.pointerEvents = 'none';
+        particle.style.zIndex = '100';
+        document.body.appendChild(particle);
+
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = isBoss ? 50 + Math.random() * 150 : 20 + Math.random() * 80;
+
+        anime({
+            targets: particle,
+            translateX: Math.cos(angle) * velocity,
+            translateY: Math.sin(angle) * velocity + (isBoss ? 50 : 20), // slight gravity
+            opacity: [1, 0],
+            scale: [1, 0],
+            duration: isBoss ? 1500 : 800,
+            easing: 'easeOutExpo',
+            complete: () => particle.remove()
+        });
+    }
+  }
+
+
+  public triggerBattleDrop(x: number, y: number, isDeathDrop: boolean = false) {
+      if (!isDeathDrop) {
+          this.battleDropReady.set(false);
+          this.battleDropGrace.set(false);
+      }
+      
+      const numGems = Math.floor(Math.random() * 5) + 3;
+      const numCoins = Math.floor(Math.random() * 10) + 5;
+      
+      for(let i=0; i<numGems; i++) {
+          this.dropItem(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, 'gem', 2);
+      }
+      for(let i=0; i<numCoins; i++) {
+          this.dropItem(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, 'coin', 1);
+      }
+      // Guaranteed health
+      this.dropItem(x, y, 'heart', 20);
+      
+      // XP Orb
+      this.dropItem(x + 20, y - 20, 'xp_orb' as any, 1);
+      
+      if (!isDeathDrop) {
+          this.aiCoinGainRate += 1; // AI income increases after every drop
+      }
+  }
+
+
+  ngOnDestroy() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    if (this.spawnInterval) clearTimeout(this.spawnInterval);
+    if (this.attackInterval) clearInterval(this.attackInterval);
+    if (this.reviveInterval) clearInterval(this.reviveInterval);
+    
+    window.removeEventListener('mousemove', this.boundMouseMove);
+    window.removeEventListener('mousedown', this.boundMouseDown);
+    window.removeEventListener('mouseup', this.boundMouseUp);
+    window.removeEventListener('touchstart', this.boundTouchStart);
+    window.removeEventListener('touchmove', this.boundTouchMove);
+    window.removeEventListener('touchend', this.boundTouchEnd);
+    window.removeEventListener('keydown', this.boundKeyDown);
+    document.removeEventListener('visibilitychange', this.boundVisibility);
+    
+    this.gameState.phoenixOverridePosition.set(null);
+    this.gameState.activeEntities.set([]);
+    
+    if (this.engine) {
+        Matter.Events.off(this.engine, 'beforeUpdate');
+        Matter.Events.off(this.engine, 'collisionStart');
+        Matter.Engine.clear(this.engine);
+    }
+    if (this.runner) {
         Matter.Runner.stop(this.runner);
-        this.audioService.pauseCurrentBgm();
-    } else {
-        Matter.Runner.run(this.runner, this.engine);
-        this.audioService.resumeCurrentBgm();
     }
+    
+    this.audioService.stopIntenseBgm();
   }
 
-  private onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') this.togglePause(); }
-  private onVisibilityChange() { if (document.hidden && !this.gameState.isPaused() && !this.gameEnded() && !this.isDead()) this.togglePause(); }
-  public onPauseTextClick() {
-      this.pauseClickCount++;
-      if (this.pauseClickCount >= 5) {
-          this.cheatPrepared.set(true);
-          this.pauseClickCount = 0;
-      }
-  }
-
-  public quitFromPause() {
-      this.gameState.isPaused.set(false);
-      if (this.gameState.currentGameMode() === 'battle') {
-          this.triggerDeathSequence();
-      } else {
-          this.quitGame();
-      }
-  }
 
   public quitGame() { 
       if (this.gameState.currentGameMode() === 'battle') {
@@ -3168,51 +3379,5 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       } else {
           this.gameState.activeScreen.set('menu'); 
       }
-  }
-
-  private onMouseMove(event: MouseEvent) { this.updateMouseInput(event.clientX, event.clientY); }
-  private onTouchMove(event: TouchEvent) { 
-      event.preventDefault(); 
-      if (event.touches.length > 0) this.updateMouseInput(event.touches[0].clientX, event.touches[0].clientY); 
-  }
-  
-  private updateMouseInput(x: number, y: number) {
-      if (this.gameState.isPaused() || this.gameState.isDeadMenuOpen() || this.isDead()) return;
-      this.mouseX = x;
-      this.mouseY = y;
-  }
-
-  private onMouseDown(event: MouseEvent) { this.handleInputStart(event.clientX, event.clientY); }
-  private onTouchStart(event: TouchEvent) { 
-      // Do not prevent default here, as it blocks UI clicks (like the pause button)
-      if (event.touches.length > 0) this.handleInputStart(event.touches[0].clientX, event.touches[0].clientY); 
-  }
-  
-  private handleInputStart(x: number, y: number) {
-      if (this.gameState.currentGameMode() === 'ai_vs_ai') return;
-      this.isMouseHeld = true;
-      this.holdStartX = x;
-      this.holdStartY = y;
-      this.holdTimer = 0;
-
-      const now = Date.now();
-      if (now - this.lastClickTime < 300 && this.tapCooldown() <= 0 && !this.gameState.isPaused()) {
-          const ability = this.gameState.currentStats().activeTapAbility;
-          if (ability) {
-              const cd = this.triggerAbility(ability, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
-              if (cd > 0) this.tapCooldown.set(cd);
-          }
-      }
-      this.lastClickTime = now;
-  }
-
-  private onMouseUp() { this.isMouseHeld = false; }
-  private onTouchEnd() { this.isMouseHeld = false; }
-
-  public formatTime(seconds: number): string {
-    const totalSeconds = Math.floor(seconds);
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 }
