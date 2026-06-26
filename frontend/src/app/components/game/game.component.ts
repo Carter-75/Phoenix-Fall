@@ -19,6 +19,7 @@ interface EnemyData {
   value?: number;
   aiAbilities?: { id: string; level: number }[]; // For Battle Mode
   owner?: 'player' | 'enemy';
+  immortalUntil?: number;
 }
 
 @Component({
