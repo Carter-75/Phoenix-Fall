@@ -905,7 +905,7 @@ export class GameComponent implements OnInit, OnDestroy {
             if (data.type !== 'boss') {
                 Matter.Body.applyForce(otherBody, otherBody.position, Matter.Vector.mult(normalized, -0.05));
             }
-          } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy' || data.type === 'annihilation_fire' || data.type === 'fire' || data.type === 'aura')) {
+          } else if (otherBody.label === 'projectile' && (data.type === 'projectile_enemy' || data.type === 'projectile_player' || data.type === 'annihilation_fire' || data.type === 'fire' || data.type === 'aura')) {
             if (data.owner === 'player') continue;
             
             if (data.type === 'projectile_enemy' && this.gameState.currentGameMode() === 'battle') {
@@ -924,14 +924,15 @@ export class GameComponent implements OnInit, OnDestroy {
                         }
                     }, 500);
                 }
-            } else if (data.type === 'fire') {
+            } else if (data.type === 'fire' || data.type === 'projectile_player' || data.type === 'aura') {
                 this.takeDamage(data.burstDamage || 10);
-            } else if (data.type === 'aura') {
-                this.takeDamage(5);
             } else {
-                this.takeDamage(15);
+                this.takeDamage(10);
             }
-            Matter.Composite.remove(this.engine.world, otherBody);
+            
+            if (data.type !== 'aura') {
+                Matter.Composite.remove(this.engine.world, otherBody);
+            }
           } else if (otherBody.label === 'item') {
             if (data.type === 'coin') {
                 let val = data.value || 0;
@@ -2089,7 +2090,11 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       validTargets.forEach(e => {
           const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, aura.position));
           if (dist < radius + (e.circleRadius || 0)) {
-              this.damageEnemy(e, stats.damage * 5 * mods['damage']);
+              if (e === this.playerBody) {
+                  this.takeDamage(stats.damage * 5 * mods['damage']);
+              } else {
+                  this.damageEnemy(e, stats.damage * 5 * mods['damage']);
+              }
           }
       });
 
