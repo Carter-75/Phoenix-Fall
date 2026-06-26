@@ -1,7 +1,7 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { GameStateService } from '../services/game-state.service';
-import { AuthService } from '../services/auth.service';
-import { AudioService } from '../services/audio.service';
+import { GameStateService } from '../../services/game-state.service';
+import { AuthService, User } from '../../services/auth.service';
+import { AudioService } from '../../services/audio.service';
 import { FormsModule } from '@angular/forms';
 
 @Component({
@@ -103,7 +103,7 @@ export class LoginComponent implements OnInit {
         }
         
         this.authService.login({ email: this.email, password: this.password }).subscribe({
-            next: (user: any) => {
+            next: (user: User) => {
                 if (user.isTemp) {
                     this.mode = 'set-username';
                 } else {
@@ -114,8 +114,8 @@ export class LoginComponent implements OnInit {
             error: (err) => {
                 if (err.error?.message === 'USER_NOT_FOUND') {
                     // Auto-register
-                    this.authService.register({ email: this.email, password: this.password }).subscribe({
-                        next: async (newUser: any) => {
+                    this.authService.register({ email: this.email, username: this.email.split('@')[0], password: this.password }).subscribe({
+                        next: async (newUser: User) => {
                             if (newUser.isTemp) {
                                 this.mode = 'set-username';
                             } else {

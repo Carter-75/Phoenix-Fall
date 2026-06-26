@@ -1,11 +1,11 @@
 import { Routes } from '@angular/router';
 import { MainMenuComponent } from './components/main-menu/main-menu.component';
-import { ShopComponent } from './components/shop/shop.component';
-import { LoginComponent } from './login/login.component';
-import { GameComponent } from './components/game/game.component';
-import { ProfileComponent } from './components/profile/profile.component';
-import { LeaderboardComponent } from './components/leaderboard/leaderboard.component';
-import { CodexComponent } from './codex/codex.component';
+import { ShopComponent } from './pages/shop/shop.component';
+import { LoginComponent } from './pages/login/login.component';
+import { GameComponent } from './pages/game/game.component';
+import { ProfileComponent } from './pages/profile/profile.component';
+import { LeaderboardComponent } from './pages/leaderboard/leaderboard.component';
+import { CodexComponent } from './pages/codex/codex.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'menu', pathMatch: 'full' },

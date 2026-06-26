@@ -1,0 +1,238 @@
+          radar4: radarDists[4], radar5: radarDists[5], radar6: radarDists[6], radar7: radarDists[7],
+          closestMobType: closestMobType,
+          closestMobDist: closestMobDist,
+          closestMobVelX: closestMobVelX,
+          closestMobVelY: mobVelY
+      };
+  }
+
+
+  private executeKillScreen() {
+      const boss = this.enemies.find(e => e.plugin['data']?.type === 'boss');
+      if (!boss) return;
+      
+      this.annihilationModeActive.set(true);
+      
+      // Clear all enemies except boss
+      this.enemies.forEach(e => {
+          if (e.plugin['data']?.type !== 'boss') {
+              Matter.Composite.remove(this.engine.world, e);
+          }
+      });
+      this.enemies = [boss];
+      
+      // Clear existing projectiles
+      const currentBodies = Matter.Composite.allBodies(this.engine.world);
+      currentBodies.forEach(b => {
+          if (b.label === 'projectile') {
+              Matter.Composite.remove(this.engine.world, b);
+          }
+      });
+
+      // Start Annihilation Barrage (every 200ms)
+      if (this.annihilationInterval) clearInterval(this.annihilationInterval);
+      this.annihilationInterval = setInterval(() => {
+          if (this.isDead() || this.gameEnded() || this.inBossDefeatSequence()) {
+              clearInterval(this.annihilationInterval);
+              return;
+          }
+          
+          const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, boss.position));
+          const angle = Math.atan2(dir.y, dir.x);
+          const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+          const proj = Matter.Bodies.circle(boss.position.x, boss.position.y, 20, {
+              label: 'projectile', isSensor: true,
+              plugin: { data: { id: Math.random().toString(), type: 'annihilation_fire', health: 1, maxHealth: 1 } as EnemyData }
+          });
+          Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
+          Matter.Composite.add(this.engine.world, proj);
+          
+      }, 200);
+  }
+
+
+  private spendTokens(upgradeTokens: number, abilityTokens: number, target: 'ai1' | 'ai2') {
+      const statOptions = ['maxHealth', 'speed', 'magnetism', 'damage', 'attackSpeed', 'attackRange', 'auraRadius', 'homingLevel'];
+      const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
+      const abilities = target === 'ai1' ? this.aiAbilities : this.ai2Abilities;
+      
+      for(let i=0; i<upgradeTokens; i++) {
+          let totalWeight = 0;
+          statOptions.forEach(opt => {
+              if (weights[opt] === undefined) weights[opt] = 100;
+              totalWeight += weights[opt];
+          });
+          
+          let rand = Math.random() * totalWeight;
+          let selectedOpt = statOptions[0];
+          for (let opt of statOptions) {
+              rand -= weights[opt];
+              if (rand <= 0) {
+                  selectedOpt = opt;
+                  break;
+              }
+          }
+          this.applyAiUpgrade(selectedOpt, target);
+      }
+      
+      for(let i=0; i<abilityTokens; i++) {
+          let totalWeight = 0;
+          abilities.forEach(ab => {
+              const opt = `ability_${ab}`;
+              if (weights[opt] === undefined) weights[opt] = 100;
+              totalWeight += weights[opt];
+          });
+          
+          let rand = Math.random() * totalWeight;
+          let selectedOpt = abilities[0];
+          for (let ab of abilities) {
+              const opt = `ability_${ab}`;
+              rand -= weights[opt];
+              if (rand <= 0) {
+                  selectedOpt = ab;
+                  break;
+              }
+          }
+          this.applyAiUpgrade(`ability_${selectedOpt}`, target);
+      }
+  }
+
+
+  private applyAiUpgrade(selectedOpt: string, target: 'ai1' | 'ai2') {
+      const stats = target === 'ai1' ? this.aiStats : this.ai2Stats;
+      const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
+
+      if (selectedOpt.startsWith('ability_')) {
+          const abId = selectedOpt.replace('ability_', '');
+          if (!stats.unlockedAbilities[abId]) {
+              stats.unlockedAbilities[abId] = { level: 1, modifiers: {} };
+          }
+          stats.unlockedAbilities[abId].level++;
+          stats.unlockedAbilities[abId].modifiers = this.gameState.generateAbilityUpgrade(abId, stats.unlockedAbilities[abId].level, stats.unlockedAbilities[abId].modifiers);
+      } else {
+          let step = 0;
+          if (selectedOpt === 'maxHealth') {
+              step = 10;
+              if (target === 'ai1') {
+                  this.bossMaxHealth.set(stats.maxHealth + step);
+                  this.bossHealth.update(h => h + step);
+                  
+                  const aiBody = this.enemies.find(e => e.label === 'enemy' && e.plugin['data']?.type === 'enemy_phoenix');
+                  if (aiBody) {
+                      aiBody.plugin['data'].maxHealth += step;
+                      aiBody.plugin['data'].health += step;
+                  }
+              } else {
+                  this.maxHealth.update(h => h + step);
+                  this.currentHealth.update(h => h + step);
+              }
+          }
+          if (selectedOpt === 'speed') step = 0.1;
+          if (selectedOpt === 'magnetism') step = 0.1;
+          if (selectedOpt === 'damage') step = 1;
+          if (selectedOpt === 'attackSpeed') step = 0.1;
+          if (selectedOpt === 'attackRange') step = 50;
+          if (selectedOpt === 'auraRadius') step = 10;
+          if (selectedOpt === 'homingLevel') step = 1;
+          (stats as any)[selectedOpt] += step;
+          
+          if (selectedOpt === 'speed' && target === 'ai1') {
+              this.gameState.aiPhoenixSpeed.set(stats.speed);
+          }
+          if (selectedOpt === 'speed' && target === 'ai2') {
+              this.gameState.ai2PhoenixSpeed.set(stats.speed);
+          }
+      }
+      
+      weights[selectedOpt] = Math.max(10, (weights[selectedOpt] || 100) - 20);
+  }
+
+
+  private tryPurchaseAiUpgrade(target: 'ai1' | 'ai2') {
+      const upgradeOptions = [
+         { id: 'maxHealth', cost: 100 }, { id: 'speed', cost: 150 }, { id: 'magnetism', cost: 200 },
+         { id: 'damage', cost: 250 }, { id: 'attackSpeed', cost: 300 }, { id: 'attackRange', cost: 250 },
+         { id: 'auraRadius', cost: 400 }, { id: 'homingLevel', cost: 300 },
+      ];
+      
+      const stats = target === 'ai1' ? this.aiStats : this.ai2Stats;
+      const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
+      const abilities = target === 'ai1' ? this.aiAbilities : this.ai2Abilities;
+      
+      const getAiCost = (stat: string, baseCost: number, step: number, offset: number) => {
+          let currentVal = (stats as any)[stat] as number;
+          if (stat === 'maxHealth') {
+             // Since stats.maxHealth is 10x the player's, normalize it for cost calculation
+             currentVal = currentVal / 10;
+          }
+          const level = Math.max(0, (currentVal - offset) / step);
+          return Math.floor(baseCost * Math.pow(1.5, level));
+      };
+
+      const aiCosts: Record<string, number> = {
+          'maxHealth': getAiCost('maxHealth', 100, 10, 100),
+          'speed': getAiCost('speed', 150, 0.1, 1),
+          'magnetism': getAiCost('magnetism', 200, 0.1, 1),
+          'damage': getAiCost('damage', 250, 1, 10),
+          'attackSpeed': getAiCost('attackSpeed', 300, 0.1, 1),
+          'attackRange': getAiCost('attackRange', 250, 50, 400),
+          'auraRadius': getAiCost('auraRadius', 400, 10, 250),
+          'homingLevel': getAiCost('homingLevel', 300, 1, 0),
+      };
+
+      abilities.forEach(ab => {
+          const level = stats.unlockedAbilities[ab]?.level || 1;
+          const baseAbilityCost = ABILITIES[ab].upgradeCost;
+          aiCosts[`ability_${ab}`] = Math.floor(baseAbilityCost * Math.pow(1.5, level - 1));
+          upgradeOptions.push({ id: `ability_${ab}`, cost: baseAbilityCost });
+      });
+
+      const maxCost = Math.max(...Object.values(aiCosts));
+      const coins = target === 'ai1' ? this.aiCoins : this.ai2Coins;
+      const fullPickOverride = coins >= maxCost * 1.5;
+
+      let boughtSomething = true;
+      let attempts = 0;
+      
+      while (boughtSomething && attempts < 3) {
+          boughtSomething = false;
+          attempts++;
+          
+          let totalWeight = 0;
+          const validOptions = upgradeOptions.filter(opt => {
+              if (weights[opt.id] === undefined) weights[opt.id] = 100;
+              return weights[opt.id] > 0;
+          });
+          
+          if (validOptions.length === 0) break;
+          
+          validOptions.forEach(opt => totalWeight += fullPickOverride ? 100 : weights[opt.id]);
+          let rand = Math.random() * totalWeight;
+          let selectedOpt = validOptions[0].id;
+          
+          for (let opt of validOptions) {
+              rand -= (fullPickOverride ? 100 : weights[opt.id]);
+              if (rand <= 0) {
+                  selectedOpt = opt.id;
+                  break;
+              }
+          }
+          
+          const actualCost = aiCosts[selectedOpt];
+          if ((target === 'ai1' ? this.aiCoins : this.ai2Coins) >= actualCost) {
+              if (target === 'ai1') this.aiCoins -= actualCost;
+              else this.ai2Coins -= actualCost;
+              
+              boughtSomething = true;
+              
+              if (selectedOpt.startsWith('ability_')) {
+                  if (target === 'ai1') this.aiAbilityTokensBox++;
+                  else this.ai2AbilityTokensBox++;
+              } else {
+                  if (target === 'ai1') this.aiUpgradeTokensBox++;
+                  else this.ai2UpgradeTokensBox++;
+              }
+              this.applyAiUpgrade(selectedOpt, target);
+          }
+      }
+  }

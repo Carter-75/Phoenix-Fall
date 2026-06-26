@@ -1,5 +1,7 @@
 import { Component, ElementRef, OnInit, OnDestroy, ViewChild, NgZone, effect, inject } from '@angular/core';
-import { GameStateService, PhysicsEntity } from '../../services/game-state.service';
+import { GameStateService } from '../../services/game-state.service';
+import { WORLDS } from '../../constants/game.constants';
+import { PhysicsEntity } from '../../models/game.models';
 import * as THREE from 'three';
 
 interface PhoenixState {
@@ -79,7 +81,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   constructor(private ngZone: NgZone) {
     effect(() => {
       const worldIndex = this.gameState.selectedWorldIndex();
-      const theme = this.gameState.worlds[worldIndex].theme;
+      const theme = WORLDS[worldIndex].theme;
       this.updateColors(theme);
     });
   }
@@ -97,7 +99,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     this.initHistory(this.aiBird);
     this.createPhoenixMesh(this.aiBird);
     
-    this.updateColors(this.gameState.worlds[this.gameState.selectedWorldIndex()].theme);
+    this.updateColors(WORLDS[this.gameState.selectedWorldIndex()].theme);
 
     this.animate();
     

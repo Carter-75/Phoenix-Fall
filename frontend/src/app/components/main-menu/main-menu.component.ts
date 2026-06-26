@@ -2,8 +2,9 @@ import { Component, inject, computed, signal } from '@angular/core';
 import { GameStateService } from '../../services/game-state.service';
 import { AuthService } from '../../services/auth.service';
 import { AudioService } from '../../services/audio.service';
+import { WORLDS } from '../../constants/game.constants';
 import { CommonModule } from '@angular/common';
-import { SettingsComponent } from '../settings/settings.component';
+import { SettingsComponent } from '../../pages/settings/settings.component';
 
 @Component({
   selector: 'app-main-menu',
@@ -157,11 +158,11 @@ export class MainMenuComponent {
   audio = inject(AudioService);
 
   campaignWorldIndex = signal(0);
-  currentWorld = computed(() => this.gameState.worlds[this.campaignWorldIndex()]);
+  currentWorld = computed(() => WORLDS[this.campaignWorldIndex()]);
   isWorldUnlocked = computed(() => this.campaignWorldIndex() === 0);
   
   selectedBattleWorldIndex = signal(0);
-  currentBattleWorld = computed(() => this.gameState.worlds[this.selectedBattleWorldIndex()]);
+  currentBattleWorld = computed(() => WORLDS[this.selectedBattleWorldIndex()]);
   isBattleWorldUnlocked = computed(() => this.selectedBattleWorldIndex() === 0);
   
   showSettings = false;
@@ -203,19 +204,19 @@ export class MainMenuComponent {
 
   nextWorld() {
     let idx = this.campaignWorldIndex() + 1;
-    if (idx >= this.gameState.worlds.length) idx = 0;
+    if (idx >= WORLDS.length) idx = 0;
     this.campaignWorldIndex.set(idx);
   }
 
   prevWorld() {
     let idx = this.campaignWorldIndex() - 1;
-    if (idx < 0) idx = this.gameState.worlds.length - 1;
+    if (idx < 0) idx = WORLDS.length - 1;
     this.campaignWorldIndex.set(idx);
   }
 
   nextBattleWorld() {
     let idx = this.selectedBattleWorldIndex() + 1;
-    if (idx >= this.gameState.worlds.length) idx = 0;
+    if (idx >= WORLDS.length) idx = 0;
     this.selectedBattleWorldIndex.set(idx);
   }
 

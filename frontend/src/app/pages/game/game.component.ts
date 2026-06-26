@@ -1,12 +1,16 @@
 import { Component, ElementRef, OnInit, OnDestroy, ViewChild, inject, NgZone, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GameStateService, PhysicsEntity, ABILITIES, WorldStats, BASE_STATS, REALM_ABILITIES } from '../../services/game-state.service';
+import { GameStateService } from '../../services/game-state.service';
+import { PhysicsEntity, WorldStats } from '../../models/game.models';
+import { ABILITIES, BASE_STATS, REALM_ABILITIES } from '../../constants/game.constants';
 import { Capacitor } from '@capacitor/core';
 import { AudioService } from '../../services/audio.service';
 import { SettingsComponent } from '../settings/settings.component';
 import * as Matter from 'matter-js';
 import anime from 'animejs';
 import { MlAiService } from '../../services/ml-ai.service';
+import { BattleAiService, BattleContext } from '../../services/battle-ai.service';
+import { EntitySpawnerService } from '../../services/entity-spawner.service';
 
 interface EnemyData {
   id: string;
@@ -264,6 +268,8 @@ export class GameComponent implements OnInit, OnDestroy {
   private audioService = inject(AudioService);
 
   public mlAi = inject(MlAiService);
+  public battleAi = inject(BattleAiService);
+  public spawner = inject(EntitySpawnerService);
 
   public Math = Math;
 
@@ -323,44 +329,23 @@ export class GameComponent implements OnInit, OnDestroy {
 
 
   // --- Battle Mode AI State ---
-  public aiCoins: number = 0;
 
-  public aiCoinGainRate: number = 2;
  // AI passive coin income per sec
-  public aiStats!: WorldStats;
-
-  public aiUpgradesWeights: Record<string, number> = {};
-
-  public aiAbilities: string[] = [];
-
-  public aiLastTapTime: number = 0;
-
-  public aiLastHoldTime: number = 0;
-
-  public aiUpgradeTokensBox: number = 0;
-
-  public aiAbilityTokensBox: number = 0;
 
 
-  public ai2Stats!: WorldStats;
 
-  public ai2Abilities: string[] = [];
 
-  public ai2LastTapTime: number = 0;
 
-  public ai2TapCooldown: number = 0;
 
-  public ai2LastHoldTime: number = 0;
 
-  public ai2HoldCooldown: number = 0;
 
-  public ai2UpgradesWeights: Record<string, number> = {};
 
-  public ai2Coins: number = 0;
 
-  public ai2UpgradeTokensBox: number = 0;
 
-  public ai2AbilityTokensBox: number = 0;
+
+
+
+
 
   
   public battleTimer = signal<number>(0);
@@ -453,7 +438,6 @@ export class GameComponent implements OnInit, OnDestroy {
   
   private timerInterval: any;
 
-  private spawnInterval: any;
 
   private attackInterval: any;
 
@@ -495,7 +479,7 @@ export class GameComponent implements OnInit, OnDestroy {
           if (this.audioService.onWorldBgmEnded() && !this.bossSpawned() && !this.gameEnded()) {
               // Untracked to avoid infinite loops, but using setTimeout is safer in Angular
               setTimeout(() => {
-                  this.spawnBoss();
+                  this.spawner.spawnBoss(this.getSpawnerContext());
                   this.audioService.playIntenseBgm(this.gameState.selectedWorldIndex());
               }, 0);
           }
@@ -554,9 +538,43 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
 
+
+
+  private getBattleContext(): BattleContext {
+    return {
+      gameState: this.gameState,
+      bossMaxHealth: this.bossMaxHealth,
+      bossHealth: this.bossHealth,
+      maxHealth: this.maxHealth,
+      currentHealth: this.currentHealth,
+      enemies: this.enemies
+    };
+  }
+
+  private getSpawnerContext() {
+
+      return {
+          engine: this.engine,
+          enemies: this.enemies,
+          items: this.items,
+          gameState: this.gameState,
+          audioService: this.audioService,
+          screenScale: this.screenScale,
+          progressPercent: () => this.progressPercent(),
+          gameEnded: () => this.gameEnded(),
+          isDead: () => this.isDead(),
+          bossSpawned: this.bossSpawned,
+          clearEnemies: () => this.clearEnemies(),
+          battleDropReady: this.battleDropReady,
+          battleDropGrace: this.battleDropGrace,
+          battleAi: this.battleAi,
+          inBossDefeatSequence: () => this.inBossDefeatSequence()
+      };
+  }
+
   private startGameLoop() {
     if (this.timerInterval) clearInterval(this.timerInterval);
-    if (this.spawnInterval) clearTimeout(this.spawnInterval);
+    this.spawner.stopSpawning();
     if (this.attackInterval) clearInterval(this.attackInterval);
     if ((this as any).aiAbilityInterval) clearInterval((this as any).aiAbilityInterval);
     
@@ -577,13 +595,14 @@ export class GameComponent implements OnInit, OnDestroy {
           }
           
           // AI Economy TICK
-          this.aiCoins += this.aiCoinGainRate;
-          this.tryPurchaseAiUpgrade('ai1');
-          
-          if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-              this.ai2Coins += this.aiCoinGainRate;
-              this.tryPurchaseAiUpgrade('ai2');
-          }
+          this.battleAi.tick({
+              gameState: this.gameState,
+              bossMaxHealth: this.bossMaxHealth,
+              bossHealth: this.bossHealth,
+              maxHealth: this.maxHealth,
+              currentHealth: this.currentHealth,
+              enemies: this.enemies
+          });
           
           // Drop Event TICK
           const nextDropTime = this.getNextDropTime(this.nextDropIndex);
@@ -605,7 +624,7 @@ export class GameComponent implements OnInit, OnDestroy {
               this.triggerRageMode();
           }
           if (this.timeRemaining() === 0 && !this.bossSpawned() && this.progressPercent() >= 100) {
-              this.spawnBoss();
+              this.spawner.spawnBoss(this.getSpawnerContext());
           }
       }  
       
@@ -616,7 +635,7 @@ export class GameComponent implements OnInit, OnDestroy {
       }
     }, 1000);
 
-    this.scheduleNextSpawn();
+    this.spawner.scheduleNextSpawn(this.getSpawnerContext());
 
     const attackSpeed = this.gameState.currentStats().attackSpeed;
     this.attackInterval = setInterval(() => {
@@ -957,7 +976,7 @@ export class GameComponent implements OnInit, OnDestroy {
           
           const mouseForce = Matter.Vector.sub(targetPosition, currentMouse);
           const now = Date.now();
-          if (this.ai2LastHoldTime && this.holdAbilityEndTime && now < this.holdAbilityEndTime) {
+          if (this.battleAi.ai2.lastHoldTime && this.holdAbilityEndTime && now < this.holdAbilityEndTime) {
               this.gameState.ai2MousePos.set({ x: targetPosition.x, y: targetPosition.y });
           } else {
               if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
@@ -975,19 +994,19 @@ export class GameComponent implements OnInit, OnDestroy {
           if (enemyTarget) {
               const now = Date.now();
               if (mlAction.useTap > 0.5) {
-                  const ability = this.ai2Abilities.find(ab => ABILITIES[ab]?.type === 'tap') || 'burst';
-                  if (!this.ai2LastTapTime || now - this.ai2LastTapTime > (this.ai2TapCooldown || 0) * 1000) {
-                      const cd = this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.ai2Stats, 'player');
-                      this.ai2LastTapTime = now;
-                      this.ai2TapCooldown = cd;
+                  const ability = this.battleAi.ai2.abilities.find(ab => ABILITIES[ab]?.type === 'tap') || 'burst';
+                  if (!this.battleAi.ai2.lastTapTime || now - this.battleAi.ai2.lastTapTime > (this.battleAi.ai2.tapCooldown || 0) * 1000) {
+                      const cd = this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.battleAi.ai2.stats, 'player');
+                      this.battleAi.ai2.lastTapTime = now;
+                      this.battleAi.ai2.tapCooldown = cd;
                   }
               }
               if (mlAction.useHold > 0.5) {
-                  const ability = this.ai2Abilities.find(ab => ABILITIES[ab]?.type === 'hold') || 'aura';
-                  if (!this.ai2LastHoldTime || now - this.ai2LastHoldTime > (this.ai2HoldCooldown || 0) * 1000) {
-                      const cd = this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.ai2Stats, 'player');
-                      this.ai2LastHoldTime = now;
-                      this.ai2HoldCooldown = cd;
+                  const ability = this.battleAi.ai2.abilities.find(ab => ABILITIES[ab]?.type === 'hold') || 'aura';
+                  if (!this.battleAi.ai2.lastHoldTime || now - this.battleAi.ai2.lastHoldTime > (this.battleAi.ai2.holdCooldown || 0) * 1000) {
+                      const cd = this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.battleAi.ai2.stats, 'player');
+                      this.battleAi.ai2.lastHoldTime = now;
+                      this.battleAi.ai2.holdCooldown = cd;
                   }
               }
           }
@@ -1057,7 +1076,7 @@ export class GameComponent implements OnInit, OnDestroy {
                 if (intensity > attackThreshold - 0.1 && now - (data.lastMinionTime || 0) > (this.rageModeActive() ? 2000 : 4000)) {
                     data.lastMinionTime = now;
                     for(let i=0; i<3; i++) {
-                       this.spawnMinion(enemy.position.x, enemy.position.y);
+                       this.spawner.spawnMinion(enemy.position.x, enemy.position.y, this.getSpawnerContext());
                     }
                 }
             }
@@ -1072,7 +1091,7 @@ export class GameComponent implements OnInit, OnDestroy {
             if (enemy.position.y > window.innerHeight - 100) Matter.Body.setPosition(enemy, { x: enemy.position.x, y: window.innerHeight - 100 });
         }
         if (data.type === 'enemy_phoenix') {
-            const aiSpeedMult = this.aiStats?.speed || 1;
+            const aiSpeedMult = this.battleAi.ai1.stats?.speed || 1;
             const mouseSpeed = 3.0 * aiSpeedMult; 
             const currentMouse = this.gameState.aiMousePos();
             
@@ -1119,22 +1138,19 @@ export class GameComponent implements OnInit, OnDestroy {
             // Process ML Abilities for Top AI
             if (this.gameState.currentGameMode() === 'ai_vs_ai' || this.gameState.currentGameMode() === 'battle') {
                 const now = Date.now();
-                const tapAb = this.aiAbilities.find(ab => ABILITIES[ab]?.type === 'tap');
-                const holdAb = this.aiAbilities.find(ab => ABILITIES[ab]?.type === 'hold');
+                const tapAb = this.battleAi.ai1.abilities.find(ab => ABILITIES[ab]?.type === 'tap');
+                const holdAb = this.battleAi.ai1.abilities.find(ab => ABILITIES[ab]?.type === 'hold');
                 
-                if (mlAction.useTap > 0.5 && tapAb) {
-                    if (!eAny.lastTapAbilityTime || now - eAny.lastTapAbilityTime > (eAny.tapCooldown || 0) * 1000) {
-                        const cd = this.triggerAbility(tapAb, enemy, mlAction.targetX, mlAction.targetY, this.aiStats, 'enemy');
-                        eAny.lastTapAbilityTime = now;
-                        eAny.tapCooldown = cd;
-                    }
+                if (mlAction.useTap > 0.5 && tapAb && (!eAny.lastTapAbilityTime || now >= eAny.lastTapAbilityTime + (eAny.tapCooldown || 0))) {
+                    const cd = this.triggerAbility(tapAb, enemy, mlAction.targetX, mlAction.targetY, this.battleAi.ai1.stats, 'enemy');
+                    eAny.lastTapAbilityTime = now;
+                    eAny.tapCooldown = cd;
                 }
-                if (mlAction.useHold > 0.5 && holdAb) {
-                    if (!eAny.lastHoldAbilityTime || now - eAny.lastHoldAbilityTime > (eAny.holdCooldown || 0) * 1000) {
-                        const cd = this.triggerAbility(holdAb, enemy, mlAction.targetX, mlAction.targetY, this.aiStats, 'enemy');
-                        eAny.lastHoldAbilityTime = now;
-                        eAny.holdCooldown = cd;
-                    }
+                
+                if (mlAction.useHold > 0.5 && holdAb && (!eAny.lastHoldAbilityTime || now >= eAny.lastHoldAbilityTime + (eAny.holdCooldown || 0))) {
+                    const cd = this.triggerAbility(holdAb, enemy, mlAction.targetX, mlAction.targetY, this.battleAi.ai1.stats, 'enemy');
+                    eAny.lastHoldAbilityTime = now;
+                    eAny.holdCooldown = cd;
                 }
             }
 
@@ -1162,8 +1178,8 @@ export class GameComponent implements OnInit, OnDestroy {
                 }
             }
 
-            if ((!eAny.holdAbilityEndTime || now >= eAny.holdAbilityEndTime) && now - this.aiLastTapTime > (1500 / (this.aiStats?.attackSpeed || 1))) {
-                this.aiLastTapTime = now;
+            if ((!eAny.holdAbilityEndTime || now >= eAny.holdAbilityEndTime) && now - this.battleAi.ai1.lastTapTime > (1500 / (this.battleAi.ai1.stats?.attackSpeed || 1))) {
+                this.battleAi.ai1.lastTapTime = now;
                 this.fireEnemyProjectile(enemy.position);
             }
             
@@ -1289,27 +1305,19 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           this.gameState.ai1Wins.set(0);
           this.gameState.ai2Wins.set(0);
       }
-      this.aiUpgradeTokensBox = 0;
-      this.aiAbilityTokensBox = 0;
-      this.aiUpgradesWeights = {};
-      
-      this.ai2UpgradeTokensBox = 0;
-      this.ai2AbilityTokensBox = 0;
-      this.ai2UpgradesWeights = {};
+      this.battleAi.reset();
       
       this.setupAiPhoenix(false);
       if (this.gameState.currentGameMode() === 'ai_vs_ai') {
           this.setupAi2Phoenix(false);
       }
       
-      this.aiCoins = 0;
-      this.ai2Coins = 0;
-      this.aiCoinGainRate = 2;
+      
       this.nextDropIndex = 0;
       this.battleDropReady.set(false);
       this.battleDropGrace.set(false);
       
-      const maxHp = this.aiStats.maxHealth;
+      const maxHp = this.battleAi.ai1.stats.maxHealth;
       this.bossMaxHealth.set(maxHp);
       this.bossHealth.set(maxHp);
       
@@ -1382,6 +1390,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               requestAnimationFrame(animateEntrance);
           } else {
               this.gameState.aiPhoenixOverridePosition.set(null);
+        if ((this as any).aiEntranceAnimId) cancelAnimationFrame((this as any).aiEntranceAnimId);
               this.gameState.phoenixOverridePosition.set(null);
               this.triggerImpactEffect(window.innerWidth / 2, currentAiY, true); // AI flash effect on landing
               if (this.playerBody) {
@@ -1403,8 +1412,8 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
   private setupAiPhoenix(isRespawn: boolean) {
       const playerStats = this.gameState.currentStats();
-      this.aiStats = JSON.parse(JSON.stringify(playerStats));
-      this.aiStats.maxHealth *= 10; // Scale base health x10 for Battle Mode boss pool
+      this.battleAi.ai1.stats = JSON.parse(JSON.stringify(playerStats));
+      this.battleAi.ai1.stats.maxHealth *= 10; // Scale base health x10 for Battle Mode boss pool
       
       const worldId = this.gameState.selectedWorldIndex();
       const realmAbilities = REALM_ABILITIES[worldId] || ['burst', 'aura'];
@@ -1415,15 +1424,15 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       let tap = tapAbilities.length > 0 ? tapAbilities[Math.floor(Math.random() * tapAbilities.length)] : 'burst';
       let hold = holdAbilities.length > 0 ? holdAbilities[Math.floor(Math.random() * holdAbilities.length)] : 'aura';
       
-      this.aiAbilities = [tap, hold];
+      this.battleAi.ai1.abilities = [tap, hold];
       
       const playerTapLevel = playerStats.activeTapAbility ? (playerStats.unlockedAbilities[playerStats.activeTapAbility]?.level || 1) : 1;
       const playerHoldLevel = playerStats.activeHoldAbility ? (playerStats.unlockedAbilities[playerStats.activeHoldAbility]?.level || 1) : 1;
       const avgPlayerLevel = Math.max(1, Math.floor((playerTapLevel + playerHoldLevel) / 2));
       
-      this.aiAbilities.forEach(id => {
-          this.aiStats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
-          this.aiStats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
+      this.battleAi.ai1.abilities.forEach(id => {
+          this.battleAi.ai1.stats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
+          this.battleAi.ai1.stats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
       });
 
       if (!isRespawn) {
@@ -1441,34 +1450,34 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           }
           
           // Spend tokens
-          this.spendTokens(initialUpgradeTokens, initialAbilityTokens, 'ai1');
-          this.aiUpgradesWeights = {}; // reset weights after init
+          this.battleAi.spendTokens(this.battleAi.ai1.upgradeTokensBox, this.battleAi.ai1.abilityTokensBox, 'ai1', this.getBattleContext());
+          this.battleAi.ai1.upgradesWeights = {}; // reset weights after init
       } else {
           // On respawn, spend accumulated tokens from boxes
-          this.spendTokens(this.aiUpgradeTokensBox, this.aiAbilityTokensBox, 'ai1');
+          this.battleAi.spendTokens(this.battleAi.ai1.upgradeTokensBox, this.battleAi.ai1.abilityTokensBox, 'ai1', this.getBattleContext());
           // (Weights are preserved across respawns)
       }
-      this.gameState.aiPhoenixSpeed.set(this.aiStats.speed);
+      this.gameState.aiPhoenixSpeed.set(this.battleAi.ai1.stats.speed);
   }
 
 
   private setupAi2Phoenix(isRespawn: boolean) {
       const playerStats = this.gameState.currentStats();
-      this.ai2Stats = JSON.parse(JSON.stringify(playerStats));
-      this.ai2Stats.maxHealth *= 10; // AI2 gets x10 health as well
+      this.battleAi.ai2.stats = JSON.parse(JSON.stringify(playerStats));
+      this.battleAi.ai2.stats.maxHealth *= 10; // AI2 gets x10 health as well
       
       let tap = playerStats.activeTapAbility || 'burst';
       let hold = playerStats.activeHoldAbility || 'aura';
       
-      this.ai2Abilities = [tap, hold];
+      this.battleAi.ai2.abilities = [tap, hold];
       
       const playerTapLevel = playerStats.activeTapAbility ? (playerStats.unlockedAbilities[playerStats.activeTapAbility]?.level || 1) : 1;
       const playerHoldLevel = playerStats.activeHoldAbility ? (playerStats.unlockedAbilities[playerStats.activeHoldAbility]?.level || 1) : 1;
       const avgPlayerLevel = Math.max(1, Math.floor((playerTapLevel + playerHoldLevel) / 2));
       
-      this.ai2Abilities.forEach(id => {
-          this.ai2Stats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
-          this.ai2Stats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
+      this.battleAi.ai2.abilities.forEach(id => {
+          this.battleAi.ai2.stats.unlockedAbilities[id] = { level: avgPlayerLevel, modifiers: {} };
+          this.battleAi.ai2.stats.unlockedAbilities[id].modifiers = this.gameState.generateAbilityUpgrade(id, avgPlayerLevel, {});
       });
 
       if (!isRespawn) {
@@ -1483,23 +1492,23 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               initialAbilityTokens += Math.floor(Math.random() * 5) + 1;
           }
           
-          this.spendTokens(initialUpgradeTokens, initialAbilityTokens, 'ai2');
-          this.ai2UpgradesWeights = {}; 
+          this.battleAi.spendTokens(this.battleAi.ai2.upgradeTokensBox, this.battleAi.ai2.abilityTokensBox, 'ai2', this.getBattleContext());
+          this.battleAi.ai2.upgradesWeights = {}; 
       }
   }
 
 
   private resetCooldowns() {
-      this.aiLastTapTime = 0;
-      this.aiLastHoldTime = 0;
-      this.ai2LastTapTime = 0;
-      this.ai2LastHoldTime = 0;
+      this.battleAi.ai1.lastTapTime = 0;
+      this.battleAi.ai1.lastHoldTime = 0;
+      this.battleAi.ai2.lastTapTime = 0;
+      this.battleAi.ai2.lastHoldTime = 0;
       this.lastClickTime = 0;
       this.holdAbilityEndTime = 0;
       this.tapCooldown.set(0);
       this.holdCooldown.set(0);
-      this.ai2TapCooldown = 0;
-      this.ai2HoldCooldown = 0;
+      this.battleAi.ai2.tapCooldown = 0;
+      this.battleAi.ai2.holdCooldown = 0;
   }
 
 
@@ -1666,300 +1675,8 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
   }
 
 
-  private spendTokens(upgradeTokens: number, abilityTokens: number, target: 'ai1' | 'ai2') {
-      const statOptions = ['maxHealth', 'speed', 'magnetism', 'damage', 'attackSpeed', 'attackRange', 'auraRadius', 'homingLevel'];
-      const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
-      const abilities = target === 'ai1' ? this.aiAbilities : this.ai2Abilities;
-      
-      for(let i=0; i<upgradeTokens; i++) {
-          let totalWeight = 0;
-          statOptions.forEach(opt => {
-              if (weights[opt] === undefined) weights[opt] = 100;
-              totalWeight += weights[opt];
-          });
-          
-          let rand = Math.random() * totalWeight;
-          let selectedOpt = statOptions[0];
-          for (let opt of statOptions) {
-              rand -= weights[opt];
-              if (rand <= 0) {
-                  selectedOpt = opt;
-                  break;
-              }
-          }
-          this.applyAiUpgrade(selectedOpt, target);
-      }
-      
-      for(let i=0; i<abilityTokens; i++) {
-          let totalWeight = 0;
-          abilities.forEach(ab => {
-              const opt = `ability_${ab}`;
-              if (weights[opt] === undefined) weights[opt] = 100;
-              totalWeight += weights[opt];
-          });
-          
-          let rand = Math.random() * totalWeight;
-          let selectedOpt = abilities[0];
-          for (let ab of abilities) {
-              const opt = `ability_${ab}`;
-              rand -= weights[opt];
-              if (rand <= 0) {
-                  selectedOpt = ab;
-                  break;
-              }
-          }
-          this.applyAiUpgrade(`ability_${selectedOpt}`, target);
-      }
-  }
 
 
-  private applyAiUpgrade(selectedOpt: string, target: 'ai1' | 'ai2') {
-      const stats = target === 'ai1' ? this.aiStats : this.ai2Stats;
-      const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
-
-      if (selectedOpt.startsWith('ability_')) {
-          const abId = selectedOpt.replace('ability_', '');
-          if (!stats.unlockedAbilities[abId]) {
-              stats.unlockedAbilities[abId] = { level: 1, modifiers: {} };
-          }
-          stats.unlockedAbilities[abId].level++;
-          stats.unlockedAbilities[abId].modifiers = this.gameState.generateAbilityUpgrade(abId, stats.unlockedAbilities[abId].level, stats.unlockedAbilities[abId].modifiers);
-      } else {
-          let step = 0;
-          if (selectedOpt === 'maxHealth') {
-              step = 10;
-              if (target === 'ai1') {
-                  this.bossMaxHealth.set(stats.maxHealth + step);
-                  this.bossHealth.update(h => h + step);
-                  
-                  const aiBody = this.enemies.find(e => e.label === 'enemy' && e.plugin['data']?.type === 'enemy_phoenix');
-                  if (aiBody) {
-                      aiBody.plugin['data'].maxHealth += step;
-                      aiBody.plugin['data'].health += step;
-                  }
-              } else {
-                  this.maxHealth.update(h => h + step);
-                  this.currentHealth.update(h => h + step);
-              }
-          }
-          if (selectedOpt === 'speed') step = 0.1;
-          if (selectedOpt === 'magnetism') step = 0.1;
-          if (selectedOpt === 'damage') step = 1;
-          if (selectedOpt === 'attackSpeed') step = 0.1;
-          if (selectedOpt === 'attackRange') step = 50;
-          if (selectedOpt === 'auraRadius') step = 10;
-          if (selectedOpt === 'homingLevel') step = 1;
-          (stats as any)[selectedOpt] += step;
-          
-          if (selectedOpt === 'speed' && target === 'ai1') {
-              this.gameState.aiPhoenixSpeed.set(stats.speed);
-          }
-          if (selectedOpt === 'speed' && target === 'ai2') {
-              this.gameState.ai2PhoenixSpeed.set(stats.speed);
-          }
-      }
-      
-      weights[selectedOpt] = Math.max(10, (weights[selectedOpt] || 100) - 20);
-  }
-
-
-  private tryPurchaseAiUpgrade(target: 'ai1' | 'ai2') {
-      const upgradeOptions = [
-         { id: 'maxHealth', cost: 100 }, { id: 'speed', cost: 150 }, { id: 'magnetism', cost: 200 },
-         { id: 'damage', cost: 250 }, { id: 'attackSpeed', cost: 300 }, { id: 'attackRange', cost: 250 },
-         { id: 'auraRadius', cost: 400 }, { id: 'homingLevel', cost: 300 },
-      ];
-      
-      const stats = target === 'ai1' ? this.aiStats : this.ai2Stats;
-      const weights = target === 'ai1' ? this.aiUpgradesWeights : this.ai2UpgradesWeights;
-      const abilities = target === 'ai1' ? this.aiAbilities : this.ai2Abilities;
-      
-      const getAiCost = (stat: string, baseCost: number, step: number, offset: number) => {
-          let currentVal = (stats as any)[stat] as number;
-          if (stat === 'maxHealth') {
-             // Since stats.maxHealth is 10x the player's, normalize it for cost calculation
-             currentVal = currentVal / 10;
-          }
-          const level = Math.max(0, (currentVal - offset) / step);
-          return Math.floor(baseCost * Math.pow(1.5, level));
-      };
-
-      const aiCosts: Record<string, number> = {
-          'maxHealth': getAiCost('maxHealth', 100, 10, 100),
-          'speed': getAiCost('speed', 150, 0.1, 1),
-          'magnetism': getAiCost('magnetism', 200, 0.1, 1),
-          'damage': getAiCost('damage', 250, 1, 10),
-          'attackSpeed': getAiCost('attackSpeed', 300, 0.1, 1),
-          'attackRange': getAiCost('attackRange', 250, 50, 400),
-          'auraRadius': getAiCost('auraRadius', 400, 10, 250),
-          'homingLevel': getAiCost('homingLevel', 300, 1, 0),
-      };
-
-      abilities.forEach(ab => {
-          const level = stats.unlockedAbilities[ab]?.level || 1;
-          const baseAbilityCost = ABILITIES[ab].upgradeCost;
-          aiCosts[`ability_${ab}`] = Math.floor(baseAbilityCost * Math.pow(1.5, level - 1));
-          upgradeOptions.push({ id: `ability_${ab}`, cost: baseAbilityCost });
-      });
-
-      const maxCost = Math.max(...Object.values(aiCosts));
-      const coins = target === 'ai1' ? this.aiCoins : this.ai2Coins;
-      const fullPickOverride = coins >= maxCost * 1.5;
-
-      let boughtSomething = true;
-      let attempts = 0;
-      
-      while (boughtSomething && attempts < 3) {
-          boughtSomething = false;
-          attempts++;
-          
-          let totalWeight = 0;
-          const validOptions = upgradeOptions.filter(opt => {
-              if (weights[opt.id] === undefined) weights[opt.id] = 100;
-              return weights[opt.id] > 0;
-          });
-          
-          if (validOptions.length === 0) break;
-          
-          validOptions.forEach(opt => totalWeight += fullPickOverride ? 100 : weights[opt.id]);
-          let rand = Math.random() * totalWeight;
-          let selectedOpt = validOptions[0].id;
-          
-          for (let opt of validOptions) {
-              rand -= (fullPickOverride ? 100 : weights[opt.id]);
-              if (rand <= 0) {
-                  selectedOpt = opt.id;
-                  break;
-              }
-          }
-          
-          const actualCost = aiCosts[selectedOpt];
-          if ((target === 'ai1' ? this.aiCoins : this.ai2Coins) >= actualCost) {
-              if (target === 'ai1') this.aiCoins -= actualCost;
-              else this.ai2Coins -= actualCost;
-              
-              boughtSomething = true;
-              
-              if (selectedOpt.startsWith('ability_')) {
-                  if (target === 'ai1') this.aiAbilityTokensBox++;
-                  else this.ai2AbilityTokensBox++;
-              } else {
-                  if (target === 'ai1') this.aiUpgradeTokensBox++;
-                  else this.ai2UpgradeTokensBox++;
-              }
-              this.applyAiUpgrade(selectedOpt, target);
-          }
-      }
-  }
-
-
-  private createEnemyBody(x: number, y: number, size: number, type: string, data: any): Matter.Body {
-      const options = {
-          label: type === 'boss' ? 'boss' : 'enemy',
-          frictionAir: type === 'boss' ? 0.1 : 0.05,
-          plugin: { data }
-      };
-
-      if (type === 'slime') {
-          return Matter.Bodies.rectangle(x, y, size * 2, size * 1.5, { ...options, chamfer: { radius: [size*0.7, size*0.7, 0, 0] } as any });
-      } else if (type === 'golem') {
-          return Matter.Bodies.circle(x, y, size * 1.5, options);
-      } else if (type === 'boss') {
-          return Matter.Bodies.circle(x, y, size * 1.5, options);
-      }
-
-      return Matter.Bodies.circle(x, y, size, options);
-  }
-
-
-  private spawnBoss() {
-    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has a boss for now
-    this.bossSpawned.set(true);
-    this.clearEnemies();
-
-    const worldIndex = this.gameState.selectedWorldIndex();
-    const hp = Math.floor(1000 * Math.pow(1.5, worldIndex));
-    const data = { id: Math.random().toString(), type: 'boss', health: hp, maxHealth: hp } as EnemyData;
-    const scale = this.screenScale;
-    const boss = this.createEnemyBody(window.innerWidth / 2, -100, 100 * scale, 'boss', data);
-
-    this.enemies.push(boss);
-    Matter.Composite.add(this.engine.world, boss);
-  }
-
-
-  private scheduleNextSpawn() {
-    if (this.spawnInterval) clearTimeout(this.spawnInterval);
-    if (!this.gameEnded() && !this.isDead() && !this.bossSpawned() && !this.gameState.isPaused()) {
-        // Only spawn if intensity is high enough, giving breathing room on quiet parts
-        const intensity = this.audioService.getAudioIntensity();
-        if (intensity > 0.1 || Math.random() < 0.2) { 
-            this.spawnEnemy();
-        }
-    }
-    
-    // Delay driven by audio intensity: lower intensity = longer delay
-    let progress = this.progressPercent();
-    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-        progress = Math.min(100, this.gameState.sessionPlayTime() * 2);
-    }
-    const intensity = this.audioService.getAudioIntensity(); // 0.0 to ~0.5 usually
-    const baseDelay = Math.max(150, 1000 - (progress * 8.5));
-    const intensityModifier = Math.max(0.1, 1.0 - (intensity * 2.5));
-    const delay = baseDelay * intensityModifier;
-    
-    if (!this.gameEnded()) {
-        this.spawnInterval = setTimeout(() => this.scheduleNextSpawn(), delay);
-    }
-  }
-
-
-  private spawnEnemy() {
-    if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') return; // No regular mobs in Battle or AI vs AI Mode
-    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has enemies for now
-
-    let x, y;
-    const padding = 100; // spawn exactly 100px outside the screen bounds
-    if (Math.random() < 0.5) {
-        // Top or bottom edge
-        x = Math.random() * window.innerWidth;
-        y = Math.random() < 0.5 ? -padding : window.innerHeight + padding;
-    } else {
-        // Left or right edge
-        x = Math.random() < 0.5 ? -padding : window.innerWidth + padding;
-        y = Math.random() * window.innerHeight;
-    }
-
-    let progress = this.progressPercent();
-    let difficultyMultiplier = 1.0;
-    
-    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-        const time = this.gameState.sessionPlayTime();
-        progress = (time % 60) * (100 / 60); 
-        difficultyMultiplier = Math.pow(1.5, Math.floor(time / 60)); 
-    }
-
-    let type: 'bat' | 'slime' | 'golem' = 'slime';
-    const scale = this.screenScale;
-    let size = 20 * scale;
-    let health = 20;
-
-    const rand = Math.random();
-    if (progress > 50 && rand < 0.1) {
-      type = 'golem'; size = 60 * scale; health = 200;
-    } else if (progress > 20 && rand < 0.4) {
-      type = 'bat'; size = 15 * scale; health = 10;
-    }
-
-    const worldIndex = this.gameState.selectedWorldIndex();
-    health = Math.floor(health * Math.pow(1.5, worldIndex) * difficultyMultiplier);
-
-    const data = { id: Math.random().toString(), type, health, maxHealth: health, lastAttackTime: Date.now() } as EnemyData;
-    const enemy = this.createEnemyBody(x, y, size, type, data);
-
-    this.enemies.push(enemy);
-    Matter.Composite.add(this.engine.world, enemy);
-  }
 
 
   private calculateBossGemDrop(realmIndex: number): number {
@@ -1975,16 +1692,6 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-
-  private spawnMinion(x: number, y: number) {
-      const worldIndex = this.gameState.selectedWorldIndex();
-      const hp = Math.floor(5 * Math.pow(1.5, worldIndex));
-      const data = { id: Math.random().toString(), type: 'bat', health: hp, maxHealth: hp } as EnemyData;
-      const minion = this.createEnemyBody(x, y, 10, 'bat', data);
-      Matter.Body.setVelocity(minion, { x: (Math.random()-0.5)*10, y: (Math.random()-0.5)*10 });
-      this.enemies.push(minion);
-      Matter.Composite.add(this.engine.world, minion);
-  }
 
 
   private fireBossWaveAttack(pos: Matter.Vector) {
@@ -2025,7 +1732,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       this.battleDropGrace.set(false);
       
       if (playerWon) {
-          this.triggerBattleDrop(px, py, false);
+          this.spawner.triggerBattleDrop(px, py, false, this.getSpawnerContext());
       } else {
           // AI Won -> Steal
           const aiEnemy = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
@@ -2042,13 +1749,13 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                  const stealAmount = Math.floor(playerCoins * 0.10); // steal 10%
                  if (stealAmount > 0) {
                      this.gameState.coins.set(playerCoins - stealAmount);
-                     this.aiCoins += stealAmount;
+                     this.battleAi.ai1.coins += stealAmount;
                  }
               }
               
               this.triggerImpactEffect(px, py, false); // Small red burst maybe
           }
-          this.aiCoinGainRate += 1; // Increase income anyway
+          this.battleAi.coinGainRate += 1; // Increase income anyway
       }
   }
 
@@ -2098,23 +1805,23 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               return;
           }
 
-          if (this.aiAbilities.includes('rebirth')) {
+          if (this.battleAi.ai1.abilities.includes('rebirth')) {
               // Revive via rebirth
-              data.health = this.aiStats.maxHealth;
-              data.maxHealth = this.aiStats.maxHealth;
+              data.health = this.battleAi.ai1.stats.maxHealth;
+              data.maxHealth = this.battleAi.ai1.stats.maxHealth;
               this.bossHealth.set(data.maxHealth);
               data.immortalUntil = Date.now() + 2000;
               this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // big shockwave
               
               // Remove rebirth so it can't be used again this life
-              this.aiAbilities = this.aiAbilities.filter(a => a !== 'rebirth');
+              this.battleAi.ai1.abilities = this.battleAi.ai1.abilities.filter(a => a !== 'rebirth');
               return;
           } else {
               // Auto drop and respawn
-              this.triggerBattleDrop(enemy.position.x, enemy.position.y, true);
+              this.spawner.triggerBattleDrop(enemy.position.x, enemy.position.y, true, this.getSpawnerContext());
               this.setupAiPhoenix(true); // Rerolls stats and abilities
-              data.health = this.aiStats.maxHealth;
-              data.maxHealth = this.aiStats.maxHealth;
+              data.health = this.battleAi.ai1.stats.maxHealth;
+              data.maxHealth = this.battleAi.ai1.stats.maxHealth;
               this.bossHealth.set(data.maxHealth);
               this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // rebirth effect
               // Visual teleport
@@ -2137,7 +1844,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                   Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: currentAiY });
                   Matter.Body.setVelocity(enemy, { x: 0, y: 0 }); 
                   
-                  if (progress < 1) requestAnimationFrame(animateEntrance);
+                  if (progress < 1) (this as any).aiEntranceAnimId = requestAnimationFrame(animateEntrance);
                   else this.gameState.aiPhoenixOverridePosition.set(null);
               };
               requestAnimationFrame(animateEntrance);
@@ -2197,7 +1904,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
             const valPerGem = intendedGems / (this.bossGemsDropped * scaleAtEnd);
             for(let i=0; i<this.bossGemsDropped; i++) {
                 setTimeout(() => {
-                    this.dropItem(enemy.position.x + (Math.random()-0.5)*150, enemy.position.y + (Math.random()-0.5)*150, 'gem', valPerGem);
+                    this.spawner.dropItem(enemy.position.x + (Math.random()-0.5)*150, enemy.position.y + (Math.random()-0.5)*150, 'gem', valPerGem, this.getSpawnerContext());
                     this.audioService.playSFX('drop');
                 }, i * 30);
             }
@@ -2214,7 +1921,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
         const valPerCoin = intendedCoins / (physicalCoins * scaleAtEnd);
         for(let i=0; i<physicalCoins; i++) {
            setTimeout(() => {
-               this.dropItem(enemy.position.x + (Math.random()-0.5)*200, enemy.position.y + (Math.random()-0.5)*200, 'coin', valPerCoin);
+               this.spawner.dropItem(enemy.position.x + (Math.random()-0.5)*200, enemy.position.y + (Math.random()-0.5)*200, 'coin', valPerCoin, this.getSpawnerContext());
                this.audioService.playSFX('drop');
            }, i * 15); // Stagger drop and sound for a nice "brrrrr" effect
         }
@@ -2227,29 +1934,29 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
         
         // Stop the normal timers so enemies stop spawning
         clearInterval(this.timerInterval);
-        clearInterval(this.spawnInterval);
+        this.spawner.stopSpawning();
         clearInterval(this.attackInterval);
         
         // We do NOT call winGame() instantly here anymore!
       } else {
         if (data.type === 'golem') {
             for (let i = 0; i < 5; i++) {
-                this.dropItem(enemy.position.x + (Math.random()-0.5)*20, enemy.position.y + (Math.random()-0.5)*20, 'coin', 10);
+                this.spawner.dropItem(enemy.position.x + (Math.random()-0.5)*20, enemy.position.y + (Math.random()-0.5)*20, 'coin', 10, this.getSpawnerContext());
             }
         } else {
             if (Math.random() < 0.6) { // 60% chance to drop coins
                 const amount = Math.floor(Math.random() * 3) + 1; // 1 to 3 coins visually
                 for (let i = 0; i < amount; i++) {
-                    this.dropItem(enemy.position.x + (Math.random()-0.5)*15, enemy.position.y + (Math.random()-0.5)*15, 'coin', 5);
+                    this.spawner.dropItem(enemy.position.x + (Math.random()-0.5)*15, enemy.position.y + (Math.random()-0.5)*15, 'coin', 5, this.getSpawnerContext());
                 }
             }
         }
         if (Math.random() < 0.1) { // 10% chance for a heart
-            this.dropItem(enemy.position.x + 20, enemy.position.y + 20, 'heart', 20); // Heals 20
+            this.spawner.dropItem(enemy.position.x, enemy.position.y + 20, 'heart', 20, this.getSpawnerContext()); // Heals 20
         }
         if (!this.crateDroppedThisRun && this.gameState.pendingCratesCount() > 0 && Math.random() < 0.01) {
             this.crateDroppedThisRun = true;
-            this.dropItem(enemy.position.x, enemy.position.y, 'crate', 1);
+            this.spawner.dropItem(enemy.position.x, enemy.position.y, 'crate', 1, this.getSpawnerContext());
         }
       }
     } else {
@@ -2257,23 +1964,6 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     }
   }
 
-
-  private dropItem(x: number, y: number, type: 'coin' | 'gem' | 'heart' | 'crate', value: number) {
-      if (this.gameState.currentGameMode() === 'ai_vs_ai' && (type === 'coin' || type === 'gem' || type === 'crate')) {
-          return;
-      }
-      const item = Matter.Bodies.circle(x, y, type === 'gem' ? 15 : (type === 'crate' ? 25 : 10), {
-          isSensor: true,
-          label: 'item',
-          frictionAir: 0.1,
-          plugin: {
-              data: { id: Math.random().toString(), type: type, value: value } as any
-          }
-      });
-      Matter.Body.setVelocity(item, { x: (Math.random() - 0.5) * 5, y: (Math.random() - 0.5) * 5 });
-      Matter.Composite.add(this.engine.world, item);
-      this.items.push(item);
-  }
 
 
   private takeDamage(amount: number) {
@@ -2372,12 +2062,12 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
          return;
       }
       if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-          if (this.ai2Abilities.includes('rebirth')) {
-              this.currentHealth.set(this.maxHealth());
+          if (this.battleAi.ai2.abilities.includes('rebirth')) {
+              this.currentHealth.set(this.battleAi.ai2.stats.maxHealth);
               this.gameState.immortalUntil = Date.now() + 2000;
               this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
               // Remove rebirth so it can't be used again this life
-              this.ai2Abilities = this.ai2Abilities.filter(a => a !== 'rebirth');
+              this.battleAi.ai2.abilities = this.battleAi.ai2.abilities.filter(a => a !== 'rebirth');
               return;
           }
           this.audioService.playSFX('explosion');
@@ -2728,7 +2418,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
   private fireEnemyProjectile(source: Matter.Vector) {
     const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, source));
-    const damage = this.aiStats?.damage || 10;
+    const damage = this.battleAi.ai1.stats?.damage || 10;
     
     const projectile = Matter.Bodies.circle(source.x, source.y, 8, {
       label: 'projectile',
@@ -3292,36 +2982,10 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
   }
 
 
-  public triggerBattleDrop(x: number, y: number, isDeathDrop: boolean = false) {
-      if (!isDeathDrop) {
-          this.battleDropReady.set(false);
-          this.battleDropGrace.set(false);
-      }
-      
-      const numGems = Math.floor(Math.random() * 5) + 3;
-      const numCoins = Math.floor(Math.random() * 10) + 5;
-      
-      for(let i=0; i<numGems; i++) {
-          this.dropItem(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, 'gem', 2);
-      }
-      for(let i=0; i<numCoins; i++) {
-          this.dropItem(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, 'coin', 1);
-      }
-      // Guaranteed health
-      this.dropItem(x, y, 'heart', 20);
-      
-      // XP Orb
-      this.dropItem(x + 20, y - 20, 'xp_orb' as any, 1);
-      
-      if (!isDeathDrop) {
-          this.aiCoinGainRate += 1; // AI income increases after every drop
-      }
-  }
-
 
   ngOnDestroy() {
     if (this.timerInterval) clearInterval(this.timerInterval);
-    if (this.spawnInterval) clearTimeout(this.spawnInterval);
+    this.spawner.stopSpawning();
     if (this.attackInterval) clearInterval(this.attackInterval);
     if (this.reviveInterval) clearInterval(this.reviveInterval);
     if ((this as any).aiAbilityInterval) clearInterval((this as any).aiAbilityInterval);

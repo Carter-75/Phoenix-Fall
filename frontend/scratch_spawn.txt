@@ -1,0 +1,196 @@
+      
+      // Clear existing projectiles
+      const currentBodies = Matter.Composite.allBodies(this.engine.world);
+      currentBodies.forEach(b => {
+          if (b.label === 'projectile') {
+              Matter.Composite.remove(this.engine.world, b);
+          }
+      });
+
+      // Start Annihilation Barrage (every 200ms)
+      if (this.annihilationInterval) clearInterval(this.annihilationInterval);
+      this.annihilationInterval = setInterval(() => {
+          if (this.isDead() || this.gameEnded() || this.inBossDefeatSequence()) {
+              clearInterval(this.annihilationInterval);
+              return;
+          }
+          
+          const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, boss.position));
+          const angle = Math.atan2(dir.y, dir.x);
+          const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
+          const proj = Matter.Bodies.circle(boss.position.x, boss.position.y, 20, {
+              label: 'projectile', isSensor: true,
+              plugin: { data: { id: Math.random().toString(), type: 'annihilation_fire', health: 1, maxHealth: 1 } as EnemyData }
+          });
+          Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
+          Matter.Composite.add(this.engine.world, proj);
+          
+      }, 200);
+  }
+
+
+  private createEnemyBody(x: number, y: number, size: number, type: string, data: any): Matter.Body {
+      const options = {
+          label: type === 'boss' ? 'boss' : 'enemy',
+          frictionAir: type === 'boss' ? 0.1 : 0.05,
+          plugin: { data }
+      };
+
+      if (type === 'slime') {
+          return Matter.Bodies.rectangle(x, y, size * 2, size * 1.5, { ...options, chamfer: { radius: [size*0.7, size*0.7, 0, 0] } as any });
+      } else if (type === 'golem') {
+          return Matter.Bodies.circle(x, y, size * 1.5, options);
+      } else if (type === 'boss') {
+          return Matter.Bodies.circle(x, y, size * 1.5, options);
+      }
+
+      return Matter.Bodies.circle(x, y, size, options);
+  }
+
+
+  private spawnBoss() {
+    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has a boss for now
+    this.bossSpawned.set(true);
+    this.clearEnemies();
+
+    const worldIndex = this.gameState.selectedWorldIndex();
+    const hp = Math.floor(1000 * Math.pow(1.5, worldIndex));
+    const data = { id: Math.random().toString(), type: 'boss', health: hp, maxHealth: hp } as EnemyData;
+    const scale = this.screenScale;
+    const boss = this.createEnemyBody(window.innerWidth / 2, -100, 100 * scale, 'boss', data);
+
+    this.enemies.push(boss);
+    Matter.Composite.add(this.engine.world, boss);
+  }
+
+
+  private scheduleNextSpawn() {
+    if (this.spawnInterval) clearTimeout(this.spawnInterval);
+    if (!this.gameEnded() && !this.isDead() && !this.bossSpawned() && !this.gameState.isPaused()) {
+        // Only spawn if intensity is high enough, giving breathing room on quiet parts
+        const intensity = this.audioService.getAudioIntensity();
+        if (intensity > 0.1 || Math.random() < 0.2) { 
+            this.spawnEnemy();
+        }
+    }
+    
+    // Delay driven by audio intensity: lower intensity = longer delay
+    let progress = this.progressPercent();
+    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+        progress = Math.min(100, this.gameState.sessionPlayTime() * 2);
+    }
+    const intensity = this.audioService.getAudioIntensity(); // 0.0 to ~0.5 usually
+    const baseDelay = Math.max(150, 1000 - (progress * 8.5));
+    const intensityModifier = Math.max(0.1, 1.0 - (intensity * 2.5));
+    const delay = baseDelay * intensityModifier;
+    
+    if (!this.gameEnded()) {
+        this.spawnInterval = setTimeout(() => this.scheduleNextSpawn(), delay);
+    }
+  }
+
+
+  private spawnEnemy() {
+    if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') return; // No regular mobs in Battle or AI vs AI Mode
+    if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has enemies for now
+
+    let x, y;
+    const padding = 100; // spawn exactly 100px outside the screen bounds
+    if (Math.random() < 0.5) {
+        // Top or bottom edge
+        x = Math.random() * window.innerWidth;
+        y = Math.random() < 0.5 ? -padding : window.innerHeight + padding;
+    } else {
+        // Left or right edge
+        x = Math.random() < 0.5 ? -padding : window.innerWidth + padding;
+        y = Math.random() * window.innerHeight;
+    }
+
+    let progress = this.progressPercent();
+    let difficultyMultiplier = 1.0;
+    
+    if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+        const time = this.gameState.sessionPlayTime();
+        progress = (time % 60) * (100 / 60); 
+        difficultyMultiplier = Math.pow(1.5, Math.floor(time / 60)); 
+    }
+
+    let type: 'bat' | 'slime' | 'golem' = 'slime';
+    const scale = this.screenScale;
+    let size = 20 * scale;
+    let health = 20;
+
+    const rand = Math.random();
+    if (progress > 50 && rand < 0.1) {
+      type = 'golem'; size = 60 * scale; health = 200;
+    } else if (progress > 20 && rand < 0.4) {
+      type = 'bat'; size = 15 * scale; health = 10;
+    }
+
+    const worldIndex = this.gameState.selectedWorldIndex();
+    health = Math.floor(health * Math.pow(1.5, worldIndex) * difficultyMultiplier);
+
+    const data = { id: Math.random().toString(), type, health, maxHealth: health, lastAttackTime: Date.now() } as EnemyData;
+    const enemy = this.createEnemyBody(x, y, size, type, data);
+
+    this.enemies.push(enemy);
+    Matter.Composite.add(this.engine.world, enemy);
+  }
+
+
+  private calculateBossGemDrop(realmIndex: number): number {
+      // Boss drop should be roughly the equivalent of $5 worth of gems (approx 50 gems)
+      // but with a random range, and scaling slightly per realm.
+      let min = 40;
+      let max = 60;
+      
+      if (realmIndex > 0) {
+          min += realmIndex * 20;
+          max += realmIndex * 30;
+      }
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+
+  private spawnMinion(x: number, y: number) {
+      const worldIndex = this.gameState.selectedWorldIndex();
+      const hp = Math.floor(5 * Math.pow(1.5, worldIndex));
+      const data = { id: Math.random().toString(), type: 'bat', health: hp, maxHealth: hp } as EnemyData;
+      const minion = this.createEnemyBody(x, y, 10, 'bat', data);
+      Matter.Body.setVelocity(minion, { x: (Math.random()-0.5)*10, y: (Math.random()-0.5)*10 });
+      this.enemies.push(minion);
+      Matter.Composite.add(this.engine.world, minion);
+  }
+
+
+  private fireBossWaveAttack(pos: Matter.Vector) {
+      this.audioService.playSFX('shoot');
+      for (let i = 0; i < 12; i++) {
+          const angle = (i / 12) * Math.PI * 2;
+          const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+          const proj = Matter.Bodies.circle(pos.x, pos.y, 15, {
+              label: 'projectile', isSensor: true,
+              plugin: { data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1, owner: 'enemy', burstDamage: 10 } as EnemyData }
+          });
+          Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 8));
+          Matter.Composite.add(this.engine.world, proj);
+          
+          setTimeout(() => {
+              if (proj.parent) {
+                  Matter.Body.setVelocity(proj, { x: 0, y: 0 }); // Pause
+                  setTimeout(() => {
+                      if (proj.parent) {
+                          const boss = this.enemies.find(e => e.plugin['data']?.type === 'boss');
+                          if (boss) {
+                              const returnDir = Matter.Vector.normalise(Matter.Vector.sub(boss.position, proj.position));
+                              Matter.Body.setVelocity(proj, Matter.Vector.mult(returnDir, 12));
+                              setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj); }, 2000);
+                          } else {
+                              Matter.Composite.remove(this.engine.world, proj);
+                          }
+                      }
+                  }, 500);
+              }
+          }, 1500);
+      }
+  }

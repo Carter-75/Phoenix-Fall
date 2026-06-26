@@ -15,7 +15,22 @@ export interface User {
   gems: number;
   unlockedWorlds: number[];
   trophies: string[];
+  worldUpgrades?: Record<number, any>;
   isTemp?: boolean;
+  acceptedLegalPolicies?: boolean;
+  [key: string]: any;
+}
+
+export interface LoginCredentials {
+  email?: string;
+  username?: string;
+  password?: string;
+}
+
+export interface RegisterCredentials {
+  email: string;
+  username: string;
+  password?: string;
   acceptedLegalPolicies?: boolean;
 }
 
@@ -34,7 +49,7 @@ export class AuthService {
 
   private apiUrl = environment.apiUrl + '/auth';
 
-  login(credentials: any): Observable<User> {
+  login(credentials: LoginCredentials): Observable<User> {
     return this.http.post<User>(`${this.apiUrl}/login`, credentials).pipe(
       tap(user => this.currentUser.set(user))
     );
@@ -68,7 +83,7 @@ export class AuthService {
     );
   }
 
-  register(credentials: any): Observable<User> {
+  register(credentials: RegisterCredentials): Observable<User> {
     return this.http.post<{user: User, token: string}>(`${this.apiUrl}/register`, credentials).pipe(
       tap(res => {
         if (res.token) localStorage.setItem('auth_token', res.token);

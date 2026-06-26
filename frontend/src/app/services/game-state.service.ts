@@ -4,102 +4,11 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AudioService } from './audio.service';
-import { AuthService } from './auth.service';
-import { Capacitor } from '@capacitor/core';
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { App } from '@capacitor/app';
-
-export interface AbilityData {
-  level: number; 
-  modifiers: Record<string, number>;
-}
-
-export interface WorldStats {
-  maxHealth: number;
-  speed: number; // Flight speed/handling
-  magnetism: number; // Item pickup range
-  damage: number; // Auto-attack damage
-  attackSpeed: number; // Auto-attack fire rate
-  burstDamage: number; // Double tap damage
-  auraRadius: number; // Hold still radius
-  homingLevel: number; // Seeker upgrade
-  attackRange: number; // How far projectiles fly
-  unlockedAbilities: Record<string, AbilityData>;
-  activeTapAbility: string | null;
-  activeHoldAbility: string | null;
-}
-
-export interface PhysicsEntity {
-  id: string;
-  x: number; // 2D screen x
-  y: number; // 2D screen y
-  type: string;
-  size: number;
-  width?: number;
-  height?: number;
-  isLeft?: boolean;
-  ownerId?: string;
-}
-
-export interface World {
-  id: number;
-  name: string;
-  theme: string;
-  textColorClass: string;
-  isComingSoon?: boolean;
-}
-
-export const WORLDS: World[] = [
-  { id: 0, name: 'Ember Wastes', theme: 'orange', textColorClass: 'from-orange-400 to-red-600' },
-  { id: 1, name: 'Cerulean Depths', theme: 'blue', textColorClass: 'from-blue-400 to-cyan-600' },
-  { id: 2, name: 'Amethyst Void', theme: 'purple', textColorClass: 'from-purple-400 to-fuchsia-600', isComingSoon: true },
-  { id: 3, name: 'Verdant Canopy', theme: 'green', textColorClass: 'from-green-400 to-emerald-600', isComingSoon: true },
-  { id: 4, name: 'Ashen Peaks', theme: 'gray', textColorClass: 'from-gray-300 to-gray-600', isComingSoon: true },
-  { id: 5, name: 'Crystal Caverns', theme: 'cyan', textColorClass: 'from-cyan-300 to-blue-500', isComingSoon: true },
-  { id: 6, name: 'Neon Nebula', theme: 'magenta', textColorClass: 'from-fuchsia-400 to-pink-600', isComingSoon: true },
-  { id: 7, name: 'Golden Sands', theme: 'yellow', textColorClass: 'from-yellow-300 to-amber-600', isComingSoon: true },
-  { id: 8, name: 'Blood Moon', theme: 'crimson', textColorClass: 'from-red-500 to-rose-800', isComingSoon: true },
-  { id: 9, name: 'Abyssal Rift', theme: 'void', textColorClass: 'from-slate-700 to-black', isComingSoon: true },
-];
-
-export const ABILITIES: Record<string, { id: string, type: 'tap' | 'hold', name: string, desc: string, icon: string, unlockCost: number, upgradeCost: number, baseCooldown: number }> = {
-  'drill_attack': { id: 'drill_attack', type: 'tap', name: 'Drill Attack', desc: 'Spin dash through enemies', icon: '🌪️', unlockCost: 500, upgradeCost: 200, baseCooldown: 20 },
-  'fire_breath': { id: 'fire_breath', type: 'tap', name: 'Fire Breath', desc: 'Continuous short-range flame', icon: '🔥', unlockCost: 500, upgradeCost: 200, baseCooldown: 8 },
-  'burst': { id: 'burst', type: 'tap', name: 'Burst', desc: 'Explosive radial attack', icon: '💥', unlockCost: 0, upgradeCost: 350, baseCooldown: 5 },
-  
-  'phoenix_turret': { id: 'phoenix_turret', type: 'hold', name: 'Phoenix Turret', desc: 'Drop an egg that hatches a turret', icon: '🥚', unlockCost: 800, upgradeCost: 300, baseCooldown: 12 },
-  'rebirth': { id: 'rebirth', type: 'hold', name: 'Rebirth (Passive)', desc: 'Revive upon death with shockwave', icon: '✨', unlockCost: 1000, upgradeCost: 500, baseCooldown: 60 },
-  'aura': { id: 'aura', type: 'hold', name: 'Aura', desc: 'Continuous damage zone', icon: '🌀', unlockCost: 0, upgradeCost: 400, baseCooldown: 15 },
-};
-
-export const REALM_ABILITIES: Record<number, string[]> = {
-  0: ['drill_attack', 'fire_breath', 'burst', 'phoenix_turret', 'rebirth', 'aura']
-};
-
-export const BASE_STATS: WorldStats = { 
-  maxHealth: 100, speed: 2.0, magnetism: 1.0, damage: 10, attackSpeed: 1.0, 
-  burstDamage: 20, auraRadius: 250, homingLevel: 0, attackRange: 400,
-  unlockedAbilities: {}, 
-  activeTapAbility: null, activeHoldAbility: null
-};
-
-const WORLD_0_STATS: WorldStats = { 
-  ...BASE_STATS,
-  unlockedAbilities: { 
-    'burst': { level: 1, modifiers: { cooldown: 1.0, damage: 1.0, radius: 1.0 } }, 
-    'aura': { level: 1, modifiers: { damage: 1.0, radius: 1.0 } } 
-  }, 
-  activeTapAbility: 'burst', activeHoldAbility: 'aura'
-};
-
-const ABILITY_UPGRADE_TARGETS: Record<string, { targetLevel: number, stats: Record<string, number> }> = {
-  drill_attack: { targetLevel: 30, stats: { cooldown: 0.25, speed: 3.0, duration: 5.0 } },
-  burst: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0, radius: 3.0 } },
-  phoenix_turret: { targetLevel: 30, stats: { cooldown: 0.5, duration: 3.0, damage: 3.0 } },
-  fire_breath: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0, range: 3.0, ammo: 3.0 } },
-  aura: { targetLevel: 30, stats: { damage: 5.0, radius: 3.0 } },
-  rebirth: { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0 } }
-};
+import { AuthService, User } from './auth.service';
+import { StorageService } from './storage.service';
+import { NotificationService } from './notification.service';
+import { WorldStats, PhysicsEntity, World, AbilityData } from '../models/game.models';
+import { WORLDS, ABILITIES, REALM_ABILITIES, BASE_STATS, WORLD_0_STATS, ABILITY_UPGRADE_TARGETS } from '../constants/game.constants';
 
 @Injectable({
   providedIn: 'root'
@@ -108,6 +17,8 @@ export class GameStateService {
   public audio = inject(AudioService);
   private auth = inject(AuthService);
   private http = inject(HttpClient);
+  private storage = inject(StorageService);
+  private notificationService = inject(NotificationService);
 
   public isGuest = computed(() => !this.auth.currentUser() || this.auth.currentUser()?.isTemp);
 
@@ -208,8 +119,8 @@ export class GameStateService {
           }
       });
 
-      this.setupNotifications();
-      const localData = localStorage.getItem('phoenix_guest_data');
+      this.notificationService.setupNotifications((expiresAt) => this.triggerCrazyDeal(expiresAt));
+      const localData = this.storage.getItem('phoenix_guest_data');
       if (localData) {
           try {
               const data = JSON.parse(localData);
@@ -225,9 +136,9 @@ export class GameStateService {
               if (data.upsellChance !== undefined) {
                   let chance = data.upsellChance + 0.1;
                   if (chance > 0.33) chance = 0.33;
-                  if (localStorage.getItem('phoenix_last_upsell') === 'true') {
+                  if (this.storage.getItem('phoenix_last_upsell') === 'true') {
                       chance = 0;
-                      localStorage.setItem('phoenix_last_upsell', 'false');
+                      this.storage.setItem('phoenix_last_upsell', 'false');
                   }
                   this.upsellChance.set(chance);
               } else {
@@ -316,7 +227,7 @@ export class GameStateService {
               crazyDealExpiresAt: this.crazyDealExpiresAt()
           };
           if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) {
-              localStorage.setItem('phoenix_guest_data', JSON.stringify(stateToSave));
+              this.storage.setItem('phoenix_guest_data', JSON.stringify(stateToSave));
           }
       });
       
@@ -407,100 +318,6 @@ export class GameStateService {
       this.activeScreen.set('shop');
   }
 
-  async setupNotifications() {
-      if (Capacitor.isNativePlatform()) {
-          // Native Android/iOS Local Notifications
-          const permStatus = await LocalNotifications.requestPermissions();
-          if (permStatus.display === 'granted') {
-              // Cancel existing
-              await LocalNotifications.cancel({ notifications: [{ id: 1 }, { id: 2 }, { id: 3 }] });
-              
-              // Handle tap
-              LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
-                  if (action.notification.extra && action.notification.extra.crazyDealExpiresAt) {
-                      this.triggerCrazyDeal(action.notification.extra.crazyDealExpiresAt);
-                  }
-              });
-
-              // Schedule new reminders on backgrounding
-              App.addListener('appStateChange', async ({ isActive }) => {
-                  if (!isActive) {
-                      this.audio.pauseAudioForAd();
-                      const notificationsToSchedule: any[] = [
-                          {
-                              title: "We miss you!",
-                              body: "Come back and defeat some enemies. Your Phoenix needs you!",
-                              id: 1,
-                              schedule: { at: new Date(Date.now() + 1000 * 60 * 60 * 24) } // 24 hours
-                          },
-                          {
-                              title: "A Deal Awaits! 💎",
-                              body: "A massive Gem deal is waiting for you in the shop.",
-                              id: 2,
-                              schedule: { at: new Date(Date.now() + 1000 * 60 * 60 * 48) } // 48 hours
-                          }
-                      ];
-
-                      // 30% chance for crazy deal
-                      if (Math.random() < 0.3) {
-                          const triggerTime = Date.now() + 1000 * 60 * 60 * 72; // 72 hours from now
-                          const expiryTime = triggerTime + 1000 * 60 * 5; // 5 minutes after trigger
-                          
-                          notificationsToSchedule.push({
-                              title: "Hey! Don't miss this crazy once in a lifetime deal!",
-                              body: "250 Gems for $9.99. Offer expires 5 minutes from this notification!",
-                              id: 3,
-                              schedule: { at: new Date(triggerTime) },
-                              extra: { crazyDealExpiresAt: expiryTime }
-                          });
-                      }
-
-                      await LocalNotifications.schedule({ notifications: notificationsToSchedule });
-                  } else {
-                      this.audio.resumeAudioAfterAd();
-                      // Cancel when active
-                      await LocalNotifications.cancel({ notifications: [{ id: 1 }, { id: 2 }, { id: 3 }] });
-                  }
-              });
-          }
-      } else if ('serviceWorker' in navigator && 'PushManager' in window) {
-          // Web Push API
-          try {
-              const registration = await navigator.serviceWorker.register('/service-worker.js');
-              
-              const res = await firstValueFrom(this.http.get<any>(environment.apiUrl + '/notifications/vapidPublicKey'));
-              const vapidPublicKey = res.publicKey;
-              
-              if (!vapidPublicKey) return;
-
-              const permission = await Notification.requestPermission();
-              if (permission !== 'granted') return;
-
-              const subscription = await registration.pushManager.subscribe({
-                  userVisibleOnly: true,
-                  applicationServerKey: this.urlBase64ToUint8Array(vapidPublicKey)
-              });
-
-              if (this.auth.currentUser() && !this.auth.currentUser()?.isTemp) {
-                  await firstValueFrom(this.http.post(environment.apiUrl + '/notifications/subscribe', subscription));
-              }
-          } catch (e) {
-              console.log('Web Push error', e);
-          }
-      }
-  }
-
-  private urlBase64ToUint8Array(base64String: string) {
-      const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
-      const rawData = window.atob(base64);
-      const outputArray = new Uint8Array(rawData.length);
-      for (let i = 0; i < rawData.length; ++i) {
-          outputArray[i] = rawData.charCodeAt(i);
-      }
-      return outputArray;
-  }
-
   // World State
   public worlds = WORLDS;
 
@@ -522,46 +339,45 @@ export class GameStateService {
   public ai2PhoenixSpeed = signal<number>(1.2);
 
   // Sync with DB User
-  syncWithUser(user: any) {
-      if (user) {
-          this.level.set(user.level || 0);
-          this.xp.set(user.xp || 0);
-          this.trophies.set(user.trophies || []);
-          this.coins.set(Math.floor(Number(user.coins !== undefined && user.coins !== null ? user.coins : 100)) || 100);
-          this.gems.set(Math.floor(Number(user.gems)) || 0);
-          if (user.acceptedLegalPolicies) this.acceptedLegalPolicies.set(true);
-          this.unlockedWorlds.set(user.unlockedWorlds && user.unlockedWorlds.length > 0 ? user.unlockedWorlds : [0]);
-          if (user.worldUpgrades && Object.keys(user.worldUpgrades).length > 0) {
-              const upgrades = user.worldUpgrades;
-              // Migration for old saves
-              Object.keys(upgrades).forEach(key => {
-                  if (!upgrades[key]) upgrades[key] = { ...BASE_STATS };
-                  if (upgrades[key].auraRadius < 250) upgrades[key].auraRadius = 250;
-                  if (upgrades[key].attackRange === undefined) upgrades[key].attackRange = 400;
-                  if (!upgrades[key].unlockedAbilities) upgrades[key].unlockedAbilities = {};
-                  if (upgrades[key].activeTapAbility === undefined) upgrades[key].activeTapAbility = null;
-                  if (upgrades[key].activeHoldAbility === undefined) upgrades[key].activeHoldAbility = null;
-                  
+  syncWithUser(user: User) {
+      if (!user) return;
+      this.level.set(user.level || 1);
+      this.xp.set(user.xp || 0);
+      this.trophies.set(user.trophies || []);
+      this.coins.set(Math.floor(Number(user.coins !== undefined && user.coins !== null ? user.coins : 100)) || 100);
+      this.gems.set(Math.floor(Number(user.gems)) || 0);
+      if (user.acceptedLegalPolicies) this.acceptedLegalPolicies.set(true);
+      this.unlockedWorlds.set(user.unlockedWorlds && user.unlockedWorlds.length > 0 ? user.unlockedWorlds : [0]);
+      if (user.worldUpgrades && Object.keys(user.worldUpgrades).length > 0) {
+          const upgrades = user.worldUpgrades;
+          // Migration for old saves
+          Object.keys(upgrades).forEach(key => {
+              if (!upgrades[key as any]) upgrades[key as any] = { ...BASE_STATS };
+              if (upgrades[key as any].auraRadius < 250) upgrades[key as any].auraRadius = 250;
+              if (upgrades[key as any].attackRange === undefined) upgrades[key as any].attackRange = 400;
+              if (!upgrades[key as any].unlockedAbilities) upgrades[key as any].unlockedAbilities = {};
+              if (upgrades[key as any].activeTapAbility === undefined) upgrades[key as any].activeTapAbility = null;
+              if (upgrades[key as any].activeHoldAbility === undefined) upgrades[key as any].activeHoldAbility = null;
+              
               // Auto-heal NaN
-                  Object.keys(upgrades[key]).forEach(statKey => {
-                      if (statKey === 'unlockedAbilities') {
-                          const abilities = upgrades[key][statKey] as Record<string, any>;
-                          Object.keys(abilities).forEach(abKey => {
-                              const ability = abilities[abKey];
-                              if (ability && typeof ability.level === 'number' && !ability.modifiers) {
-                                  // Migrate old format to AbilityData
-                                  ability.modifiers = {
-                                      cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0, ammo: 1.0
-                                  };
-                              }
-                          });
-                      } else if (typeof upgrades[key][statKey] === 'number' && isNaN(upgrades[key][statKey])) {
-                          upgrades[key][statKey] = (BASE_STATS as any)[statKey];
-                      }
-                  });
+              Object.keys(upgrades[key as any]).forEach(statKey => {
+                  if (statKey === 'unlockedAbilities') {
+                      const abilities = upgrades[key as any][statKey] as Record<string, any>;
+                      Object.keys(abilities).forEach(abKey => {
+                          const ability = abilities[abKey];
+                          if (ability && typeof ability.level === 'number' && !ability.modifiers) {
+                              // Migrate old format to AbilityData
+                              ability.modifiers = {
+                                  cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0, ammo: 1.0
+                              };
+                          }
+                      });
+                  } else if (typeof upgrades[key as any][statKey as keyof WorldStats] === 'number' && isNaN(upgrades[key as any][statKey as keyof WorldStats] as number)) {
+                      (upgrades[key as any] as any)[statKey] = (BASE_STATS as any)[statKey];
+                  }
               });
-              this.worldUpgrades.set(upgrades);
-          }
+          });
+          this.worldUpgrades.set(upgrades);
       }
   }
 
@@ -591,17 +407,18 @@ export class GameStateService {
       const config = ABILITY_UPGRADE_TARGETS[abilityId] || { targetLevel: 30, stats: { cooldown: 0.25, damage: 5.0 } };
       const newModifiers = { ...currentModifiers };
       
-      const stats = Object.keys(config.stats);
-      if (stats.length === 0) return newModifiers;
+      const statsKeys = Object.keys(config.stats);
 
       // Ensure stats exist
-      for (const stat of stats) {
-          if (newModifiers[stat] === undefined) newModifiers[stat] = 1.0;
-      }
+      statsKeys.forEach(stat => {
+          if (newModifiers[stat] === undefined) {
+              newModifiers[stat] = 1.0;
+          }
+      });
 
       const expectedProgress = currentLevel / config.targetLevel; 
       
-      let weights = stats.map(stat => {
+      let weights = statsKeys.map(stat => {
           const targetVal = config.stats[stat];
           const currentVal = newModifiers[stat];
           const isReduction = targetVal < 1.0; 
@@ -621,8 +438,9 @@ export class GameStateService {
       
       const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
       let rand = Math.random() * totalWeight;
-      let chosenStat = stats[0];
-      for (const w of weights) {
+      let chosenStat = statsKeys[0];
+      for (let i = 0; i < weights.length; i++) {
+          const w = weights[i];
           rand -= w.weight;
           if (rand <= 0) {
               chosenStat = w.stat;
@@ -709,7 +527,7 @@ export class GameStateService {
       }
   }
 
-  public async syncProgressToServer(battleStats?: any) {
+  public async syncProgressToServer(battleStats?: Record<string, number>) {
       if (!this.auth.currentUser() || this.auth.currentUser()?.isTemp) return;
       
       this.coins.update(c => Math.floor(c));
@@ -749,13 +567,13 @@ export class GameStateService {
   }
 
   async migrateGuestData() {
-      const localData = localStorage.getItem('phoenix_guest_data');
+      const localData = this.storage.getItem('phoenix_guest_data');
       if (!localData) return;
       
       try {
           const parsed = JSON.parse(localData);
           await firstValueFrom(this.http.post(environment.apiUrl + '/auth/sync', parsed));
-          localStorage.removeItem('phoenix_guest_data');
+          this.storage.removeItem('phoenix_guest_data');
       } catch (e) {
           console.error("Failed to migrate guest data", e);
       }

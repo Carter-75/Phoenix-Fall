@@ -1,5 +1,7 @@
 import { Component, signal, computed, OnInit, OnDestroy, inject } from '@angular/core';
-import { GameStateService, ABILITIES, WorldStats } from '../../services/game-state.service';
+import { GameStateService } from '../../services/game-state.service';
+import { ABILITIES, WORLDS } from '../../constants/game.constants';
+import { WorldStats } from '../../models/game.models';
 import { IapService } from '../../services/iap.service';
 import { environment } from '../../../environments/environment';
 import { CommonModule } from '@angular/common';
@@ -821,7 +823,7 @@ export class ShopComponent implements OnInit, OnDestroy {
   iapService = inject(IapService);
   isGachaSpinning = signal<boolean>(false);
   flashSaleTimer = signal<number>(0); 
-  currentWorld = computed(() => this.gameState.worlds[this.gameState.selectedWorldIndex()]);
+  currentWorld = computed(() => WORLDS[this.gameState.selectedWorldIndex()]);
   crazyDealTimer = computed(() => this.gameState.crazyDealTimer());
   private timerInterval: any;
   private ghostInterval: any;

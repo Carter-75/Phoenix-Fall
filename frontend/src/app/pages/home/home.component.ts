@@ -1,5 +1,5 @@
 import { Component, signal, inject, OnInit, viewChild, ElementRef, afterNextRender, OnDestroy } from '@angular/core';
-import { ApiService } from '../services/api.service';
+import { ApiService } from '../../services/api.service';
 import * as Matter from 'matter-js';
 import anime from 'animejs';
 import gsap from 'gsap';

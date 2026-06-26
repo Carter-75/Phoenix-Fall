@@ -1,6 +1,6 @@
 import { Component, ElementRef, OnInit, OnDestroy, ViewChild, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GameStateService } from '../services/game-state.service';
+import { GameStateService } from '../../services/game-state.service';
 import * as THREE from 'three';
 
 @Component({
