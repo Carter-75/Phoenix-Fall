@@ -451,11 +451,19 @@ export class GameComponent implements OnInit, OnDestroy {
            closestMobType = hash / 1000.0;
       }
 
+      const isBottomAi = threatType === 'projectile_enemy'; // If it fires enemy projectiles, it's the Bottom AI acting as player
+      const aiY = isBottomAi ? window.innerHeight - actor.position.y : actor.position.y;
+      const aiVelY = isBottomAi ? -actor.velocity.y : actor.velocity.y;
+      const pY = target?.position.y || (isBottomAi ? window.innerHeight - 100 : 100);
+      const playerY = isBottomAi ? window.innerHeight - pY : pY;
+      const playerVelY = isBottomAi ? -(target?.velocity.y || 0) : (target?.velocity.y || 0);
+      const mobVelY = isBottomAi ? -closestMobVelY : closestMobVelY;
+
       return {
-          aiX: actor.position.x, aiY: actor.position.y,
-          aiVelX: actor.velocity.x, aiVelY: actor.velocity.y,
-          playerX: target?.position.x || window.innerWidth / 2, playerY: target?.position.y || 100,
-          playerVelX: target?.velocity.x || 0, playerVelY: target?.velocity.y || 0,
+          aiX: actor.position.x, aiY: aiY,
+          aiVelX: actor.velocity.x, aiVelY: aiVelY,
+          playerX: target?.position.x || window.innerWidth / 2, playerY: playerY,
+          playerVelX: target?.velocity.x || 0, playerVelY: playerVelY,
           hpRatio: hpRatio,
           playerHpRatio: targetHpRatio,
           radar0: radarDists[0], radar1: radarDists[1], radar2: radarDists[2], radar3: radarDists[3],
@@ -463,7 +471,7 @@ export class GameComponent implements OnInit, OnDestroy {
           closestMobType: closestMobType,
           closestMobDist: closestMobDist,
           closestMobVelX: closestMobVelX,
-          closestMobVelY: closestMobVelY
+          closestMobVelY: mobVelY
       };
   }
 
@@ -910,6 +918,8 @@ export class GameComponent implements OnInit, OnDestroy {
                     this.infiniteBurnInterval = setInterval(() => {
                         if (!this.isDead() && !this.gameEnded()) {
                             this.takeDamage(this.maxHealth() / 10);
+                        } else if (this.gameEnded()) {
+                            clearInterval(this.infiniteBurnInterval);
                         }
                     }, 500);
                 }
@@ -984,6 +994,35 @@ export class GameComponent implements OnInit, OnDestroy {
             Matter.Composite.remove(this.engine.world, otherBody);
             this.items = this.items.filter(i => i !== otherBody);
           }
+        }
+
+        // AI consuming items (Magnetism asymmetry fix)
+        if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+            const aiBody = bodyA.plugin?.['data']?.type === 'enemy_phoenix' ? bodyA : (bodyB.plugin?.['data']?.type === 'enemy_phoenix' ? bodyB : null);
+            const itemBody = bodyA.label === 'item' ? bodyA : (bodyB.label === 'item' ? bodyB : null);
+            if (aiBody && itemBody) {
+                const data = itemBody.plugin['data'] as EnemyData;
+                if (data.type === 'heart') {
+                    this.audioService.playSFX('heal');
+                    const scale = 3 * Math.max(0.2, 1 - (this.progressPercent() / 100));
+                    const healAmt = Math.floor((data.value || 0) * scale);
+                    const maxHp = aiBody.plugin['data'].maxHealth || 100;
+                    aiBody.plugin['data'].health = Math.min(maxHp, aiBody.plugin['data'].health + healAmt);
+                    this.bossHealth.set(aiBody.plugin['data'].health);
+                    
+                    const el = document.createElement('div');
+                    el.className = `fixed inset-0 bg-red-500/20 z-50 pointer-events-none transition-opacity duration-300`;
+                    document.body.appendChild(el);
+                    setTimeout(() => el.style.opacity = '0', 50);
+                    setTimeout(() => el.remove(), 350);
+                } else if (data.type === 'xp_orb') {
+                    this.audioService.playSFX('drop');
+                    this.mlAi.addReward(5);
+                }
+                Matter.Composite.remove(this.engine.world, itemBody);
+                this.items = this.items.filter(i => i !== itemBody);
+                continue;
+            }
         }
         
         // Projectile hits enemy
@@ -1347,7 +1386,18 @@ export class GameComponent implements OnInit, OnDestroy {
              // Normal Magnetism
              const isXpOrb = data.type === 'xp_orb';
              const activeRadius = (isXpOrb ? 300 : 150) * this.gameState.currentStats().magnetism;
-             const force = Matter.Vector.sub(this.playerBody.position, item.position);
+             let targetPos = this.playerBody.position;
+             
+             if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+                 const enemyPhoenix = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
+                 if (enemyPhoenix) {
+                     const distToPlayer = Matter.Vector.magnitude(Matter.Vector.sub(this.playerBody.position, item.position));
+                     const distToEnemy = Matter.Vector.magnitude(Matter.Vector.sub(enemyPhoenix.position, item.position));
+                     if (distToEnemy < distToPlayer) targetPos = enemyPhoenix.position;
+                 }
+             }
+             
+             const force = Matter.Vector.sub(targetPos, item.position);
              const dist = Matter.Vector.magnitude(force);
              if (dist < activeRadius) {
                 const normalized = Matter.Vector.normalise(force);
@@ -1692,13 +1742,14 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
       this.audioService.playSFX('shoot');
       
-      const dir = Matter.Vector.normalise(Matter.Vector.sub({ x: targetX, y: targetY }, sourceBody.position));
-      Matter.Body.setVelocity(sourceBody, Matter.Vector.mult(dir, 40 * mods['speed']));
+      if (ownerId === 'player') {
+          this.gameState.isDrilling.set(true);
+      }
       
-      if (ownerId === 'player') this.gameState.isDrilling.set(true);
       setTimeout(() => {
-          if (ownerId === 'player') this.gameState.isDrilling.set(false);
-          if (sourceBody.parent) Matter.Body.setVelocity(sourceBody, { x: 0, y: 0 });
+          if (ownerId === 'player') {
+              this.gameState.isDrilling.set(false);
+          }
       }, duration);
       return cd;
   }
@@ -1927,7 +1978,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           Matter.Events.on(this.engine, 'beforeUpdate', boidLogic);
 
           fireInterval = setInterval(() => {
-              if (!baby.parent) {
+              if (!baby.parent || this.gameEnded()) {
                   clearInterval(fireInterval);
                   return;
               }
@@ -1973,7 +2024,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               isReturning = true;
               
               const returnCheck = setInterval(() => {
-                  if (!baby.parent || !egg.parent || exploded) { clearInterval(returnCheck); return; }
+                  if (!baby.parent || !egg.parent || exploded || this.gameEnded()) { clearInterval(returnCheck); return; }
                   const dist = Matter.Vector.magnitude(Matter.Vector.sub(baby.position, egg.position));
                   if (dist < 20) {
                       clearInterval(returnCheck);
@@ -2109,11 +2160,13 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     const intensityModifier = Math.max(0.1, 1.0 - (intensity * 2.5));
     const delay = baseDelay * intensityModifier;
     
-    this.spawnInterval = setTimeout(() => this.scheduleNextSpawn(), delay);
+    if (!this.gameEnded()) {
+        this.spawnInterval = setTimeout(() => this.scheduleNextSpawn(), delay);
+    }
   }
 
   private spawnEnemy() {
-    if (this.gameState.currentGameMode() === 'battle') return; // No regular mobs in Battle Mode
+    if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') return; // No regular mobs in Battle or AI vs AI Mode
     if (this.gameState.selectedWorldIndex() !== 0) return; // Only world 0 has enemies for now
 
     let x, y;
@@ -2321,6 +2374,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
   private damageEnemy(enemy: Matter.Body, damage: number) {
     const data = enemy.plugin['data'] as EnemyData;
+    if (data.immortalUntil && Date.now() < data.immortalUntil) return;
     data.health -= damage;
     
     if (data.type === 'boss') {
@@ -2341,29 +2395,71 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               this.mlAi.addReward(-100); // the one who died is top ai (enemy)
               data.health = data.maxHealth;
               this.bossHealth.set(data.maxHealth);
-              Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: -200 }); // reset off-screen
-              Matter.Body.setVelocity(enemy, { x: 0, y: 0 });
+              data.immortalUntil = Date.now() + 2000;
+              
+              // Visual Ash effect for in-place rebirth
+              const ashInterval = setInterval(() => {
+                  const ash = document.createElement('div');
+                  ash.style.position = 'fixed';
+                  ash.style.left = `${enemy.position.x + (Math.random()-0.5)*30}px`;
+                  ash.style.top = `${enemy.position.y + (Math.random()-0.5)*30}px`;
+                  ash.style.width = '4px';
+                  ash.style.height = '4px';
+                  ash.style.backgroundColor = '#9ca3af';
+                  ash.style.borderRadius = '50%';
+                  ash.style.pointerEvents = 'none';
+                  ash.style.zIndex = '50';
+                  document.body.appendChild(ash);
+                  setTimeout(() => ash.remove(), 1000);
+              }, 100);
+              setTimeout(() => clearInterval(ashInterval), 2000);
+              
               return;
           }
 
           if (this.aiAbilities.includes('rebirth')) {
               // Revive via rebirth
-              this.setupAiPhoenix(true);
               data.health = this.aiStats.maxHealth;
               data.maxHealth = this.aiStats.maxHealth;
               this.bossHealth.set(data.maxHealth);
+              data.immortalUntil = Date.now() + 2000;
               this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // big shockwave
+              
+              // Remove rebirth so it can't be used again this life
+              this.aiAbilities = this.aiAbilities.filter(a => a !== 'rebirth');
               return;
           } else {
               // Auto drop and respawn
               this.triggerBattleDrop(enemy.position.x, enemy.position.y, true);
-              this.setupAiPhoenix(true);
+              this.setupAiPhoenix(true); // Rerolls stats and abilities
               data.health = this.aiStats.maxHealth;
               data.maxHealth = this.aiStats.maxHealth;
               this.bossHealth.set(data.maxHealth);
               this.triggerImpactEffect(enemy.position.x, enemy.position.y, true); // rebirth effect
+              // Visual teleport
+              this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: -200 });
               Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: -200 }); // reset off-screen
               Matter.Body.setVelocity(enemy, { x: 0, y: 0 });
+              
+              const duration = 1500;
+              const startTime = Date.now();
+              const aiStartY = -200;
+              const aiEndY = window.innerHeight / 2 - 150;
+              const animateEntrance = () => {
+                  if (this.isDead() || this.gameEnded()) return;
+                  const now = Date.now();
+                  const progress = Math.min((now - startTime) / duration, 1);
+                  const easeProgress = progress * (2 - progress);
+                  const currentAiY = aiStartY + (aiEndY - aiStartY) * easeProgress;
+                  this.gameState.aiPhoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentAiY });
+                  this.gameState.aiMousePos.set({ x: window.innerWidth / 2, y: 50 });
+                  Matter.Body.setPosition(enemy, { x: window.innerWidth / 2, y: currentAiY });
+                  Matter.Body.setVelocity(enemy, { x: 0, y: 0 }); 
+                  
+                  if (progress < 1) requestAnimationFrame(animateEntrance);
+                  else this.gameState.aiPhoenixOverridePosition.set(null);
+              };
+              requestAnimationFrame(animateEntrance);
               return;
           }
       }
@@ -2593,13 +2689,40 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
          return;
       }
       if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+          if (this.ai2Abilities.includes('rebirth')) {
+              this.currentHealth.set(this.maxHealth());
+              this.gameState.immortalUntil = Date.now() + 2000;
+              this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
+              // Remove rebirth so it can't be used again this life
+              this.ai2Abilities = this.ai2Abilities.filter(a => a !== 'rebirth');
+              return;
+          }
           this.audioService.playSFX('explosion');
           this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
           this.gameState.ai1Wins.update(w => w + 1);
           this.mlAi.addReward(100); // the one who died is player (ai 2), top ai wins!
           this.currentHealth.set(this.maxHealth());
-          this.gameState.ai2MousePos.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 }); // reset off-screen bottom
-          this.gameState.ai2PhoenixSpeed.set(this.ai2Stats.speed);
+          this.gameState.immortalUntil = Date.now() + 2000;
+          // Re-roll ai2Abilities on respawn
+          this.setupAi2Phoenix(true);
+          
+          // Visual Ash effect for in-place rebirth (teleport removed to fix glitch)
+          const ashInterval = setInterval(() => {
+              const ash = document.createElement('div');
+              ash.style.position = 'fixed';
+              ash.style.left = `${this.playerBody.position.x + (Math.random()-0.5)*30}px`;
+              ash.style.top = `${this.playerBody.position.y + (Math.random()-0.5)*30}px`;
+              ash.style.width = '4px';
+              ash.style.height = '4px';
+              ash.style.backgroundColor = '#9ca3af';
+              ash.style.borderRadius = '50%';
+              ash.style.pointerEvents = 'none';
+              ash.style.zIndex = '50';
+              document.body.appendChild(ash);
+              setTimeout(() => ash.remove(), 1000);
+          }, 100);
+          setTimeout(() => clearInterval(ashInterval), 2000);
+          
           return;
       }
       this.triggerDeathSequence();
@@ -2961,10 +3084,15 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       } else {
           this.gameState.syncProgressToServer();
       }
+      this.gameState.isDeadMenuOpen.set(false);
       this.gameState.isPaused.set(false);
       this.cheatPrepared.set(false);
       this.gameState.coins.update(c => Math.floor(c));
       this.gameState.gems.update(g => Math.floor(g));
+      if ((this as any).activeAbilityIntervals) {
+          (this as any).activeAbilityIntervals.forEach((id: any) => clearInterval(id));
+          (this as any).activeAbilityIntervals = [];
+      }
       this.audioService.playMenuBgm();
       if (this.crateCollectedThisRun) {
           this.gameState.activeScreen.set('crate_opening');
@@ -2992,6 +3120,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
   }
   
   private handleInputStart(x: number, y: number) {
+      if (this.gameState.currentGameMode() === 'ai_vs_ai') return;
       this.isMouseHeld = true;
       this.holdStartX = x;
       this.holdStartY = y;
