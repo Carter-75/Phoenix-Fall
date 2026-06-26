@@ -415,7 +415,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         this.particles.rotation.y += 0.0001;
 
         const screenFactor = Math.max(1.0, 1000 / (window.innerWidth || 1000));
-        const speed = 0.068 * this.gameState.currentStats().speed * screenFactor; 
+        const speed = 0.068 * screenFactor;  
         
         let targetForMainBird = this.mouseTarget;
         if (this.gameState.currentGameMode() === 'ai_vs_ai' && this.gameState.activeScreen() === 'game') {
@@ -509,11 +509,15 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
               let speedMult = 1.0; 
               if (!isAi) {
-                  speedMult = this.gameState.currentStats().speed;
-                  if (Date.now() < this.gameState.speedBoostUntil) speedMult *= 2.0;
-                  if (this.gameState.isDrilling()) {
-                      const modifiers = this.gameState.currentStats().unlockedAbilities['drill_attack']?.modifiers;
-                      if (modifiers && modifiers['speed']) speedMult *= modifiers['speed'];
+                  if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+                      speedMult = this.gameState.ai2PhoenixSpeed();
+                  } else {
+                      speedMult = this.gameState.currentStats().speed;
+                      if (Date.now() < this.gameState.speedBoostUntil) speedMult *= 2.0;
+                      if (this.gameState.isDrilling()) {
+                          const modifiers = this.gameState.currentStats().unlockedAbilities['drill_attack']?.modifiers;
+                          if (modifiers && modifiers['speed']) speedMult *= modifiers['speed'];
+                      }
                   }
               } else {
                   speedMult = this.gameState.aiPhoenixSpeed(); 

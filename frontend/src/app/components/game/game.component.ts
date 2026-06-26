@@ -305,7 +305,10 @@ export class GameComponent implements OnInit, OnDestroy {
 
   public ai2Stats!: WorldStats;
   public ai2Abilities: string[] = [];
-  public ai2LastAbilityTime: number = 0;
+  public ai2LastTapTime: number = 0;
+  public ai2TapCooldown: number = 0;
+  public ai2LastHoldTime: number = 0;
+  public ai2HoldCooldown: number = 0;
   public ai2UpgradesWeights: Record<string, number> = {};
   public ai2Coins: number = 0;
   public ai2UpgradeTokensBox: number = 0;
@@ -1130,20 +1133,20 @@ export class GameComponent implements OnInit, OnDestroy {
           // Use ML abilities for Bottom AI
           if (enemyTarget) {
               const now = Date.now();
-              if (!this.ai2LastAbilityTime || now - this.ai2LastAbilityTime > 3000) {
-                  let used = false;
-                  if (mlAction.useTap > 0.5) {
-                      const ability = this.ai2Abilities.find(ab => ABILITIES[ab]?.type === 'tap') || 'burst';
-                      this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.ai2Stats, 'player');
-                      used = true;
-                  } else if (mlAction.useHold > 0.5) {
-                      const ability = this.ai2Abilities.find(ab => ABILITIES[ab]?.type === 'hold') || 'aura';
-                      this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.ai2Stats, 'player');
-                      used = true;
+              if (mlAction.useTap > 0.5) {
+                  const ability = this.ai2Abilities.find(ab => ABILITIES[ab]?.type === 'tap') || 'burst';
+                  if (!this.ai2LastTapTime || now - this.ai2LastTapTime > (this.ai2TapCooldown || 0) * 1000) {
+                      const cd = this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.ai2Stats, 'player');
+                      this.ai2LastTapTime = now;
+                      this.ai2TapCooldown = cd;
                   }
-                  
-                  if (used) {
-                      this.ai2LastAbilityTime = now;
+              }
+              if (mlAction.useHold > 0.5) {
+                  const ability = this.ai2Abilities.find(ab => ABILITIES[ab]?.type === 'hold') || 'aura';
+                  if (!this.ai2LastHoldTime || now - this.ai2LastHoldTime > (this.ai2HoldCooldown || 0) * 1000) {
+                      const cd = this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.ai2Stats, 'player');
+                      this.ai2LastHoldTime = now;
+                      this.ai2HoldCooldown = cd;
                   }
               }
           }
@@ -1167,7 +1170,8 @@ export class GameComponent implements OnInit, OnDestroy {
             if (this.holdTimer >= 3000 && this.holdCooldown() <= 0) {
                 const ability = this.gameState.currentStats().activeHoldAbility;
                 if (ability) {
-                    this.triggerAbility(ability, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
+                    const cd = this.triggerAbility(ability, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
+                    if (cd > 0) this.holdCooldown.set(cd);
                 }
                 
                 this.holdTimer = 0;
@@ -1274,21 +1278,21 @@ export class GameComponent implements OnInit, OnDestroy {
             // Process ML Abilities for Top AI
             if (this.gameState.currentGameMode() === 'ai_vs_ai' || this.gameState.currentGameMode() === 'battle') {
                 const now = Date.now();
-                if (!eAny.lastAbilityTime || now - eAny.lastAbilityTime > 3000) {
-                    let used = false;
-                    const tapAb = this.aiAbilities.find(ab => ABILITIES[ab]?.type === 'tap');
-                    const holdAb = this.aiAbilities.find(ab => ABILITIES[ab]?.type === 'hold');
-                    
-                    if (mlAction.useTap > 0.5 && tapAb) {
-                        this.triggerAbility(tapAb, enemy, mlAction.targetX, mlAction.targetY, this.aiStats, 'enemy');
-                        used = true;
-                    } else if (mlAction.useHold > 0.5 && holdAb) {
-                        this.triggerAbility(holdAb, enemy, mlAction.targetX, mlAction.targetY, this.aiStats, 'enemy');
-                        used = true;
+                const tapAb = this.aiAbilities.find(ab => ABILITIES[ab]?.type === 'tap');
+                const holdAb = this.aiAbilities.find(ab => ABILITIES[ab]?.type === 'hold');
+                
+                if (mlAction.useTap > 0.5 && tapAb) {
+                    if (!eAny.lastTapAbilityTime || now - eAny.lastTapAbilityTime > (eAny.tapCooldown || 0) * 1000) {
+                        const cd = this.triggerAbility(tapAb, enemy, mlAction.targetX, mlAction.targetY, this.aiStats, 'enemy');
+                        eAny.lastTapAbilityTime = now;
+                        eAny.tapCooldown = cd;
                     }
-                    
-                    if (used) {
-                        eAny.lastAbilityTime = now;
+                }
+                if (mlAction.useHold > 0.5 && holdAb) {
+                    if (!eAny.lastHoldAbilityTime || now - eAny.lastHoldAbilityTime > (eAny.holdCooldown || 0) * 1000) {
+                        const cd = this.triggerAbility(holdAb, enemy, mlAction.targetX, mlAction.targetY, this.aiStats, 'enemy');
+                        eAny.lastHoldAbilityTime = now;
+                        eAny.holdCooldown = cd;
                     }
                 }
             }
@@ -1508,6 +1512,9 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           if (selectedOpt === 'speed' && target === 'ai1') {
               this.gameState.aiPhoenixSpeed.set(stats.speed);
           }
+          if (selectedOpt === 'speed' && target === 'ai2') {
+              this.gameState.ai2PhoenixSpeed.set(stats.speed);
+          }
       }
       
       weights[selectedOpt] = Math.max(10, (weights[selectedOpt] || 100) - 20);
@@ -1676,10 +1683,12 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
 
 
-  private triggerDrillAttack(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+  private triggerDrillAttack(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['drill_attack'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
       const duration = 600 * mods['duration'];
+      const baseCooldown = ABILITIES['drill_attack']?.baseCooldown || 20;
+      const cd = baseCooldown * mods['cooldown'];
 
       this.audioService.playSFX('shoot');
       
@@ -1691,12 +1700,15 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           if (ownerId === 'player') this.gameState.isDrilling.set(false);
           if (sourceBody.parent) Matter.Body.setVelocity(sourceBody, { x: 0, y: 0 });
       }, duration);
+      return cd;
   }
 
-  private triggerFireBreath(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+  private triggerFireBreath(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['fire_breath'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0, ammo: 1.0 };
-      
+      const baseCooldown = ABILITIES['fire_breath']?.baseCooldown || 8;
+      const cd = baseCooldown * mods['cooldown'];
+
       let nearest = null;
       let minDist = Infinity;
       const validTargets = ownerId === 'player' ? this.enemies : [this.playerBody];
@@ -1707,7 +1719,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               if (dist < minDist) { minDist = dist; nearest = e; }
           });
       }
-      if (minDist > 500 || !nearest) return; 
+      if (minDist > 500 || !nearest) return cd; 
 
       const ammo = Math.floor(20 * (mods['ammo'] || 1.0));
       const fireIntervalMs = 50;
@@ -1767,18 +1779,20 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 500);
           }, i * fireIntervalMs);
       }
+      return cd;
   }
 
-  private triggerPhoenixTurret(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+  private triggerPhoenixTurret(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['phoenix_turret'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+      const baseCooldown = ABILITIES['phoenix_turret']?.baseCooldown || 12;
+      const cd = baseCooldown * mods['cooldown'];
       
       const seekRange = 500 * (mods['range'] || 1.0);
       const tetherRange = 100 * (mods['range'] || 1.0);
       const duration = 6000 * mods['duration'];
       const baseDamage = stats.damage * mods['damage'];
       
-      this.holdCooldown.set(10 * mods['cooldown']);
       this.holdAbilityEndTime = Date.now() + duration + 2000; 
       
       const egg = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 20, {
@@ -1973,13 +1987,14 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               }, 2000);
           }, duration);
       }, 2000);
+      return cd;
   }
 
-  private triggerBurst(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+  private triggerBurst(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['burst'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
-
-      this.tapCooldown.set(5 * mods['cooldown']);
+      const baseCooldown = ABILITIES['burst']?.baseCooldown || 5;
+      const cd = baseCooldown * mods['cooldown'];
       const damage = stats.burstDamage * mods['damage'];
       const radius = 10 * mods['radius'];
       this.audioService.playSFX('shoot');
@@ -1998,13 +2013,15 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           Matter.Composite.add(this.engine.world, proj);
           setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1000);
       }
+      return cd;
   }
 
-  private triggerAura(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
+  private triggerAura(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['aura'];
       const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
       
-      this.holdCooldown.set(15 * mods['cooldown']);
+      const baseCooldown = ABILITIES['aura']?.baseCooldown || 15;
+      const cd = baseCooldown * mods['cooldown'];
       const radius = stats.auraRadius * mods['radius'];
       
       const aura = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, radius, {
@@ -2025,16 +2042,18 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       });
 
       setTimeout(() => Matter.Composite.remove(this.engine.world, aura), 500); 
+      return cd;
   }
 
-  private triggerAbility(ability: string, sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string) {
-      if (ownerId === 'player' && this.gameState.isRebirthing()) return;
+  private triggerAbility(ability: string, sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
+      if (ownerId === 'player' && this.gameState.isRebirthing()) return 0;
       
-      if (ability === 'drill_attack') this.triggerDrillAttack(sourceBody, targetX, targetY, stats, ownerId);
-      else if (ability === 'burst') this.triggerBurst(sourceBody, targetX, targetY, stats, ownerId);
-      else if (ability === 'fire_breath') this.triggerFireBreath(sourceBody, targetX, targetY, stats, ownerId);
-      else if (ability === 'phoenix_turret') this.triggerPhoenixTurret(sourceBody, targetX, targetY, stats, ownerId);
-      else if (ability === 'aura') this.triggerAura(sourceBody, targetX, targetY, stats, ownerId);
+      if (ability === 'drill_attack') return this.triggerDrillAttack(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'burst') return this.triggerBurst(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'fire_breath') return this.triggerFireBreath(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'phoenix_turret') return this.triggerPhoenixTurret(sourceBody, targetX, targetY, stats, ownerId);
+      else if (ability === 'aura') return this.triggerAura(sourceBody, targetX, targetY, stats, ownerId);
+      return 0;
   }
 
   private createEnemyBody(x: number, y: number, size: number, type: string, data: any): Matter.Body {
@@ -2580,6 +2599,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           this.mlAi.addReward(100); // the one who died is player (ai 2), top ai wins!
           this.currentHealth.set(this.maxHealth());
           this.gameState.ai2MousePos.set({ x: window.innerWidth / 2, y: window.innerHeight + 200 }); // reset off-screen bottom
+          this.gameState.ai2PhoenixSpeed.set(this.ai2Stats.speed);
           return;
       }
       this.triggerDeathSequence();
@@ -2981,7 +3001,8 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       if (now - this.lastClickTime < 300 && this.tapCooldown() <= 0 && !this.gameState.isPaused()) {
           const ability = this.gameState.currentStats().activeTapAbility;
           if (ability) {
-              this.triggerAbility(ability, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
+              const cd = this.triggerAbility(ability, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
+              if (cd > 0) this.tapCooldown.set(cd);
           }
       }
       this.lastClickTime = now;

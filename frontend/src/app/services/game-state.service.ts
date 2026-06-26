@@ -61,14 +61,14 @@ export const WORLDS: World[] = [
   { id: 9, name: 'Abyssal Rift', theme: 'void', textColorClass: 'from-slate-700 to-black', isComingSoon: true },
 ];
 
-export const ABILITIES: Record<string, { id: string, type: 'tap' | 'hold', name: string, desc: string, icon: string, unlockCost: number, upgradeCost: number }> = {
-  'drill_attack': { id: 'drill_attack', type: 'tap', name: 'Drill Attack', desc: 'Spin dash through enemies', icon: '🌪️', unlockCost: 500, upgradeCost: 200 },
-  'fire_breath': { id: 'fire_breath', type: 'tap', name: 'Fire Breath', desc: 'Continuous short-range flame', icon: '🔥', unlockCost: 500, upgradeCost: 200 },
-  'burst': { id: 'burst', type: 'tap', name: 'Burst', desc: 'Explosive radial attack', icon: '💥', unlockCost: 0, upgradeCost: 350 },
+export const ABILITIES: Record<string, { id: string, type: 'tap' | 'hold', name: string, desc: string, icon: string, unlockCost: number, upgradeCost: number, baseCooldown: number }> = {
+  'drill_attack': { id: 'drill_attack', type: 'tap', name: 'Drill Attack', desc: 'Spin dash through enemies', icon: '🌪️', unlockCost: 500, upgradeCost: 200, baseCooldown: 20 },
+  'fire_breath': { id: 'fire_breath', type: 'tap', name: 'Fire Breath', desc: 'Continuous short-range flame', icon: '🔥', unlockCost: 500, upgradeCost: 200, baseCooldown: 8 },
+  'burst': { id: 'burst', type: 'tap', name: 'Burst', desc: 'Explosive radial attack', icon: '💥', unlockCost: 0, upgradeCost: 350, baseCooldown: 5 },
   
-  'phoenix_turret': { id: 'phoenix_turret', type: 'hold', name: 'Phoenix Turret', desc: 'Drop an egg that hatches a turret', icon: '🥚', unlockCost: 800, upgradeCost: 300 },
-  'rebirth': { id: 'rebirth', type: 'hold', name: 'Rebirth (Passive)', desc: 'Revive upon death with shockwave', icon: '✨', unlockCost: 1000, upgradeCost: 500 },
-  'aura': { id: 'aura', type: 'hold', name: 'Aura', desc: 'Continuous damage zone', icon: '🌀', unlockCost: 0, upgradeCost: 400 },
+  'phoenix_turret': { id: 'phoenix_turret', type: 'hold', name: 'Phoenix Turret', desc: 'Drop an egg that hatches a turret', icon: '🥚', unlockCost: 800, upgradeCost: 300, baseCooldown: 12 },
+  'rebirth': { id: 'rebirth', type: 'hold', name: 'Rebirth (Passive)', desc: 'Revive upon death with shockwave', icon: '✨', unlockCost: 1000, upgradeCost: 500, baseCooldown: 60 },
+  'aura': { id: 'aura', type: 'hold', name: 'Aura', desc: 'Continuous damage zone', icon: '🌀', unlockCost: 0, upgradeCost: 400, baseCooldown: 15 },
 };
 
 export const REALM_ABILITIES: Record<number, string[]> = {
@@ -518,6 +518,7 @@ export class GameStateService {
   // Phoenix Automation State
   public aiPhoenixOverridePosition = signal<{x: number, y: number} | null>(null);
   public aiPhoenixSpeed = signal<number>(1.2);
+  public ai2PhoenixSpeed = signal<number>(1.2);
 
   // Sync with DB User
   syncWithUser(user: any) {
