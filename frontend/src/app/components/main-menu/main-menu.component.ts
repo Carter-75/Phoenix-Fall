@@ -268,8 +268,10 @@ export class MainMenuComponent {
     this.gameState.currentGameMode.set(mode);
     if (mode === 'campaign') {
         this.gameState.selectedWorldIndex.set(this.currentWorld().id);
+        this.audio.playWorldBgm(this.currentWorld().id);
     } else {
         this.gameState.selectedWorldIndex.set(this.currentBattleWorld().id);
+        this.audio.playIntenseBgm(this.currentBattleWorld().id);
     }
     
     // Slight delay so button sound plays before routing

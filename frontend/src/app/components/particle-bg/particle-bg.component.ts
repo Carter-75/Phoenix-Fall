@@ -454,14 +454,25 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
         this.syncEntities();
 
         this.renderer.render(this.scene, this.camera);
+        
+        this.wasGameScreen = this.gameState.activeScreen() === 'game';
         this.animationId = requestAnimationFrame(render);
       };
       render();
     });
   }
 
+  private wasGameScreen = false;
+
   private updateBirdPhysics(bird: PhoenixState, targetWaypoint: THREE.Vector3, speed: number, screenFactor: number, isAi: boolean) {
-        if (!this.gameState.isPaused()) {
+      if (!this.gameState.isPaused() && !this.gameState.isDeadMenuOpen()) {
+          
+          if (!this.wasGameScreen && this.gameState.activeScreen() === 'game') {
+              bird.position.copy(targetWaypoint);
+              bird.targetWaypoint.copy(targetWaypoint);
+          }
+          
+          if (this.gameState.activeScreen() === 'game') {
           const overridePos = isAi ? this.gameState.aiPhoenixOverridePosition() : this.gameState.phoenixOverridePosition();
           if (overridePos) {
               const vec = new THREE.Vector3(
@@ -694,6 +705,7 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
                 }
             }
         }
+      }
   }
 
   private syncEntities() {
@@ -898,6 +910,8 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     // If ability was cast by the Top AI, override its visual color to Red to match the AI Phoenix
     if (data.ownerId === 'ai1' && (data.type.startsWith('projectile') || data.type === 'aura' || data.type === 'fire' || data.type === 'egg')) {
         color.setHex(0xff3333);
+    } else if (data.ownerId === 'player' && this.gameState.currentGameMode() === 'ai_vs_ai' && (data.type.startsWith('projectile') || data.type === 'aura' || data.type === 'fire' || data.type === 'egg')) {
+        color.setHex(0xd946ef); // Fuchsia for Bottom AI in AI vs AI
     }
 
     const r = data.size / 30; // Scale factor

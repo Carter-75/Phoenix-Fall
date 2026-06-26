@@ -3324,6 +3324,8 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
     if (this.spawnInterval) clearTimeout(this.spawnInterval);
     if (this.attackInterval) clearInterval(this.attackInterval);
     if (this.reviveInterval) clearInterval(this.reviveInterval);
+    if ((this as any).aiAbilityInterval) clearInterval((this as any).aiAbilityInterval);
+    if ((this as any).infiniteBurnInterval) clearInterval((this as any).infiniteBurnInterval);
     
     window.removeEventListener('mousemove', this.boundMouseMove);
     window.removeEventListener('mousedown', this.boundMouseDown);
@@ -3369,10 +3371,15 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       this.cheatPrepared.set(false);
       this.gameState.coins.update(c => Math.floor(c));
       this.gameState.gems.update(g => Math.floor(g));
+      this.gameState.aiPhoenixOverridePosition.set(null);
+      this.gameState.phoenixOverridePosition.set(null);
+      
       if ((this as any).activeAbilityIntervals) {
           (this as any).activeAbilityIntervals.forEach((id: any) => clearInterval(id));
           (this as any).activeAbilityIntervals = [];
       }
+      if ((this as any).aiAbilityInterval) clearInterval((this as any).aiAbilityInterval);
+      if ((this as any).infiniteBurnInterval) clearInterval((this as any).infiniteBurnInterval);
       this.audioService.playMenuBgm();
       if (this.crateCollectedThisRun) {
           this.gameState.activeScreen.set('crate_opening');
