@@ -19,6 +19,7 @@ interface EnemyData {
   value?: number;
   aiAbilities?: { id: string; level: number }[]; // For Battle Mode
   owner?: 'player' | 'enemy';
+  ownerId?: string;
   immortalUntil?: number;
 }
 
@@ -742,6 +743,19 @@ export class GameComponent implements OnInit, OnDestroy {
       }
   }
 
+  private resetCooldowns() {
+      this.aiLastTapTime = 0;
+      this.aiLastHoldTime = 0;
+      this.ai2LastTapTime = 0;
+      this.ai2LastHoldTime = 0;
+      this.lastClickTime = 0;
+      this.holdAbilityEndTime = 0;
+      this.tapCooldown.set(0);
+      this.holdCooldown.set(0);
+      this.ai2TapCooldown = 0;
+      this.ai2HoldCooldown = 0;
+  }
+
   private initBattleMode() {
       if (this.gameState.currentGameMode() === 'ai_vs_ai') {
           this.gameState.ai1Wins.set(0);
@@ -775,6 +789,11 @@ export class GameComponent implements OnInit, OnDestroy {
       this.battleStartXp = this.gameState.xp();
       this.battleCoinsCollected.set(0);
       
+      this.resetCooldowns();
+      
+      // We will set this flag to prevent combat loop until entrance finishes
+      this.gameState.isPaused.set(true); 
+
       // Spawn AI Phoenix off-screen top
       const scale = this.screenScale;
       const aiCore = Matter.Bodies.rectangle(window.innerWidth / 2, -200, 10 * scale, 20 * scale, { label: 'enemy' });
@@ -821,11 +840,32 @@ export class GameComponent implements OnInit, OnDestroy {
           Matter.Body.setPosition(enemyPhoenix, { x: window.innerWidth / 2, y: currentAiY });
           Matter.Body.setVelocity(enemyPhoenix, { x: 0, y: 0 }); 
           
+          // Animate Player from bottom to their start pos
+          if (this.playerBody) {
+              const playerStartY = window.innerHeight + 200;
+              const playerEndY = window.innerHeight / 2 + 150;
+              const currentPlayerY = playerStartY + (playerEndY - playerStartY) * easeProgress;
+              this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentPlayerY });
+              Matter.Body.setPosition(this.playerBody, { x: window.innerWidth / 2, y: currentPlayerY });
+              Matter.Body.setVelocity(this.playerBody, { x: 0, y: 0 });
+          }
+          
           if (progress < 1) {
               requestAnimationFrame(animateEntrance);
           } else {
               this.gameState.aiPhoenixOverridePosition.set(null);
+              this.gameState.phoenixOverridePosition.set(null);
               this.triggerImpactEffect(window.innerWidth / 2, currentAiY, true); // AI flash effect on landing
+              if (this.playerBody) {
+                  this.triggerImpactEffect(window.innerWidth / 2, window.innerHeight / 2 + 150, false);
+              }
+              // 1 second standoff before combat begins
+              setTimeout(() => {
+                  if (!this.gameEnded() && !this.isDead()) {
+                      this.gameState.isPaused.set(false);
+                      this.lastClickTime = Date.now();
+                  }
+              }, 1000);
           }
       };
       
@@ -1473,7 +1513,8 @@ export class GameComponent implements OnInit, OnDestroy {
                      x: body.position.x,
                      y: body.position.y,
                      type: data.type,
-                     size: body.circleRadius || 20
+                     size: body.circleRadius || 20,
+                     ownerId: data.ownerId
                  });
              }
          }
@@ -1835,7 +1876,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
               const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 15, {
                   isSensor: true, label: 'projectile',
-                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: damage, owner: ownerId } as EnemyData }
+                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: damage, ownerId: ownerId } as EnemyData }
               });
               Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, range));
               Matter.Composite.add(this.engine.world, proj);
@@ -1865,7 +1906,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       
       const egg = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 20, {
           isStatic: true, isSensor: true, label: 'projectile',
-          plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1000, maxHealth: 1000, size: 20, aggroTarget: null } as any }
+          plugin: { data: { id: Math.random().toString(), type: 'egg', health: 1000, maxHealth: 1000, size: 20, aggroTarget: null, ownerId: ownerId } as any }
       });
       Matter.Composite.add(this.engine.world, egg);
       
@@ -1877,7 +1918,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           
           const baby = Matter.Bodies.circle(egg.position.x, egg.position.y - 30, 15, {
               isSensor: true, label: 'projectile', frictionAir: 0.1,
-              plugin: { data: { id: Math.random().toString(), type: 'turret', health: 500, maxHealth: 500, size: 15 } as EnemyData }
+              plugin: { data: { id: Math.random().toString(), type: 'turret', health: 500, maxHealth: 500, size: 15, ownerId: ownerId } as EnemyData }
           });
           Matter.Composite.add(this.engine.world, baby);
           
@@ -2032,7 +2073,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                               const fireDir = { x: Math.cos(angle), y: Math.sin(angle) };
                               const proj = Matter.Bodies.circle(baby.position.x, baby.position.y, 10, {
                                   isSensor: true, label: 'projectile',
-                                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage, owner: ownerId } as EnemyData }
+                                  plugin: { data: { id: Math.random().toString(), type: 'fire', health: 1, maxHealth: 1, burstDamage: baseDamage, ownerId: ownerId } as EnemyData }
                               });
                               Matter.Body.setVelocity(proj, Matter.Vector.mult(fireDir, 15));
                               Matter.Composite.add(this.engine.world, proj);
@@ -2067,60 +2108,60 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
   private triggerBurst(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['burst'];
-      const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
+      const mods = abilityData?.modifiers || { cooldown: 1.0, damage: 1.0, count: 1.0 };
       const baseCooldown = ABILITIES['burst']?.baseCooldown || 5;
       const cd = baseCooldown * mods['cooldown'];
-      const damage = stats.burstDamage * mods['damage'];
-      const radius = 10 * mods['radius'];
-      this.audioService.playSFX('shoot');
+      const damage = (stats.damage || 10) * 1.5 * mods['damage'];
+      const count = Math.max(1, Math.floor(3 * mods['count']));
       
-      for(let i=0; i<8; i++) {
-          const angle = (i / 8) * Math.PI * 2;
-          const dir = { x: Math.cos(angle), y: Math.sin(angle) };
-          const proj = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, radius, {
-              isSensor: true,
+      for(let i = 0; i < count; i++) {
+          const angleOffset = (i - (count - 1)/2) * 0.15;
+          const dir = Matter.Vector.normalise(Matter.Vector.sub({ x: targetX, y: targetY }, sourceBody.position));
+          const rotDir = Matter.Vector.rotate(dir, angleOffset);
+          
+          const projectile = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, 8, {
               label: 'projectile',
-              plugin: {
-                  data: { id: Math.random().toString(), type: 'projectile_player', health: 1, maxHealth: 1, burstDamage: damage, owner: ownerId } as EnemyData
-              }
+              isSensor: true,
+              plugin: { data: { id: Math.random().toString(), type: ownerId === 'player' ? 'projectile_player' : 'projectile_enemy', ownerId: ownerId, burstDamage: damage, health: 1, maxHealth: 1 } as EnemyData }
           });
-          Matter.Body.setVelocity(proj, Matter.Vector.mult(dir, 15));
-          Matter.Composite.add(this.engine.world, proj);
-          setTimeout(() => { if (proj.parent) Matter.Composite.remove(this.engine.world, proj) }, 1000);
+          Matter.Body.setVelocity(projectile, Matter.Vector.mult(rotDir, 20));
+          Matter.Composite.add(this.engine.world, projectile);
+          setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 2000);
       }
+      this.audioService.playSFX('shoot');
       return cd;
   }
 
   private triggerAura(sourceBody: Matter.Body, targetX: number, targetY: number, stats: WorldStats, ownerId: string): number {
       const abilityData = stats.unlockedAbilities['aura'];
-      const mods = abilityData?.modifiers || { cooldown: 1.0, speed: 1.0, duration: 1.0, damage: 1.0, radius: 1.0, range: 1.0 };
-      
-      const baseCooldown = ABILITIES['aura']?.baseCooldown || 15;
+      const mods = abilityData?.modifiers || { cooldown: 1.0, duration: 1.0, radius: 1.0, damage: 1.0 };
+      const baseCooldown = ABILITIES['aura']?.baseCooldown || 12;
       const cd = baseCooldown * mods['cooldown'];
-      const radius = stats.auraRadius * mods['radius'];
+      
+      const duration = 5000 * mods['duration'];
+      const radius = 150 * mods['radius'];
       
       const aura = Matter.Bodies.circle(sourceBody.position.x, sourceBody.position.y, radius, {
           isSensor: true,
           label: 'projectile',
-          plugin: {
-             data: { id: Math.random().toString(), type: 'aura', health: 1, maxHealth: 1, size: radius, owner: ownerId } as EnemyData
-          }
+          plugin: { data: { id: Math.random().toString(), type: 'aura', ownerId: ownerId, burstDamage: stats.damage * 0.5 * mods['damage'], health: 1, maxHealth: 1 } as EnemyData }
       });
-      Matter.Composite.add(this.engine.world, aura);
       
-      const validTargets = ownerId === 'player' ? this.enemies : [this.playerBody];
-      validTargets.forEach(e => {
-          const dist = Matter.Vector.magnitude(Matter.Vector.sub(e.position, aura.position));
-          if (dist < radius + (e.circleRadius || 0)) {
-              if (e === this.playerBody) {
-                  this.takeDamage(stats.damage * 5 * mods['damage']);
-              } else {
-                  this.damageEnemy(e, stats.damage * 5 * mods['damage']);
-              }
-          }
-      });
-
-      setTimeout(() => Matter.Composite.remove(this.engine.world, aura), 500); 
+      Matter.Composite.add(this.engine.world, aura);
+      this.audioService.playSFX('heal');
+      
+      const updateAura = () => {
+          if (!aura.parent || this.isDead() || this.gameEnded()) return;
+          Matter.Body.setPosition(aura, sourceBody.position);
+      };
+      
+      Matter.Events.on(this.engine, 'beforeUpdate', updateAura);
+      
+      setTimeout(() => {
+          if (aura.parent) Matter.Composite.remove(this.engine.world, aura);
+          Matter.Events.off(this.engine, 'beforeUpdate', updateAura);
+      }, duration);
+      
       return cd;
   }
 
@@ -2291,7 +2332,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       label: 'projectile',
       isSensor: true,
       plugin: {
-          data: { id: Math.random().toString(), type: 'projectile_enemy', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData
+          data: { id: Math.random().toString(), type: 'projectile_enemy', ownerId: 'ai1', health: 1, maxHealth: 1, burstDamage: damage } as EnemyData
       }
     });
 

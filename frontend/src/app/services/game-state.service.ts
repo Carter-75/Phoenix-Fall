@@ -38,6 +38,7 @@ export interface PhysicsEntity {
   width?: number;
   height?: number;
   isLeft?: boolean;
+  ownerId?: string;
 }
 
 export interface World {

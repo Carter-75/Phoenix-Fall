@@ -895,6 +895,11 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
     else if (data.type === 'egg') color.setHex(0xffaa00); // Golden Egg
     else if (data.type === 'turret') color.setHex(0xffffff); // Use original bird colors
 
+    // If ability was cast by the Top AI, override its visual color to Red to match the AI Phoenix
+    if (data.ownerId === 'ai1' && (data.type.startsWith('projectile') || data.type === 'aura' || data.type === 'fire' || data.type === 'egg')) {
+        color.setHex(0xff3333);
+    }
+
     const r = data.size / 30; // Scale factor
 
     for (let i=0; i<count; i++) {
