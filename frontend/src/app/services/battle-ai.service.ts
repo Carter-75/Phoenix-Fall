@@ -3,6 +3,12 @@ import { GameStateService } from './game-state.service';
 import { WorldStats } from '../models/game.models';
 import { ABILITIES } from '../constants/game.constants';
 
+export interface AiPersonality {
+    aggression: number;    // [0.7, 1.3] — fire rate and damage weight bias
+    caution: number;       // [0.7, 1.3] — health and speed weight bias
+    creativity: number;    // [0.7, 1.3] — ML noise and ability usage variance
+}
+
 export interface AiState {
     coins: number;
     stats: WorldStats;
@@ -14,6 +20,9 @@ export interface AiState {
     holdCooldown: number;
     upgradeTokensBox: number;
     abilityTokensBox: number;
+    tapFatigue: number;
+    holdFatigue: number;
+    personality: AiPersonality;
 }
 
 export interface BattleContext {
@@ -34,6 +43,13 @@ export class BattleAiService {
     public ai2!: AiState;
     public coinGainRate = 2;
 
+    // Tension / Director system
+    public matchTension = 0; // [0, 1] range
+    private recentDamageEvents = 0;
+    private lastTensionCalcTime = 0;
+    private lastWeightReversionTime = 0;
+    private matchStartTime = Date.now();
+
     constructor(private gameState: GameStateService) {
         this.reset();
     }
@@ -41,6 +57,10 @@ export class BattleAiService {
     public reset() {
         this.ai1 = this.createDefaultAiState();
         this.ai2 = this.createDefaultAiState();
+        this.matchStartTime = Date.now();
+        this.matchTension = 0;
+        this.recentDamageEvents = 0;
+        this.coinGainRate = 2;
     }
 
     private createDefaultAiState(): AiState {
@@ -54,18 +74,66 @@ export class BattleAiService {
             tapCooldown: 0,
             holdCooldown: 0,
             upgradeTokensBox: 0,
-            abilityTokensBox: 0
+            abilityTokensBox: 0,
+            tapFatigue: 0,
+            holdFatigue: 0,
+            personality: {
+                aggression: 0.7 + Math.random() * 0.6,  // [0.7, 1.3]
+                caution: 0.7 + Math.random() * 0.6,
+                creativity: 0.7 + Math.random() * 0.6,
+            }
         };
     }
 
     public tick(context: BattleContext) {
-        this.ai1.coins += this.coinGainRate;
+        // Diminishing coin returns: effectiveRate flattens as coinGainRate grows
+        const dropsDiminish = 1 - Math.pow(0.92, Math.max(0, this.coinGainRate - 2));
+        const effectiveRate = 2 + (Math.max(0, this.coinGainRate - 2)) * dropsDiminish;
+        this.ai1.coins += effectiveRate;
+
+        // Fatigue decay (~3% per tick)
+        this.ai1.tapFatigue *= 0.97;
+        this.ai1.holdFatigue *= 0.97;
+
         this.tryPurchaseAiUpgrade('ai1', context);
 
         if (this.gameState.currentGameMode() === 'ai_vs_ai') {
-            this.ai2.coins += this.coinGainRate;
+            this.ai2.coins += effectiveRate;
+            this.ai2.tapFatigue *= 0.97;
+            this.ai2.holdFatigue *= 0.97;
             this.tryPurchaseAiUpgrade('ai2', context);
         }
+
+        // Periodic weight mean-reversion (every 30s): pull weights back toward 100
+        const now = Date.now();
+        if (now - this.lastWeightReversionTime > 30000) {
+            this.lastWeightReversionTime = now;
+            [this.ai1, this.ai2].forEach(state => {
+                Object.keys(state.upgradesWeights).forEach(k => {
+                    state.upgradesWeights[k] = state.upgradesWeights[k] * 0.85 + 100 * 0.15;
+                });
+            });
+        }
+    }
+
+    public calculateTension(playerHpRatio: number, aiHpRatio: number): number {
+        const now = Date.now();
+        if (now - this.lastTensionCalcTime < 500) return this.matchTension;
+        this.lastTensionCalcTime = now;
+
+        const hpStress = 0.4 * (1 - playerHpRatio);
+        const aiStress = 0.2 * (1 - aiHpRatio);
+        const combatIntensity = 0.3 * Math.min(1, this.recentDamageEvents / 10);
+        const elapsedSec = (now - (this.matchStartTime || now)) / 1000;
+        const timeStress = 0.1 * Math.min(1, (elapsedSec % 60) / 60);
+
+        this.matchTension = Math.min(1, hpStress + aiStress + combatIntensity + timeStress);
+        this.recentDamageEvents = Math.max(0, this.recentDamageEvents - 0.5); // Natural decay
+        return this.matchTension;
+    }
+
+    public registerDamageEvent() {
+        this.recentDamageEvents++;
     }
 
     public spendTokens(upgradeTokens: number, abilityTokens: number, target: 'ai1' | 'ai2', context: BattleContext) {
@@ -155,7 +223,7 @@ export class BattleAiService {
         let boughtSomething = true;
         let attempts = 0;
         
-        while (boughtSomething && attempts < 3) {
+        while (boughtSomething && attempts < 1) { // Rate-limited: max 1 purchase per tick
             boughtSomething = false;
             attempts++;
             
@@ -240,6 +308,15 @@ export class BattleAiService {
             }
         }
         
-        state.upgradesWeights[selectedOpt] = Math.max(10, (state.upgradesWeights[selectedOpt] || 100) - 20);
+        // Multiplicative weight decay with floor — creates more diverse builds than linear
+        state.upgradesWeights[selectedOpt] = Math.max(15, (state.upgradesWeights[selectedOpt] || 100) * 0.6);
+
+        // Apply personality bias to relevant weights
+        if (selectedOpt === 'damage' || selectedOpt === 'attackSpeed' || selectedOpt.startsWith('ability_')) {
+            state.upgradesWeights[selectedOpt] *= state.personality.aggression;
+        }
+        if (selectedOpt === 'maxHealth' || selectedOpt === 'speed') {
+            state.upgradesWeights[selectedOpt] *= state.personality.caution;
+        }
     }
 }

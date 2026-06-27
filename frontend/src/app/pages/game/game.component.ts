@@ -877,7 +877,8 @@ export class GameComponent implements OnInit, OnDestroy {
                     const topAiHpRatio = (otherData.health || 1) / (otherData.maxHealth || 1);
                     const playerHpRatio = this.currentHealth() / this.maxHealth();
                     const state = this.buildMLState(other, this.playerBody, topAiHpRatio, playerHpRatio, 'projectile_player');
-                    this.mlAi.recordExperience(state, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y, useTap: 0, useHold: 0 }, -10);
+                    this.mlAi.recordExperience(state, { targetX: this.gameState.aiMousePos().x, targetY: this.gameState.aiMousePos().y, useTap: 0, useHold: 0 }, -2.0);
+                    this.battleAi.registerDamageEvent();
 
                     if (this.battleDropReady() && !this.battleDropGrace()) {
                         this.resolveBattleDrop(true, other.position.x, other.position.y);
@@ -957,36 +958,90 @@ export class GameComponent implements OnInit, OnDestroy {
 
           const enemyTarget = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
           const enemyData = enemyTarget?.plugin['data'] as EnemyData;
-          const topAiHpRatio = enemyData ? (enemyData.health || 1) / (enemyData.maxHealth || 1) : 1;
+          const topAiHpRatio = enemyTarget ? (enemyData.health || 1) / (enemyData.maxHealth || 1) : 1;
           const playerHpRatio = this.currentHealth() / this.maxHealth();
 
           const state = this.buildMLState(this.playerBody, enemyTarget, playerHpRatio, topAiHpRatio, 'projectile_enemy');
           
           let mlAction = this.mlAi.predictTarget(state);
-          // Periodically reward survival
-          if (Math.random() < 0.05) this.mlAi.recordExperience(state, mlAction, 1);
+          // Deterministic tick-based reward recording (every 10 frames)
+          const ai2FrameCount = ((this as any).__ai2FrameCount || 0) + 1;
+          (this as any).__ai2FrameCount = ai2FrameCount;
+          if (ai2FrameCount % 10 === 0) this.mlAi.recordExperience(state, mlAction, 0.5);
           
+          // Apply personality-scaled noise for variety
+          const ai2Noise = this.battleAi.ai2.personality?.creativity || 1.0;
+          const ai2NoiseScale = 0.05 * ai2Noise;
+          mlAction.targetX += (Math.random() - 0.5) * window.innerWidth * ai2NoiseScale;
+          mlAction.targetY += (Math.random() - 0.5) * window.innerHeight * ai2NoiseScale;
+
           let targetPosition = { x: mlAction.targetX, y: mlAction.targetY };
           if (mlAction.useHold > 0.5) {
               targetPosition.x = this.playerBody.position.x;
               targetPosition.y = this.playerBody.position.y;
           }
-          targetPosition.x = Math.max(100, Math.min(window.innerWidth - 100, targetPosition.x));
-          targetPosition.y = Math.max(100, Math.min(window.innerHeight - 100, targetPosition.y));
+
+          // Soft boundary repulsion
+          const ai2Margin = 150;
+          const ai2Repulsion = 200;
+          if (targetPosition.x < ai2Margin) {
+              const prox = (ai2Margin - targetPosition.x) / ai2Margin;
+              targetPosition.x += prox * prox * ai2Repulsion;
+          }
+          if (targetPosition.x > window.innerWidth - ai2Margin) {
+              const prox = (targetPosition.x - (window.innerWidth - ai2Margin)) / ai2Margin;
+              targetPosition.x -= prox * prox * ai2Repulsion;
+          }
+          if (targetPosition.y < ai2Margin) {
+              const prox = (ai2Margin - targetPosition.y) / ai2Margin;
+              targetPosition.y += prox * prox * ai2Repulsion;
+          }
+          if (targetPosition.y > window.innerHeight - ai2Margin) {
+              const prox = (targetPosition.y - (window.innerHeight - ai2Margin)) / ai2Margin;
+              targetPosition.y -= prox * prox * ai2Repulsion;
+          }
+
+          // Multi-agent separation force
+          const ai2SepRadius = 250;
+          const ai2SepForce = 150;
+          const ai1Body = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
+          if (ai1Body) {
+              const sepVec = Matter.Vector.sub(this.playerBody.position, ai1Body.position);
+              const sepDist = Matter.Vector.magnitude(sepVec);
+              if (sepDist < ai2SepRadius && sepDist > 0) {
+                  const repulse = Matter.Vector.mult(
+                      Matter.Vector.normalise(sepVec),
+                      ai2SepForce * (1 - sepDist / ai2SepRadius)
+                  );
+                  targetPosition.x += repulse.x;
+                  targetPosition.y += repulse.y;
+              }
+          }
+
+          targetPosition.x = Math.max(50, Math.min(window.innerWidth - 50, targetPosition.x));
+          targetPosition.y = Math.max(50, Math.min(window.innerHeight - 50, targetPosition.y));
           
           const mouseForce = Matter.Vector.sub(targetPosition, currentMouse);
-          const now = Date.now();
-          if (this.battleAi.ai2.lastHoldTime && this.holdAbilityEndTime && now < this.holdAbilityEndTime) {
+          const nowTime = Date.now();
+          if (this.battleAi.ai2.lastHoldTime && this.holdAbilityEndTime && nowTime < this.holdAbilityEndTime) {
               this.gameState.ai2MousePos.set({ x: targetPosition.x, y: targetPosition.y });
           } else {
-              if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
-                  const mouseNorm = Matter.Vector.normalise(mouseForce);
+              // EMA smoothing — no snap teleport
+              const smoothFactor = 0.08;
+              const lerpX = currentMouse.x + (targetPosition.x - currentMouse.x) * smoothFactor * delta * 60;
+              const lerpY = currentMouse.y + (targetPosition.y - currentMouse.y) * smoothFactor * delta * 60;
+              const maxStep = mouseSpeed * delta * 60;
+              const emaDx = lerpX - currentMouse.x;
+              const emaDy = lerpY - currentMouse.y;
+              const emaDist = Math.sqrt(emaDx * emaDx + emaDy * emaDy);
+              if (emaDist > maxStep) {
+                  const emaScale = maxStep / emaDist;
                   this.gameState.ai2MousePos.set({
-                      x: currentMouse.x + mouseNorm.x * mouseSpeed * delta * 60,
-                      y: currentMouse.y + mouseNorm.y * mouseSpeed * delta * 60
+                      x: currentMouse.x + emaDx * emaScale,
+                      y: currentMouse.y + emaDy * emaScale
                   });
               } else {
-                  this.gameState.ai2MousePos.set({ x: targetPosition.x, y: targetPosition.y });
+                  this.gameState.ai2MousePos.set({ x: lerpX, y: lerpY });
               }
           }
 
@@ -995,18 +1050,22 @@ export class GameComponent implements OnInit, OnDestroy {
               const now = Date.now();
               if (mlAction.useTap > 0.5) {
                   const ability = this.battleAi.ai2.abilities.find(ab => ABILITIES[ab]?.type === 'tap') || 'burst';
-                  if (!this.battleAi.ai2.lastTapTime || now - this.battleAi.ai2.lastTapTime > (this.battleAi.ai2.tapCooldown || 0) * 1000) {
+                  const tapFatigueMult = 1 + (this.battleAi.ai2.tapFatigue || 0);
+                  if (!this.battleAi.ai2.lastTapTime || now - this.battleAi.ai2.lastTapTime > (this.battleAi.ai2.tapCooldown || 0) * 1000 * tapFatigueMult) {
                       const cd = this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.battleAi.ai2.stats, 'player');
                       this.battleAi.ai2.lastTapTime = now;
                       this.battleAi.ai2.tapCooldown = cd;
+                      this.battleAi.ai2.tapFatigue = (this.battleAi.ai2.tapFatigue || 0) + 0.3;
                   }
               }
               if (mlAction.useHold > 0.5) {
                   const ability = this.battleAi.ai2.abilities.find(ab => ABILITIES[ab]?.type === 'hold') || 'aura';
-                  if (!this.battleAi.ai2.lastHoldTime || now - this.battleAi.ai2.lastHoldTime > (this.battleAi.ai2.holdCooldown || 0) * 1000) {
+                  const ai2HoldFatigueMult = 1 + (this.battleAi.ai2.holdFatigue || 0);
+                  if (!this.battleAi.ai2.lastHoldTime || now - this.battleAi.ai2.lastHoldTime > (this.battleAi.ai2.holdCooldown || 0) * 1000 * ai2HoldFatigueMult) {
                       const cd = this.triggerAbility(ability, this.playerBody, mlAction.targetX, mlAction.targetY, this.battleAi.ai2.stats, 'player');
                       this.battleAi.ai2.lastHoldTime = now;
                       this.battleAi.ai2.holdCooldown = cd;
+                      this.battleAi.ai2.holdFatigue = (this.battleAi.ai2.holdFatigue || 0) + 0.3;
                   }
               }
           }
@@ -1129,56 +1188,124 @@ export class GameComponent implements OnInit, OnDestroy {
             
             // Machine Learning Prediction!
             let mlAction = this.mlAi.predictTarget(state);
+
+            // Deterministic tick-based reward recording (every 10 frames)
+            const ai1FrameCount = ((eAny).__ai1FrameCount || 0) + 1;
+            eAny.__ai1FrameCount = ai1FrameCount;
+            if (ai1FrameCount % 10 === 0) this.mlAi.recordExperience(state, mlAction, 0.5);
+
+            // Apply personality-scaled noise for variety
+            const ai1Noise = this.battleAi.ai1.personality?.creativity || 1.0;
+            const ai1NoiseScale = 0.05 * ai1Noise;
+            mlAction.targetX += (Math.random() - 0.5) * window.innerWidth * ai1NoiseScale;
+            mlAction.targetY += (Math.random() - 0.5) * window.innerHeight * ai1NoiseScale;
+
             let targetPosition = { x: mlAction.targetX, y: mlAction.targetY };
             if (mlAction.useHold > 0.5) {
                 targetPosition.x = enemy.position.x;
                 targetPosition.y = enemy.position.y;
             }
             
-            // Process ML Abilities for Top AI
+            // Process ML Abilities for Top AI (with fatigue)
             if (this.gameState.currentGameMode() === 'ai_vs_ai' || this.gameState.currentGameMode() === 'battle') {
                 const now = Date.now();
                 const tapAb = this.battleAi.ai1.abilities.find(ab => ABILITIES[ab]?.type === 'tap');
                 const holdAb = this.battleAi.ai1.abilities.find(ab => ABILITIES[ab]?.type === 'hold');
                 
-                if (mlAction.useTap > 0.5 && tapAb && (!eAny.lastTapAbilityTime || now >= eAny.lastTapAbilityTime + (eAny.tapCooldown || 0))) {
+                const tapFatigueMult = 1 + (this.battleAi.ai1.tapFatigue || 0);
+                if (mlAction.useTap > 0.5 && tapAb && (!eAny.lastTapAbilityTime || now >= eAny.lastTapAbilityTime + (eAny.tapCooldown || 0) * tapFatigueMult)) {
                     const cd = this.triggerAbility(tapAb, enemy, mlAction.targetX, mlAction.targetY, this.battleAi.ai1.stats, 'enemy');
                     eAny.lastTapAbilityTime = now;
                     eAny.tapCooldown = cd;
+                    this.battleAi.ai1.tapFatigue += 0.3;
                 }
                 
-                if (mlAction.useHold > 0.5 && holdAb && (!eAny.lastHoldAbilityTime || now >= eAny.lastHoldAbilityTime + (eAny.holdCooldown || 0))) {
+                const holdFatigueMult = 1 + (this.battleAi.ai1.holdFatigue || 0);
+                if (mlAction.useHold > 0.5 && holdAb && (!eAny.lastHoldAbilityTime || now >= eAny.lastHoldAbilityTime + (eAny.holdCooldown || 0) * holdFatigueMult)) {
                     const cd = this.triggerAbility(holdAb, enemy, mlAction.targetX, mlAction.targetY, this.battleAi.ai1.stats, 'enemy');
                     eAny.lastHoldAbilityTime = now;
                     eAny.holdCooldown = cd;
+                    this.battleAi.ai1.holdFatigue += 0.3;
                 }
             }
 
-            // Periodically reward survival
-            if (Math.random() < 0.05) {
-                this.mlAi.recordExperience(state, mlAction, 1);
+            // Soft boundary repulsion
+            const ai1Margin = 150;
+            const ai1Repulsion = 200;
+            if (targetPosition.x < ai1Margin) {
+                const prox = (ai1Margin - targetPosition.x) / ai1Margin;
+                targetPosition.x += prox * prox * ai1Repulsion;
             }
-            
-            targetPosition.x = Math.max(100, Math.min(window.innerWidth - 100, targetPosition.x));
-            targetPosition.y = Math.max(100, Math.min(window.innerHeight - 100, targetPosition.y));
+            if (targetPosition.x > window.innerWidth - ai1Margin) {
+                const prox = (targetPosition.x - (window.innerWidth - ai1Margin)) / ai1Margin;
+                targetPosition.x -= prox * prox * ai1Repulsion;
+            }
+            if (targetPosition.y < ai1Margin) {
+                const prox = (ai1Margin - targetPosition.y) / ai1Margin;
+                targetPosition.y += prox * prox * ai1Repulsion;
+            }
+            if (targetPosition.y > window.innerHeight - ai1Margin) {
+                const prox = (targetPosition.y - (window.innerHeight - ai1Margin)) / ai1Margin;
+                targetPosition.y -= prox * prox * ai1Repulsion;
+            }
+
+            // Multi-agent separation force (AI vs AI)
+            if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+                const separationRadius = 250;
+                const separationForce = 150;
+                const sepVec = Matter.Vector.sub(enemy.position, this.playerBody.position);
+                const sepDist = Matter.Vector.magnitude(sepVec);
+                if (sepDist < separationRadius && sepDist > 0) {
+                    const repulse = Matter.Vector.mult(
+                        Matter.Vector.normalise(sepVec),
+                        separationForce * (1 - sepDist / separationRadius)
+                    );
+                    targetPosition.x += repulse.x;
+                    targetPosition.y += repulse.y;
+                }
+            }
+
+            // Hard clamp safety net
+            targetPosition.x = Math.max(50, Math.min(window.innerWidth - 50, targetPosition.x));
+            targetPosition.y = Math.max(50, Math.min(window.innerHeight - 50, targetPosition.y));
             
             const now = Date.now();
+
+            // Cache player position with ~150ms reaction delay (human-like)
+            if (!(eAny.__stalePlayerPosUpdateTime) || now - eAny.__stalePlayerPosUpdateTime > 150) {
+                eAny.__stalePlayerPos = { x: this.playerBody.position.x, y: this.playerBody.position.y };
+                eAny.__stalePlayerPosUpdateTime = now;
+            }
+
             if (eAny.holdAbilityEndTime && now < eAny.holdAbilityEndTime) {
                 // Do not move aiMousePos while holding ability
             } else {
-                const mouseForce = Matter.Vector.sub(targetPosition, currentMouse);
-                if (Matter.Vector.magnitude(mouseForce) > mouseSpeed) {
-                    const mouseNorm = Matter.Vector.normalise(mouseForce);
+                // EMA smoothing — no snap teleport
+                const smoothFactor = 0.08;
+                const lerpX = currentMouse.x + (targetPosition.x - currentMouse.x) * smoothFactor * delta * 60;
+                const lerpY = currentMouse.y + (targetPosition.y - currentMouse.y) * smoothFactor * delta * 60;
+                const maxStep = mouseSpeed * delta * 60;
+                const emaDx = lerpX - currentMouse.x;
+                const emaDy = lerpY - currentMouse.y;
+                const emaDist = Math.sqrt(emaDx * emaDx + emaDy * emaDy);
+                if (emaDist > maxStep) {
+                    const emaScale = maxStep / emaDist;
                     this.gameState.aiMousePos.set({
-                        x: currentMouse.x + mouseNorm.x * mouseSpeed * delta * 60,
-                        y: currentMouse.y + mouseNorm.y * mouseSpeed * delta * 60
+                        x: currentMouse.x + emaDx * emaScale,
+                        y: currentMouse.y + emaDy * emaScale
                     });
                 } else {
-                    this.gameState.aiMousePos.set({ x: targetPosition.x, y: targetPosition.y });
+                    this.gameState.aiMousePos.set({ x: lerpX, y: lerpY });
                 }
             }
 
-            if ((!eAny.holdAbilityEndTime || now >= eAny.holdAbilityEndTime) && now - this.battleAi.ai1.lastTapTime > (1500 / (this.battleAi.ai1.stats?.attackSpeed || 1))) {
+            // Tension-modulated fire rate
+            const tension = this.battleAi.calculateTension(
+                this.currentHealth() / this.maxHealth(),
+                (data.health || 1) / (data.maxHealth || 1)
+            );
+            const fireDelay = (1500 / (this.battleAi.ai1.stats?.attackSpeed || 1)) * (1 + tension * 0.5);
+            if ((!eAny.holdAbilityEndTime || now >= eAny.holdAbilityEndTime) && now - this.battleAi.ai1.lastTapTime > fireDelay) {
                 this.battleAi.ai1.lastTapTime = now;
                 this.fireEnemyProjectile(enemy.position);
             }
@@ -1189,7 +1316,9 @@ export class GameComponent implements OnInit, OnDestroy {
             return; // Skip normal force-based movement
         }
         
-        Matter.Body.applyForce(enemy, enemy.position, Matter.Vector.mult(normalized, moveSpeed));
+        // Delta-time scaled enemy forces for consistent cross-device behavior
+        const dtScale = delta / (1 / 60); // Normalize to 60fps baseline
+        Matter.Body.applyForce(enemy, enemy.position, Matter.Vector.mult(normalized, moveSpeed * dtScale));
       });
 
       // 4. Magnetism for items
@@ -1780,7 +1909,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               this.audioService.playSFX('explosion');
               this.triggerImpactEffect(enemy.position.x, enemy.position.y, true);
               this.gameState.ai2Wins.update(w => w + 1);
-              this.mlAi.addReward(-100); // the one who died is top ai (enemy)
+              this.mlAi.addReward(-5); // the one who died is top ai (enemy) — balanced penalty
               data.health = data.maxHealth;
               this.bossHealth.set(data.maxHealth);
               data.immortalUntil = Date.now() + 2000;
@@ -2073,7 +2202,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           this.audioService.playSFX('explosion');
           this.triggerImpactEffect(this.playerBody.position.x, this.playerBody.position.y, true);
           this.gameState.ai1Wins.update(w => w + 1);
-          this.mlAi.addReward(100); // the one who died is player (ai 2), top ai wins!
+          this.mlAi.addReward(10); // the one who died is player (ai 2), top ai wins — balanced reward
           this.currentHealth.set(this.maxHealth());
           this.gameState.immortalUntil = Date.now() + 2000;
           // Re-roll ai2Abilities on respawn
@@ -2417,8 +2546,18 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
 
   private fireEnemyProjectile(source: Matter.Vector) {
-    const dir = Matter.Vector.normalise(Matter.Vector.sub(this.playerBody.position, source));
+    // Use stale position for reaction delay (human-like ~150ms lag)
+    const enemyPhoenix = this.enemies.find(e => e.plugin['data']?.type === 'enemy_phoenix');
+    const eAny = enemyPhoenix as any;
+    const targetPos = (eAny?.__stalePlayerPos) || this.playerBody.position;
+    const dir = Matter.Vector.normalise(Matter.Vector.sub(targetPos, source));
     const damage = this.battleAi.ai1.stats?.damage || 10;
+
+    // Aim spread: ±3° base, increasing with distance (human-like inaccuracy)
+    const dist = Matter.Vector.magnitude(Matter.Vector.sub(this.playerBody.position, source));
+    const maxSpread = 0.05 + (dist / 1000) * 0.08; // Radians
+    const spreadAngle = (Math.random() - 0.5) * maxSpread * 2;
+    const finalDir = Matter.Vector.rotate(dir, spreadAngle);
     
     const projectile = Matter.Bodies.circle(source.x, source.y, 8, {
       label: 'projectile',
@@ -2428,7 +2567,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       }
     });
 
-    Matter.Body.setVelocity(projectile, Matter.Vector.mult(dir, 15));
+    Matter.Body.setVelocity(projectile, Matter.Vector.mult(finalDir, 15));
     Matter.Composite.add(this.engine.world, projectile);
     setTimeout(() => { if (projectile.parent) Matter.Composite.remove(this.engine.world, projectile); }, 2000);
   }

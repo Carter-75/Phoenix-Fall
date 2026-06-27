@@ -37,6 +37,11 @@ export class MlAiService {
     
     private replayBuffer: Experience[] = [];
     private maxBufferSize = 500;
+
+    // Decaying exploration: starts high, converges to minimum
+    private explorationRate = 0.15;
+    private minExplorationRate = 0.02;
+    private explorationDecay = 0.9995;
     
     // X, Y, useTap, useHold
     private readonly OUTPUT_UNITS = 4;
@@ -149,7 +154,9 @@ export class MlAiService {
             const output = this.model.predict(input) as tf.Tensor;
             const data = output.dataSync();
             
-            const explore = Math.random() < 0.05;
+            const explore = Math.random() < this.explorationRate;
+            this.explorationRate = Math.max(this.minExplorationRate,
+                this.explorationRate * this.explorationDecay);
             
             return {
                 targetX: (explore ? Math.random() : data[0]) * window.innerWidth,
@@ -174,40 +181,99 @@ export class MlAiService {
     }
 
     public async trainOnMemory() {
-        if (this.replayBuffer.length === 0) return;
-        
+        if (this.replayBuffer.length < 16) return; // Min batch requirement
+
+        // Separate positive and negative experiences
+        const positiveExps = this.replayBuffer.filter(e => e.reward > 0);
+        const negativeExps = this.replayBuffer.filter(e => e.reward <= 0);
+
+        if (positiveExps.length === 0) {
+            this.replayBuffer = [];
+            return; // Nothing good to learn from yet
+        }
+
         const inputs: number[][] = [];
         const outputs: number[][] = [];
-        
-        for (let exp of this.replayBuffer) {
+        const sampleWeights: number[] = [];
+
+        // Normalize rewards for weighting
+        const maxReward = Math.max(1, ...positiveExps.map(e => e.reward));
+
+        for (const exp of positiveExps) {
             inputs.push(this.stateToArray(exp.state));
-            
-            let tx = exp.action.targetX / window.innerWidth;
-            let ty = exp.action.targetY / window.innerHeight;
-            let tTap = exp.action.useTap;
-            let tHold = exp.action.useHold;
-            
-            if (exp.reward < 0) {
-                tx = 1.0 - tx;
-                ty = 1.0 - ty;
-                tTap = tTap > 0.5 ? 0 : 1;
-                tHold = tHold > 0.5 ? 0 : 1;
-            }
-            outputs.push([tx, ty, tTap, tHold]);
+            outputs.push([
+                exp.action.targetX / window.innerWidth,
+                exp.action.targetY / window.innerHeight,
+                exp.action.useTap,
+                exp.action.useHold
+            ]);
+            sampleWeights.push(exp.reward / maxReward); // Normalize [0, 1]
         }
-        
+
+        // For negative experiences: train toward the MEAN of all positive actions
+        // This creates a "retreat to safe behavior" gradient instead of mirror oscillation
+        if (negativeExps.length > 0 && positiveExps.length > 0) {
+            const meanPositiveAction = [
+                positiveExps.reduce((s, e) => s + e.action.targetX / window.innerWidth, 0) / positiveExps.length,
+                positiveExps.reduce((s, e) => s + e.action.targetY / window.innerHeight, 0) / positiveExps.length,
+                positiveExps.reduce((s, e) => s + e.action.useTap, 0) / positiveExps.length,
+                positiveExps.reduce((s, e) => s + e.action.useHold, 0) / positiveExps.length,
+            ];
+
+            for (const exp of negativeExps.slice(0, positiveExps.length)) {
+                inputs.push(this.stateToArray(exp.state));
+                outputs.push(meanPositiveAction);
+                sampleWeights.push(0.1); // Weak gradient — don't overpower positive learning
+            }
+        }
+
         const x = tf.tensor2d(inputs);
         const y = tf.tensor2d(outputs);
-        
+        const w = tf.tensor1d(sampleWeights);
+
         await this.model.fit(x, y, {
             epochs: 1,
-            batchSize: 32,
-            shuffle: true
+            batchSize: Math.min(32, inputs.length),
+            shuffle: true,
+            sampleWeight: w
         });
-        
+
         x.dispose();
         y.dispose();
-        
+        w.dispose();
+
         this.replayBuffer = [];
+    }
+
+    /**
+     * Nuclear reset: destroy trained model, re-initialize with random weights,
+     * clear replay buffer, reset exploration, and push fresh weights to server.
+     */
+    public resetWeights(): Promise<boolean> {
+        return new Promise((resolve) => {
+            // Dispose old model
+            this.model.dispose();
+
+            // Rebuild from scratch
+            this.initModel();
+
+            // Reset learning state
+            this.replayBuffer = [];
+            this.explorationRate = 0.15;
+            this.isTrained = true;
+
+            // Push fresh random weights to server (overwrite DB)
+            const weightsArr = this.getWeightsAsArray();
+            this.http.post(`${environment.apiUrl}/api/ai/weights`, { weights: weightsArr }).subscribe({
+                next: () => {
+                    console.log('AI weights reset and pushed to server!');
+                    resolve(true);
+                },
+                error: (err) => {
+                    console.error('Failed to push reset weights', err);
+                    resolve(false);
+                }
+            });
+        });
     }
 }

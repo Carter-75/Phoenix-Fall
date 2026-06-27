@@ -1,6 +1,7 @@
-import { Component, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Output, EventEmitter, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AudioService } from '../../services/audio.service';
+import { MlAiService } from '../../services/ml-ai.service';
 
 @Component({
   selector: 'app-settings',
@@ -107,6 +108,32 @@ import { AudioService } from '../../services/audio.service';
                            (input)="updateVolume('intenseVolume', $event)" 
                            class="w-full intense-slider">
                 </div>
+
+                <!-- Reset AI Brain (hold 3s) -->
+                <div class="separator"></div>
+                <div class="slider-group">
+                    <label class="text-xs text-white/40 uppercase tracking-wider mb-1 block">Danger Zone</label>
+                    <button class="reset-ai-btn"
+                            [class.holding]="resetHoldProgress() > 0"
+                            [class.done]="resetComplete()"
+                            (mousedown)="onResetHoldStart()"
+                            (mouseup)="onResetHoldEnd()"
+                            (mouseleave)="onResetHoldEnd()"
+                            (touchstart)="onResetHoldStart()"
+                            (touchend)="onResetHoldEnd()"
+                            (touchcancel)="onResetHoldEnd()">
+                        <div class="reset-fill" [style.width.%]="resetHoldProgress()"></div>
+                        <span class="reset-label">
+                            @if (resetComplete()) {
+                                ✅ AI Brain Reset!
+                            } @else if (resetHoldProgress() > 0) {
+                                🧠 Hold... {{ (3 - resetHoldProgress() / 100 * 3).toFixed(1) }}s
+                            } @else {
+                                🧠 Reset AI Brain (Hold 3s)
+                            }
+                        </span>
+                    </button>
+                </div>
             </div>
             
             <button class="btn btn-primary mt-8 w-full" (click)="close.emit()">DONE</button>
@@ -163,6 +190,50 @@ import { AudioService } from '../../services/audio.service';
         background: #ff4444;
         box-shadow: 0 0 10px #ff4444;
     }
+    .separator {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255,68,68,0.3), transparent);
+        margin: 0.5rem 0;
+    }
+    .reset-ai-btn {
+        position: relative;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(255, 68, 68, 0.3);
+        background: rgba(255, 68, 68, 0.05);
+        color: #ff6666;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        overflow: hidden;
+        transition: border-color 0.3s, box-shadow 0.3s;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+    .reset-ai-btn:hover {
+        border-color: rgba(255, 68, 68, 0.6);
+    }
+    .reset-ai-btn.holding {
+        border-color: #ff4444;
+        box-shadow: 0 0 15px rgba(255, 68, 68, 0.3);
+    }
+    .reset-ai-btn.done {
+        border-color: #44ff44;
+        box-shadow: 0 0 20px rgba(68, 255, 68, 0.3);
+        color: #44ff44;
+    }
+    .reset-fill {
+        position: absolute;
+        top: 0; left: 0; bottom: 0;
+        background: linear-gradient(90deg, rgba(255,68,68,0.15), rgba(255,68,68,0.3));
+        transition: width 0.05s linear;
+        pointer-events: none;
+    }
+    .reset-label {
+        position: relative;
+        z-index: 1;
+    }
     .btn {
         background: linear-gradient(90deg, #ff8800, #ffaa00);
         color: white; font-weight: bold;
@@ -190,7 +261,15 @@ import { AudioService } from '../../services/audio.service';
 })
 export class SettingsComponent {
   public audio = inject(AudioService);
+  private mlAi = inject(MlAiService);
   @Output() close = new EventEmitter<void>();
+
+  // Reset AI hold state
+  resetHoldProgress = signal(0);
+  resetComplete = signal(false);
+  private holdInterval: any = null;
+  private holdStartTime = 0;
+  private readonly HOLD_DURATION_MS = 3000;
 
   updateVolume(channel: 'masterVolume'|'menuVolume'|'attackVolume'|'intenseVolume'|'sfxVolume'|'dropVolume', event: any) {
       const val = parseFloat(event.target.value);
@@ -201,5 +280,44 @@ export class SettingsComponent {
       if ((event.target as HTMLElement).classList.contains('settings-modal')) {
           this.close.emit();
       }
+  }
+
+  onResetHoldStart() {
+      if (this.resetComplete()) return;
+      this.holdStartTime = Date.now();
+      this.resetHoldProgress.set(0);
+
+      this.holdInterval = setInterval(() => {
+          const elapsed = Date.now() - this.holdStartTime;
+          const progress = Math.min(100, (elapsed / this.HOLD_DURATION_MS) * 100);
+          this.resetHoldProgress.set(progress);
+
+          if (progress >= 100) {
+              clearInterval(this.holdInterval);
+              this.holdInterval = null;
+              this.executeReset();
+          }
+      }, 50);
+  }
+
+  onResetHoldEnd() {
+      if (this.holdInterval) {
+          clearInterval(this.holdInterval);
+          this.holdInterval = null;
+      }
+      if (!this.resetComplete()) {
+          this.resetHoldProgress.set(0);
+      }
+  }
+
+  private async executeReset() {
+      this.resetComplete.set(true);
+      await this.mlAi.resetWeights();
+
+      // Auto-clear the "done" state after 3s
+      setTimeout(() => {
+          this.resetComplete.set(false);
+          this.resetHoldProgress.set(0);
+      }, 3000);
   }
 }
