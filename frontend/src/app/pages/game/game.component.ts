@@ -117,14 +117,36 @@ interface EnemyData {
           }
         </div>
         <!-- Hold Ability -->
-        <div class="relative w-14 h-14 md:w-16 md:h-16 bg-black/50 border border-white/20 rounded-2xl overflow-hidden flex items-center justify-center backdrop-blur-sm shadow-[0_0_15px_rgba(0,255,255,0.2)]">
+        <div class="relative w-14 h-14 md:w-16 md:h-16 bg-black/50 border border-white/20 rounded-2xl overflow-hidden flex items-center justify-center backdrop-blur-sm shadow-[0_0_15px_rgba(0,255,255,0.2)]"
+             [class.ring-2]="holdChargeProgress() > 0" [class.ring-cyan-300]="holdChargeProgress() > 0">
           <span class="text-3xl z-10" [class.opacity-50]="holdCooldown() > 0">{{ getHoldIcon() }}</span>
           @if (holdCooldown() > 0) {
             <div class="absolute bottom-0 left-0 w-full bg-cyan-600/50 transition-all" [style.height]="(holdCooldown() / getHoldMaxCooldown()) * 100 + '%'"></div>
             <span class="absolute z-20 text-white font-bold drop-shadow-md">{{ holdCooldown().toFixed(1) }}</span>
           }
+          @if (holdChargeProgress() > 0 && holdCooldown() <= 0) {
+            <div class="absolute bottom-0 left-0 w-full bg-cyan-400/40" [style.height]="holdChargeProgress() * 100 + '%'"></div>
+          }
         </div>
       </div>
+
+      <!-- Hold-charge ring anchored to the finger (fills as you hold still; flashes when ready) -->
+      @if (holdChargeProgress() > 0 && holdCooldown() <= 0) {
+        <div class="fixed pointer-events-none z-40 -translate-x-1/2 -translate-y-1/2"
+             [style.left.px]="holdChargePos().x" [style.top.px]="holdChargePos().y">
+          <div class="w-24 h-24 rounded-full flex items-center justify-center"
+               [class.animate-ping]="holdChargeProgress() >= 1"
+               [style.background]="'conic-gradient(rgba(34,211,238,0.85) ' + (holdChargeProgress()*360) + 'deg, rgba(255,255,255,0.08) 0deg)'">
+            <div class="w-20 h-20 rounded-full bg-black/40 border border-cyan-300/40 flex items-center justify-center">
+              @if (holdChargeProgress() >= 1) {
+                <span class="text-cyan-200 text-[10px] font-bold uppercase tracking-widest text-center leading-tight">Release<br/>to move</span>
+              } @else {
+                <span class="text-cyan-100/80 text-xs font-bold">{{ (holdChargeProgress()*100).toFixed(0) }}%</span>
+              }
+            </div>
+          </div>
+        </div>
+      }
 
       <!-- Boss Warning & Rage Mode -->
       @if (bossSpawned() && !rageModeActive()) {
@@ -424,6 +446,9 @@ export class GameComponent implements OnInit, OnDestroy {
   private mouseY = window.innerHeight / 2;
 
   private isMouseHeld = false;
+  // Hold-ability charge feedback (0..1) and the screen position of the charging finger.
+  public holdChargeProgress = signal<number>(0);
+  public holdChargePos = signal<{x: number, y: number}>({ x: 0, y: 0 });
 
   private holdTimer = 0;
 
@@ -1088,25 +1113,33 @@ export class GameComponent implements OnInit, OnDestroy {
           }
       }
 
-      // 2. Track Hold-Still for Aura
+      // 2. Track Hold-Still for the hold ability.
+      // Player presses and holds WITHOUT moving; a charge ring fills; at full charge the ability
+      // fires and the ring flashes "release". Moving the finger (>10px) cancels the charge so the
+      // player can keep flying normally.
+      const HOLD_CHARGE_MS = 3000;
       if (this.isMouseHeld && !this.isDead() && !this.gameState.isPaused() && !this.gameState.isRebirthing()) {
         const dist = Math.hypot(this.mouseX - this.holdStartX, this.mouseY - this.holdStartY);
-        if (dist > 10) {
+        const holdAbility = this.gameState.currentStats().activeHoldAbility;
+        if (dist > 10 || !holdAbility || this.holdCooldown() > 0) {
+            // Finger moved (normal flight) OR no hold ability OR on cooldown -> no charge.
             this.holdStartX = this.mouseX;
             this.holdStartY = this.mouseY;
             this.holdTimer = 0;
+            if (this.holdChargeProgress() !== 0) this.holdChargeProgress.set(0);
         } else {
             this.holdTimer += delta * 1000;
-            if (this.holdTimer >= 3000 && this.holdCooldown() <= 0) {
-                const ability = this.gameState.currentStats().activeHoldAbility;
-                if (ability) {
-                    const cd = this.triggerAbility(ability, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
-                    if (cd > 0) this.holdCooldown.set(cd);
-                }
-                
+            this.holdChargeProgress.set(Math.min(1, this.holdTimer / HOLD_CHARGE_MS));
+            this.holdChargePos.set({ x: this.mouseX, y: this.mouseY });
+            if (this.holdTimer >= HOLD_CHARGE_MS) {
+                const cd = this.triggerAbility(holdAbility, this.playerBody, this.mouseX, this.mouseY, this.gameState.currentStats(), 'player');
+                if (cd > 0) this.holdCooldown.set(cd);
                 this.holdTimer = 0;
+                this.holdChargeProgress.set(0);
             }
         }
+      } else if (this.holdChargeProgress() !== 0) {
+        this.holdChargeProgress.set(0);
       }
 
       // 3. Update enemies
