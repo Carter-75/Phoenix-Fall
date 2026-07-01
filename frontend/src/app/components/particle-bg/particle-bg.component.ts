@@ -474,7 +474,10 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
               bird.targetWaypoint.copy(targetWaypoint);
           }
           
-          if (this.gameState.activeScreen() === 'game') {
+          // Player bird follows the mouse on the game screen AND on the menu (so it's controllable
+          // the moment the app loads). The AI bird only animates in-game.
+          const isMenuScreen = this.gameState.activeScreen() === 'menu';
+          if (this.gameState.activeScreen() === 'game' || (!isAi && isMenuScreen)) {
           const overridePos = isAi ? this.gameState.aiPhoenixOverridePosition() : this.gameState.phoenixOverridePosition();
           if (overridePos) {
               const vec = new THREE.Vector3(
@@ -522,7 +525,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
               let speedMult = 1.0; 
               if (!isAi) {
-                  if (this.gameState.currentGameMode() === 'ai_vs_ai') {
+                  if (this.gameState.activeScreen() === 'menu') {
+                      speedMult = 1.0; // Menu: plain mouse-follow regardless of saved mode
+                  } else if (this.gameState.currentGameMode() === 'ai_vs_ai') {
                       speedMult = this.gameState.ai2PhoenixSpeed();
                   } else {
                       speedMult = this.gameState.currentStats().speed;
