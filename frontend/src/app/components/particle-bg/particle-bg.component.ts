@@ -103,16 +103,25 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
 
     this.animate();
     
-    window.addEventListener('resize', this.onResize.bind(this));
-    window.addEventListener('mousemove', this.onMouseMove.bind(this));
-    window.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
+    // Bind once and keep the refs so removeEventListener actually works (avoids leaks / duplicate
+    // listeners when the component is recreated).
+    window.addEventListener('resize', this.boundResize);
+    window.addEventListener('mousemove', this.boundMouseMove);
+    // touchstart so a simple tap/hold (no drag) immediately moves the Phoenix — required for APK.
+    window.addEventListener('touchstart', this.boundTouchMove, { passive: false });
+    window.addEventListener('touchmove', this.boundTouchMove, { passive: false });
   }
-  
+
+  private boundResize = this.onResize.bind(this);
+  private boundMouseMove = this.onMouseMove.bind(this);
+  private boundTouchMove = this.onTouchMove.bind(this);
+
   ngOnDestroy() {
     if (this.animationId) cancelAnimationFrame(this.animationId);
-    window.removeEventListener('resize', this.onResize.bind(this));
-    window.removeEventListener('mousemove', this.onMouseMove.bind(this));
-    window.removeEventListener('touchmove', this.onTouchMove.bind(this));
+    window.removeEventListener('resize', this.boundResize);
+    window.removeEventListener('mousemove', this.boundMouseMove);
+    window.removeEventListener('touchstart', this.boundTouchMove);
+    window.removeEventListener('touchmove', this.boundTouchMove);
     this.renderer.dispose();
   }
 
@@ -184,6 +193,9 @@ export class ParticleBgComponent implements OnInit, OnDestroy {
   private onTouchMove(event: TouchEvent) {
     if (this.gameState.isPaused() || this.gameState.isDeadMenuOpen()) return;
     if (event.touches.length > 0) {
+      // Prevent the WebView from scrolling / rubber-banding while the finger drives the Phoenix,
+      // but only during gameplay so menu UI (buttons, scroll) still works.
+      if (this.gameState.activeScreen() === 'game' && event.cancelable) event.preventDefault();
       this.updateMouseTarget(event.touches[0].clientX, event.touches[0].clientY);
     }
   }

@@ -3,7 +3,8 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.phoenix.fall',
   appName: 'PhoenixFall',
-  webDir: 'dist/frontend',
+  // Angular application builder emits static files under dist/<project>/browser
+  webDir: 'dist/frontend/browser',
   plugins: {
     CapacitorCookies: {
       enabled: true,
