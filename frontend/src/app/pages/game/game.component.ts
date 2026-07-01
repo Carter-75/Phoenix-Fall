@@ -350,6 +350,10 @@ export class GameComponent implements OnInit, OnDestroy {
   
   public battleTimer = signal<number>(0);
 
+  // True while the cinematic battle entrance is playing. The world stays LIVE (physics running,
+  // no hard pause) but: player movement is frozen (body slaved to entrance override), AI logic &
+  // attacks are disabled, and damage is suppressed so nobody dies during the intro.
+  public entranceActive = signal<boolean>(false);
   public battleDropReady = signal<boolean>(false);
 
   public battleDropGrace = signal<boolean>(false);
@@ -518,6 +522,7 @@ export class GameComponent implements OnInit, OnDestroy {
     this.rageModeActive.set(false);
     this.annihilationModeActive.set(false);
     this.infiniteBurnActive.set(false);
+    this.entranceActive.set(false);
     
     this.initPhysics();
     this.startGameLoop();
@@ -584,6 +589,8 @@ export class GameComponent implements OnInit, OnDestroy {
       this.gameState.sessionPlayTime.update(t => t + 1);
       
       if (this.gameState.currentGameMode() === 'battle' || this.gameState.currentGameMode() === 'ai_vs_ai') {
+          // Hold combat economy/drops/training during the cinematic entrance.
+          if (this.entranceActive()) return;
           this.battleTimer.set(this.gameState.sessionPlayTime());
           
           if (this.battleTimer() > 0 && this.battleTimer() % 10 === 0) {
@@ -639,7 +646,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
     const attackSpeed = this.gameState.currentStats().attackSpeed;
     this.attackInterval = setInterval(() => {
-      if (this.gameEnded() || this.isDead() || this.gameState.isPaused()) return;
+      if (this.gameEnded() || this.isDead() || this.gameState.isPaused() || this.entranceActive()) return;
       this.fireProjectile();
     }, 1000 / attackSpeed);
     
@@ -682,7 +689,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
     // Handle collisions
     Matter.Events.on(this.engine, 'collisionStart', (event) => {
-      if (this.isDead() || this.gameEnded()) return;
+      if (this.isDead() || this.gameEnded() || this.gameState.isPaused() || this.entranceActive()) return;
 
       const pairs = event.pairs;
       for (let i = 0; i < pairs.length; i++) {
@@ -918,6 +925,8 @@ export class GameComponent implements OnInit, OnDestroy {
 
     // Update Loop
     Matter.Events.on(this.engine, 'beforeUpdate', () => {
+      // Hard pause (pause menu / tab hidden): freeze everything.
+      if (this.gameState.isPaused()) { this.lastUpdateTime = Date.now(); return; }
       const now = Date.now();
       const delta = Math.min(0.1, (now - this.lastUpdateTime) / 1000); // exact real-time delta
       this.lastUpdateTime = now;
@@ -930,14 +939,16 @@ export class GameComponent implements OnInit, OnDestroy {
           this.holdCooldown.update(c => Math.max(0, c - delta));
       }
 
-      // 1. Sync hitbox to EXACT visual 3D position of Phoenix
-      if (!this.isDead()) {
+      // 1. Sync hitbox to EXACT visual 3D position of Phoenix.
+      // During the battle entrance the player body is driven by the entrance override instead,
+      // so skip the mouse-slave here (freezes player movement without a hard pause).
+      if (!this.isDead() && !this.entranceActive()) {
          const pxPos = this.gameState.phoenixScreenPos();
          Matter.Body.setPosition(this.playerBody, pxPos);
       }
       
       // 1.5 AI vs AI Bot Logic for Player
-      if (this.gameState.currentGameMode() === 'ai_vs_ai' && !this.isDead()) {
+      if (this.gameState.currentGameMode() === 'ai_vs_ai' && !this.isDead() && !this.entranceActive()) {
           const ai2SpeedMult = this.gameState.currentStats().speed || 1;
           const mouseSpeed = 3.0 * ai2SpeedMult;
           const currentMouse = this.gameState.ai2MousePos();
@@ -1150,6 +1161,9 @@ export class GameComponent implements OnInit, OnDestroy {
             if (enemy.position.y > window.innerHeight - 100) Matter.Body.setPosition(enemy, { x: enemy.position.x, y: window.innerHeight - 100 });
         }
         if (data.type === 'enemy_phoenix') {
+            // During the entrance the AI is flown in by the entrance RAF override; skip its
+            // combat brain (no targeting, no firing, no movement forces) until intro ends.
+            if (this.entranceActive()) return;
             const aiSpeedMult = this.battleAi.ai1.stats?.speed || 1;
             const mouseSpeed = 3.0 * aiSpeedMult; 
             const currentMouse = this.gameState.aiMousePos();
@@ -1456,8 +1470,10 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       
       this.resetCooldowns();
       
-      // We will set this flag to prevent combat loop until entrance finishes
-      this.gameState.isPaused.set(true); 
+      // Entrance is LIVE (not a hard pause): physics keeps running, but AI logic/attacks are
+      // disabled and the player can't move or take damage until the intro finishes.
+      this.entranceActive.set(true);
+      this.gameState.isPaused.set(false);
 
       // Spawn AI Phoenix off-screen top
       const scale = this.screenScale;
@@ -1482,9 +1498,12 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
       Matter.Composite.add(this.engine.world, enemyPhoenix);
       this.enemies.push(enemyPhoenix);
       
-      // Cinematic Entrance for AI
+      // Cinematic Entrance for AI.
+      // Spread spawn positions further apart (AI top third, player bottom third) so the two
+      // Phoenixes don't overlap on short viewports and trigger separation-force jitter.
       const aiStartY = -200;
-      const aiEndY = window.innerHeight / 2 - 150;
+      const aiEndY = Math.max(120, window.innerHeight * 0.22);
+      const playerEndY = Math.min(window.innerHeight - 120, window.innerHeight * 0.78);
       
       const duration = 1500;
       const startTime = Date.now();
@@ -1508,7 +1527,6 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
           // Animate Player from bottom to their start pos
           if (this.playerBody) {
               const playerStartY = window.innerHeight + 200;
-              const playerEndY = window.innerHeight / 2 + 150;
               const currentPlayerY = playerStartY + (playerEndY - playerStartY) * easeProgress;
               this.gameState.phoenixOverridePosition.set({ x: window.innerWidth / 2, y: currentPlayerY });
               Matter.Body.setPosition(this.playerBody, { x: window.innerWidth / 2, y: currentPlayerY });
@@ -1521,14 +1539,19 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
               this.gameState.aiPhoenixOverridePosition.set(null);
         if ((this as any).aiEntranceAnimId) cancelAnimationFrame((this as any).aiEntranceAnimId);
               this.gameState.phoenixOverridePosition.set(null);
+              // Sync the AI's post-entrance steering target to where it actually landed so it
+              // doesn't snap up to y=50 the instant the override clears.
+              this.gameState.aiMousePos.set({ x: window.innerWidth / 2, y: aiEndY });
+              this.gameState.aiPhoenixScreenPos.set({ x: window.innerWidth / 2, y: aiEndY });
               this.triggerImpactEffect(window.innerWidth / 2, currentAiY, true); // AI flash effect on landing
               if (this.playerBody) {
-                  this.triggerImpactEffect(window.innerWidth / 2, window.innerHeight / 2 + 150, false);
+                  this.triggerImpactEffect(window.innerWidth / 2, playerEndY, false);
               }
-              // 1 second standoff before combat begins
+              // 1 second standoff, then hand control + AI back on (no unpause needed).
               setTimeout(() => {
                   if (!this.gameEnded() && !this.isDead()) {
-                      this.gameState.isPaused.set(false);
+                      this.entranceActive.set(false);
+                      this.lastUpdateTime = Date.now();
                       this.lastClickTime = Date.now();
                   }
               }, 1000);
@@ -1974,7 +1997,12 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
                   Matter.Body.setVelocity(enemy, { x: 0, y: 0 }); 
                   
                   if (progress < 1) (this as any).aiEntranceAnimId = requestAnimationFrame(animateEntrance);
-                  else this.gameState.aiPhoenixOverridePosition.set(null);
+                  else {
+                      this.gameState.aiPhoenixOverridePosition.set(null);
+                      // Sync steering target to landing spot so the AI doesn't snap to y=50.
+                      this.gameState.aiMousePos.set({ x: window.innerWidth / 2, y: aiEndY });
+                      this.gameState.aiPhoenixScreenPos.set({ x: window.innerWidth / 2, y: aiEndY });
+                  }
               };
               requestAnimationFrame(animateEntrance);
               return;
@@ -2096,7 +2124,7 @@ const uniqueEntities = Array.from(new Map(entities.map(e => [e.id, e])).values()
 
 
   private takeDamage(amount: number) {
-    if (this.isDead() || this.gameEnded() || this.gameState.isRebirthing()) return;
+    if (this.isDead() || this.gameEnded() || this.gameState.isRebirthing() || this.gameState.isPaused() || this.entranceActive()) return;
     if (Date.now() < this.gameState.immortalUntil) return;
     
     if (this.gameState.hasCelestialShield() && this.celestialShieldActive()) {
